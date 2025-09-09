@@ -1,0 +1,29 @@
+{
+  "name": "investment-strategy-api",
+  "version": "1.0.0",
+  "description": "API for managing investment strategies and data.",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "babel-node src/app.js",
+    "dev": "nodemon src/app.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "mongoose": "^5.10.9",
+    "body-parser": "^1.19.0",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.12.1",
+    "@babel/preset-env": "^7.12.1",
+    "nodemon": "^2.0.7",
+    "@babel/register": "^7.12.1"
+  },
+  "babel": {
+    "presets": [
+      "@babel/preset-env"
+    ]
+  },
+  "author": "",
+  "license": "ISC"
+}

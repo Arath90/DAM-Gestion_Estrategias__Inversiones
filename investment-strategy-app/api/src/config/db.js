@@ -1,6 +1,6 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
-const dbURI = 'mongodb://localhost:27017/investment-strategy-app'; // Update with your MongoDB URI
+const dbURI = process.env.MONGO_URI;
 
 const connectDB = async () => {
     try {
@@ -15,4 +15,4 @@ const connectDB = async () => {
     }
 };
 
-module.exports = connectDB;
+export default connectDB;

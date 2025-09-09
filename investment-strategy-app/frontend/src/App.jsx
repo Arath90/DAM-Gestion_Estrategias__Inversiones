@@ -5,7 +5,7 @@ import Instruments from './pages/Instruments';
 import Signals from './pages/Signals';
 import Orders from './pages/Orders';
 import News from './pages/News';
-
+import InstrumentList from './components/InstrumentList';
 const App = () => {
   return (
     <Router>
@@ -19,5 +19,14 @@ const App = () => {
     </Router>
   );
 };
+
+function App() {
+  return (
+    <div >
+      <h1>Gestion de Estrategias de Inversion</h1>
+      <InstrumentList />
+    </div>
+  );
+}
 
 export default App;

@@ -12,7 +12,7 @@ GET {{api}}
 # Resultado esperado (ejemplo):
 # [
 #   {
-#     "_id": "650000000000000000000001",
+#     "_id": "68c0b5c4732e217f9d7dd8dc",
 #     "ib_conid": 123456789,
 #     "symbol": "AAPL",
 #     "sec_type": "STK",
@@ -27,10 +27,10 @@ GET {{api}}
 # ]
 
 ### GET - Obtener instrumento por ID
-GET {{api}}/650000000000000000000001
+GET {{api}}/68c0b5c4732e217f9d7dd8dc
 # Resultado esperado (ejemplo):
 # {
-#   "_id": "650000000000000000000001",
+#   "_id": "68c0b5c4732e217f9d7dd8dc",
 #   "ib_conid": 123456789,
 #   "symbol": "AAPL",
 #   "sec_type": "STK",
@@ -48,7 +48,7 @@ GET {{api}}/650000000000000000000001
 # Content-Type: application/json
 
 # {
-#   "ib_conid": 123456789,
+#   "ib_conid": 90c12s99asdas00001,
 #   "symbol": "AAPL",
 #   "sec_type": "STK",
 #   "exchange": "NASDAQ",

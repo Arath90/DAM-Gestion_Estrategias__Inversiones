@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import 'bootstrap/dist/css/bootstrap.min.css';
 
 function InstrumentList() {
   const [instruments, setInstruments] = useState([]);
@@ -10,15 +11,30 @@ function InstrumentList() {
   }, []);
 
   return (
-    <div>
+    <div className="container mt-4">
       <h2>Instrumentos</h2>
-      <ul>
-        {instruments.map(inst => (
-          <li key={inst._id}>
-            {inst.symbol} - {inst.exchange} ({inst.currency})
-          </li>
-        ))}
-      </ul>
+      <table className="table table-striped table-bordered">
+        <thead className="table-dark">
+          <tr>
+            <th title="Identificador único de IBKR">CONID</th>
+            <th title="Símbolo bursátil del instrumento">Símbolo</th>
+            <th title="Bolsa donde cotiza">Bolsa</th>
+            <th title="Moneda de cotización">Moneda</th>
+            <th title="Fecha del último trade">Fecha</th>
+          </tr>
+        </thead>
+        <tbody>
+          {instruments.map(inst => (
+            <tr key={inst._id}>
+              <td>{inst.ib_conid}</td>
+              <td>{inst.symbol}</td>
+              <td>{inst.exchange}</td>
+              <td>{inst.currency}$</td>
+              <td>{inst.last_trade_date?.slice(0,10)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

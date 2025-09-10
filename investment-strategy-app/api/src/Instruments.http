@@ -7,54 +7,10 @@
 
 @api = http://localhost:3000/api/instruments
 
-### GET - Obtener todos los instrumentos
+
 GET {{api}}
-# Resultado esperado (ejemplo):
-# [
-#   {
-#     "_id": "68c0b5c4732e217f9d7dd8dc",
-#     "ib_conid": 123456789,
-#     "symbol": "AAPL",
-#     "sec_type": "STK",
-#     "exchange": "NASDAQ",
-#     "currency": "USD",
-#     "multiplier": "1",
-#     "last_trade_date": "2025-09-09T00:00:00.000Z",
-#     "trading_class": "NMS",
-#     "underlying_conid": null,
-#     "created_at": "2025-09-09T12:00:00.000Z"
-#   }
-# ]
+###
+# 
 
-### GET - Obtener instrumento por ID
-GET {{api}}/68c0b5c4732e217f9d7dd8dc
-# Resultado esperado (ejemplo):
-# {
-#   "_id": "68c0b5c4732e217f9d7dd8dc",
-#   "ib_conid": 123456789,
-#   "symbol": "AAPL",
-#   "sec_type": "STK",
-#   "exchange": "NASDAQ",
-#   "currency": "USD",
-#   "multiplier": "1",
-#   "last_trade_date": "2025-09-09T00:00:00.000Z",
-#   "trading_class": "NMS",
-#   "underlying_conid": null,
-#   "created_at": "2025-09-09T12:00:00.000Z"
-# }
 
-### POST - Crear nuevo instrumento
-# POST {{api}}
-# Content-Type: application/json
 
-# {
-#   "ib_conid": 90c12s99asdas00001,
-#   "symbol": "AAPL",
-#   "sec_type": "STK",
-#   "exchange": "NASDAQ",
-#   "currency": "USD",
-#   "multiplier": "1",
-#   "last_trade_date": "2025-09-09",
-#   "trading_class": "NMS",
-#   "underlying_conid": null
-# }

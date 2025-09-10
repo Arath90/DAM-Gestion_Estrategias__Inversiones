@@ -1,0 +1,86 @@
+.instrument-list-container {
+  background: #232b3b;
+  border-radius: 16px;
+  padding: 32px 28px 24px 28px;
+  margin-top: 10px;
+  color: #fff;
+  box-shadow: 0 2px 8px 0 rgba(0,0,0,0.08);
+}
+.instrument-list-title {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-bottom: 18px;
+  color: #e3e7ef;
+}
+.instrument-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: transparent;
+}
+.instrument-table th, .instrument-table td {
+  padding: 12px 10px;
+  text-align: left;
+}
+.instrument-table th {
+  background: #181f2a;
+  color: #b2b9c6;
+  font-weight: 500;
+  font-size: 1.05rem;
+  border-bottom: 2px solid #2c3446;
+}
+.instrument-table tr {
+  transition: background 0.15s;
+}
+.instrument-table tbody tr:hover {
+  background: #2c3446;
+}
+.instrument-table td {
+  border-bottom: 1px solid #232b3b;
+  font-size: 1.04rem;
+  color: #e3e7ef;
+}
+.instrument-table td:last-child, .instrument-table th:last-child {
+  text-align: right;
+}
+.instrument-table thead tr {
+  border-radius: 8px 8px 0 0;
+}
+.instrument-table tr:last-child td {
+  border-bottom: none;
+}
+@media (max-width: 900px) {
+  .instrument-list-container {
+    padding: 12px 4px;
+  }
+  .instrument-table th, .instrument-table td {
+    padding: 7px 4px;
+    font-size: 0.95rem;
+  }
+}
+@media (max-width: 700px) {
+  .instrument-list-container {
+    padding: 4px 0;
+    border-radius: 0;
+    margin-top: 4px;
+  }
+  .instrument-list-title {
+    font-size: 1.05rem;
+    margin-bottom: 8px;
+  }
+  .instrument-table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    font-size: 0.92rem;
+  }
+  .instrument-table thead, .instrument-table tbody, .instrument-table tr {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+  }
+  .instrument-table th, .instrument-table td {
+    padding: 5px 2px;
+    font-size: 0.9rem;
+    word-break: break-word;
+  }
+}

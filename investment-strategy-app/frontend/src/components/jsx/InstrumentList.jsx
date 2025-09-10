@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import 'bootstrap/dist/css/bootstrap.min.css';
+import '../css/InstrumentList.css';
 
 function InstrumentList() {
   const [instruments, setInstruments] = useState([]);
@@ -11,10 +11,10 @@ function InstrumentList() {
   }, []);
 
   return (
-    <div className="container mt-4">
-      <h2>Instrumentos</h2>
-      <table className="table table-striped table-bordered">
-        <thead className="table-dark">
+    <div className="instrument-list-container">
+      <div className="instrument-list-title">Instrumentos Bursátiles</div>
+      <table className="instrument-table">
+        <thead>
           <tr>
             <th title="Identificador único de IBKR">CONID</th>
             <th title="Símbolo bursátil del instrumento">Símbolo</th>

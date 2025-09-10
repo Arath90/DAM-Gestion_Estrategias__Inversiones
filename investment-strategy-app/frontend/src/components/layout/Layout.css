@@ -1,0 +1,40 @@
+.dashboard-container {
+    display: flex;
+    height: 100%;
+    width: 100%;
+    background: #181f2a;
+    color: #fff;
+    font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.main-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    padding: 36px 40px 24px 40px;
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+    .main-content {
+      padding: 24px;
+      gap: 20px;
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-container {
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+    .main-content {
+      padding: 16px;
+      gap: 16px;
+      height: calc(100% - 60px);
+      overflow-y: auto;
+    }
+}

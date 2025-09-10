@@ -1,0 +1,50 @@
+.dashboard-card {
+    background: #232b3b;
+    border-radius: 16px;
+    padding: 28px 24px 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.08);
+  }
+  
+  .card-title {
+    font-size: 1.05rem;
+    color: #b2b9c6;
+  }
+  
+  .card-value {
+    font-size: 2rem;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  
+  .card-sub {
+    font-size: 1rem;
+    color: #7a88a1;
+  }
+  
+  .card-sub.green {
+    color: #3eea7a;
+  }
+  
+  .card-sub.red {
+    color: #ff5c5c;
+  }
+  
+  @media (max-width: 768px) {
+    .dashboard-card {
+        padding: 16px;
+        gap: 4px;
+    }
+    .card-title {
+        font-size: 0.9rem;
+    }
+    .card-value {
+        font-size: 1.5rem;
+    }
+    .card-sub {
+        font-size: 0.85rem;
+    }
+  }
+  

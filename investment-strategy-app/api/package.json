@@ -4,8 +4,8 @@
   "description": "API for managing investment strategies and data.",
   "main": "src/app.js",
   "scripts": {
-    "start": "babel-node src/app.js",
-    "dev": "nodemon src/app.js"
+    "start": "babel-node src/index.js",
+    "dev": "nodemon src/index.js"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",

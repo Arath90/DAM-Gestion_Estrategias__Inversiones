@@ -8,16 +8,20 @@
     "dev": "nodemon src/app.js"
   },
   "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "body-parser": "^1.19.0",
+    "boom": "^7.3.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
     "express": "^4.17.1",
     "mongoose": "^5.10.9",
-    "body-parser": "^1.19.0",
-    "cors": "^2.8.5"
+    "morgan": "^1.10.1"
   },
   "devDependencies": {
     "@babel/cli": "^7.12.1",
     "@babel/preset-env": "^7.12.1",
-    "nodemon": "^2.0.7",
-    "@babel/register": "^7.12.1"
+    "@babel/register": "^7.12.1",
+    "nodemon": "^2.0.7"
   },
   "babel": {
     "presets": [
@@ -25,5 +29,6 @@
     ]
   },
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "type": "module"
 }

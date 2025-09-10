@@ -1,42 +1,38 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-const routes = require('./routes');
-const dbConfig = require('./config/db');
+import express from 'express';
+import morgan from 'morgan';
+import cors from 'cors';
 import dotenv from 'dotenv';
-import connectDB from './config/db';
-import instrumentRoutes from './routes/instrumentRoutes.js';
+import config from './config/config.js';
+import routeAPI from './routes/index.js'; // Ajusta el path si es necesario
+import './config/database.config.js'; // Conexión a MongoDB
+
 dotenv.config();
 
-// Connect to database
-connectDB();
-
 const app = express();
-const PORT = process.env.PORT || 5000;
 
-app.use('/api/instruments', instrumentRoutes);
-// Middleware
+// Settings
+app.set('port', config.PORT);
+
+// Middlewares
 app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(morgan ('dev'));
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
-// Database connection
-mongoose.connect(dbConfig.url, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => {
-  console.log('MongoDB connected');
-})
-.catch(err => {
-  console.error('MongoDB connection error:', err);
+// Rutas de prueba
+const api = config.API_URL || '/api';
+app.get(`${api}`, (req, res) => {
+    res.send(
+        `<h1>RESTful running in root (página base)</h1> <p> Inversiones: <b>${api}/api-docs</b> for more information.</p>`
+    );
+});
+app.get('/DrFIC', (req, res) => {
+    res.send(
+        `<h1>RESTful running in NIGGA CHAIN AI LAYER 2 (como comprobacion y prueba)</h1> <p> Inversiones: <b>${api}/api-docs</b> for more information.</p>`
+    );
 });
 
-// Routes
-app.use('/api', routes);
+// Rutas principales de la API
+routeAPI(app);
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+export default app;

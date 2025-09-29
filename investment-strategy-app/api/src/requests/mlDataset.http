@@ -1,0 +1,33 @@
+@api=http://localhost:3000/api/ml-datasets
+@_id=68dab5ae1c63ee44702ca3e6  
+### listar
+GET {{api}}
+
+### por id
+GET {{api}}/{{_id}}
+
+### crear
+POST {{api}}
+Content-Type: application/json
+
+{
+  "name": "dataset_AAPL_1h_v1",
+  "description": "Features OHLCV y EMA/RSI para AAPL 1h",
+  "spec_json": {
+    "symbol": "AAPL",
+    "timeframe": "1h",
+    "features": ["open","high","low","close","volume","ema_20","rsi_14"]
+  },
+  "instrument_conid": 123456789
+}
+
+### actualizar
+PUT {{api}}/{{_id}}
+Content-Type: application/json
+
+{ 
+  "description": "Actualizado: agrega MACD" 
+}
+
+### borrar
+DELETE {{api}}/{{_id}}

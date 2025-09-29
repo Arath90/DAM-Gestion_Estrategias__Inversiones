@@ -3,7 +3,8 @@ import '../css/InstrumentList.css';
 
 function InstrumentList() {
   const [instruments, setInstruments] = useState([]);
-
+//fetch no va a ser la tecnología más adecuada para producción, pero es suficiente para este ejemplo
+//después se puede cambiar por axios o similar.
   useEffect(() => {
     fetch('http://localhost:3000/api/instruments')
       .then(res => res.json())

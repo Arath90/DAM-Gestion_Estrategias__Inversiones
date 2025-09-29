@@ -1,0 +1,33 @@
+@host=http://localhost:3000
+@api={{host}}/api/risk-limits
+@id=68dac1090d2d50292458017c
+
+### crear
+POST {{api}}
+Content-Type: application/json
+
+{
+  "account": "DU1234567",
+  "max_daily_loss": 500.0,
+  "max_position_value": 100000.0,
+  "max_order_size": 1000,
+  "max_gamma": 2500,
+  "max_vega": 5000
+}
+
+### listar
+GET {{api}}
+
+### por id
+GET {{api}}/{{id}}
+
+### actualizar
+PUT {{api}}/{{id}}
+Content-Type: application/json
+
+{
+  "max_daily_loss": 600.0
+}
+
+### borrar
+DELETE {{api}}/{{id}}

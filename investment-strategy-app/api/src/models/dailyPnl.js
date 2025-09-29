@@ -1,27 +1,21 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
-const dailyPnlSchema = new mongoose.Schema({
-  account: {
-    type: String,
-    required: true,
-    unique: true
+const dailyPnlSchema = new mongoose.Schema(
+  {
+    account: { type: String, required: true, trim: true }, // cuenta del broker
+    date: { type: Date, required: true },                  // día (UTC) del PnL
+    realized_pnl: { type: Number, required: true, default: 0 },
+    unrealized_pnl: { type: Number, required: true, default: 0 },
   },
-  date: {
-    type: Date,
-    required: true
-  },
-  realized_pnl: {
-    type: Number,
-    required: true
-  },
-  unrealized_pnl: {
-    type: Number,
-    required: true
+  {
+    timestamps: true,
+    versionKey: false,
   }
-}, {
-  timestamps: true
-});
+);
+
+// Un registro por (account, date)
+dailyPnlSchema.index({ account: 1, date: 1 }, { unique: true });
+dailyPnlSchema.index({ date: -1 });
 
 const DailyPnl = mongoose.model('DailyPnl', dailyPnlSchema);
-
-module.exports = DailyPnl;
+export default DailyPnl;

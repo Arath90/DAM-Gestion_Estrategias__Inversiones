@@ -1,0 +1,38 @@
+@host=http://localhost:3000
+@api={{host}}/api/orders
+@id=68dac0f10d2d50292458017a
+@instrument_id=68c0b5c4732e217f9d7dd8dc
+
+### crear
+POST {{api}}
+Content-Type: application/json
+
+{
+  "account": "DU1234567",
+  "instrument_id": "{{instrument_id}}",
+  "side": "BUY",
+  "order_type": "LMT",
+  "qty": 10,
+  "limit_price": 185.25,
+  "tif": "DAY",
+  "status": "NEW",
+  "client_oid": "CL-OID-001"
+}
+
+### listar
+GET {{api}}
+
+### por id
+GET {{api}}/{{id}}
+
+### actualizar
+PUT {{api}}/{{id}}
+Content-Type: application/json
+
+{
+  "status": "PENDING",
+  "last_update": "2025-09-29T17:00:00.000Z"
+}
+
+### borrar
+DELETE {{api}}/{{id}}

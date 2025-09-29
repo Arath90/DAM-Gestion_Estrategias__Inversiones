@@ -27,7 +27,10 @@ import config from '../config/config.js';
 // Import Routes
 import instrumentRoutes from './instrument.routes.js';
 import mlDatasetRoutes from './mlDataset.routes.js';
-
+import dailyPnlRoutes from './dailyPnl.routes.js';
+import executions from './execution.routes.js';
+import orderRoutes from './order.routes.js';
+import riskLimitRoutes from './riskLimit.routes.js';
 const routerAPI = (app) => { 
   const router = Router(); 
   const api = config.API_URL || '/api'; 
@@ -36,6 +39,10 @@ const routerAPI = (app) => {
   // Routes 
   router.use('/instruments', instrumentRoutes);//Instruments
   router.use('/ml-datasets', mlDatasetRoutes);//mlDataset
+  router.use('/daily-pnl', dailyPnlRoutes);
+  router.use('/executions',executions)
+  router.use('/orders', orderRoutes);
+  router.use('/risk-limits', riskLimitRoutes);
   return router; 
 }; 
 

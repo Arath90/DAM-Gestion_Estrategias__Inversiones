@@ -1,0 +1,35 @@
+@host=http://localhost:3000
+@api={{host}}/api/executions
+@id=1
+
+### listar
+GET {{api}}
+
+### por id
+GET {{api}}/{{id}}
+
+### crear
+POST {{api}}
+Content-Type: application/json
+
+{
+  "exec_id": "IB_123456789",
+  "order_id": "{{id}}",
+  "ts": "2025-09-29T10:00:00.000Z",
+  "price": 185.23,
+  "qty": 10,
+  "commission": 1.2,
+  "pnl": 12.5
+}
+
+### actualizar
+PUT {{api}}/{{id}}
+Content-Type: application/json
+
+{
+  "commission": 1.0,
+  "pnl": 13.2
+}
+
+### borrar
+DELETE {{api}}/{{id}}

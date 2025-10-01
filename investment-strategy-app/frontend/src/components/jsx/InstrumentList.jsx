@@ -6,7 +6,7 @@ function InstrumentList() {
 //fetch no va a ser la tecnología más adecuada para producción, pero es suficiente para este ejemplo
 //después se puede cambiar por axios o similar.
   useEffect(() => {
-    fetch('http://localhost:3000/api/instruments')
+    fetch('http://localhost:4004/odata/v4/catalog/Instruments')
       .then(res => res.json())
       .then(data => setInstruments(data));
   }, []);

@@ -31,6 +31,9 @@ import dailyPnlRoutes from './dailyPnl.routes.js';
 import executions from './execution.routes.js';
 import orderRoutes from './order.routes.js';
 import riskLimitRoutes from './riskLimit.routes.js';
+import positionRoutes from './position.routes.js';
+import signalRoutes from './signal.routes.js';
+
 const routerAPI = (app) => { 
   const router = Router(); 
   const api = config.API_URL || '/api'; 
@@ -43,6 +46,9 @@ const routerAPI = (app) => {
   router.use('/executions',executions)
   router.use('/orders', orderRoutes);
   router.use('/risk-limits', riskLimitRoutes);
+  router.use('/positions', positionRoutes);
+  router.use('/signals', signalRoutes);
+
   return router; 
 }; 
 

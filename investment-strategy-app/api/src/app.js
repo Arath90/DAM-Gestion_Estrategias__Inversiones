@@ -23,12 +23,17 @@ app.use(express.urlencoded({ extended: false }));
 const api = config.API_URL || '/api';
 app.get(`${api}`, (req, res) => {
     res.send(
-        `<h1>RESTful running in root (página base)</h1> <p> Inversiones: <b>${api}/api-docs</b> for more information.</p>`
-    );
-});
-app.get('/DrFIC', (req, res) => {
-    res.send(
-        `<h1>RESTful running in NIGGA CHAIN AI LAYER 2 (como comprobacion y prueba)</h1> <p> Inversiones: <b>${api}/api-docs</b> for more information.</p>`
+        `<h1>Por ahora los siguientes modelos pueden ser accesados para el Proyecto </h1>
+            <ul>
+                <li><a href="${api}/instruments">${api}/instruments</a></li>
+                <li><a href="${api}/daily-pnl">${api}/daily-pnl</a></li>
+                <li><a href="${api}/executions">${api}/executions</a></li>
+                <li><a href="${api}/ml-datasets">${api}/ml-datasets</a></li>
+                <li><a href="${api}/orders">${api}/orders</a></li>
+                <li><a href="${api}/risk-limits">${api}/risk-limits</a></li>
+            </ul>
+        `
+        
     );
 });
 

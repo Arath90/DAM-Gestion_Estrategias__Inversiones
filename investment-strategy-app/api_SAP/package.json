@@ -1,0 +1,23 @@
+{
+  "name": "investment-strategy-cap",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "cds-serve",          
+    "dev": "cds watch",
+    "build": "cds build"
+  },
+  "dependencies": {
+    "@sap/cds": "^9",
+    "mongoose": "^8",
+    "cors": "^2"
+  },
+  "cds": {
+    "folders": {
+      "db":  "src/api/models",   
+      "srv": "src/api/routes"      
+    },
+    "requires": {
+      "db": false            
+    }
+  }
+}

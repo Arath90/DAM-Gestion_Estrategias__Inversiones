@@ -1,0 +1,61 @@
+@host=http://localhost:4004/odata/v4/catalog
+
+GET {{host}}/Instruments
+
+### Instruments
+POST {{host}}/Instruments
+Content-Type: application/json
+
+{
+  "ib_conid": 265598,
+  "symbol": "AAPL",
+  "sec_type": "STK",
+  "exchange": "NASDAQ",
+  "currency": "USD"
+}
+
+
+
+
+GET {{host}}/Instruments?$top=5
+
+### MLDatasets
+POST {{host}}/MLDatasets
+Content-Type: application/json
+
+{
+  "name": "dataset_AAPL_1h_v1",
+  "description": "OHLCV + EMA/RSI",
+  "spec_json": {"symbol":"AAPL","timeframe":"1h","features":["open","close","ema20","rsi14"]},
+  "instrument_conid": 265598
+}
+
+GET {{host}}/MLDatasets
+
+### Orders
+POST {{host}}/Orders
+Content-Type: application/json
+
+{
+  "account": "DU1234567",
+  "instrument_ID": "REEMPLAZA_OBJECTID_DE_INSTRUMENT",
+  "side": "BUY",
+  "order_type": "LMT",
+  "qty": 10,
+  "limit_price": 185.25,
+  "tif": "DAY",
+  "status": "NEW",
+  "client_oid": "CL-OID-001"
+}
+
+### Candles (único por instrument+bar+ts)
+POST {{host}}/Candles
+Content-Type: application/json
+
+{
+  "instrument_ID": "REEMPLAZA_OBJECTID_DE_INSTRUMENT",
+  "bar_size": "1h",
+  "ts": "2025-09-29T10:00:00Z",
+  "open": 184.1, "high": 186.0, "low": 183.9, "close": 185.2,
+  "volume": 1203450
+}

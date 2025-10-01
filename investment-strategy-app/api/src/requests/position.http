@@ -1,0 +1,33 @@
+@host=http://localhost:3000
+@api={{host}}/api/positions
+@id=21
+@instrument_id=68c0b5c4732e217f9d7dd8dc
+GET {{api}}
+### crear
+POST {{api}}
+Content-Type: application/json
+
+{
+  "account": "DU1234567",
+  "instrument_id": "{{instrument_id}}",
+  "qty": 25,
+  "avg_price": 184.50
+}
+
+### listar
+GET {{api}}
+
+### por id
+GET {{api}}/{{id}}
+
+### actualizar
+PUT {{api}}/{{id}}
+Content-Type: application/json
+
+{
+  "qty": 30,
+  "avg_price": 185.00
+}
+
+### borrar
+DELETE {{api}}/{{id}}

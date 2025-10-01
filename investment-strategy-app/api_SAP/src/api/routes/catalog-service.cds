@@ -1,4 +1,6 @@
+//catalog-service.cds
 using inv from '../models/schema';
+
 
 @impl: './handlers.js'
 service CatalogService {

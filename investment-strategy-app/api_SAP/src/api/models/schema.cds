@@ -14,7 +14,15 @@ entity Instruments {
       trading_class    : String;
       underlying_conid : Integer;
       created_at       : DateTime;
+
+      toCandles        : Composition of many Candles on toCandles.instrument_ID = $self.ID;
+      toSignals        : Composition of many Signals  on toSignals.instrument_ID = $self.ID;
+      toOrders         : Composition of many Orders on toOrders.instrument_id = $self.ID;
+      toPositions      : Composition of many Positions on toPositions.instrument_ID = $self.ID;
+      toOptionQuotes   : Composition of many OptionQuotes on toOptionQuotes.instrument_id = $self.ID;
+      toExecutions     : Association to many Executions;
 }
+
 
 @cds.persistence.skip
 entity MLDatasets {
@@ -146,15 +154,16 @@ entity Candles {
 }
 
 /* === Tus modelos nuevos === */
-@cds.persistence.skip entity MLModels {
-  key ID: String;
-  name: String;
-  algo: String;
-  trainedAt: DateTime;
-  metricsJson: LargeString;
-  featureImportance: LargeString;
-  createdAt: DateTime;
-  updatedAt: DateTime;
+@cds.persistence.skip
+entity MLModels {
+  key ID                : String;
+      name              : String;
+      algo              : String;
+      trainedAt         : DateTime;
+      metricsJson       : LargeString;
+      featureImportance : LargeString;
+      createdAt         : DateTime;
+      updatedAt         : DateTime;
 }
 
 @cds.persistence.skip

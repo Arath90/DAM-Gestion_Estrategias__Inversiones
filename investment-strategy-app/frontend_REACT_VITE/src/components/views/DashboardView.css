@@ -41,4 +41,6 @@
         font-size: 1rem;
     }
   }
-  
+  .dashboard-cards { display:grid; grid-template-columns:repeat(4,minmax(220px,1fr)); gap:16px; }
+.dashboard-portfolio { margin-top:24px; }
+.portfolio-chart-placeholder { background:#0b1220; border:1px solid #263042; border-radius:16px; padding:12px; height:220px; display:flex; align-items:center; }

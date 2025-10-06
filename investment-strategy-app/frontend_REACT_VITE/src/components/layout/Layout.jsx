@@ -1,17 +1,16 @@
-//src/components/layout/Layout.jsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useSidebar } from '../../hooks/useSidebar';
 import { useView } from '../../hooks/useView';
 import { navigationItems } from '../../config/navigationConfig';
 import Sidebar from './Sidebar';
 import Header from './Header';
-import DashboardView from '../views/DashboardView';
-import InstrumentList from '../jsx/InstrumentList';
+import DashboardLean from '../views/DashboardLean';
+import InstrumentsFast from '../views/InstrumentsFast';
 import './Layout.css';
 
 const viewComponents = {
-  dashboard: DashboardView,
-  instruments: InstrumentList,
+  dashboard: DashboardLean,
+  instruments: InstrumentsFast,
 };
 
 const Layout = () => {
@@ -25,8 +24,14 @@ const Layout = () => {
 
   const { activeView, handleViewChange } = useView('dashboard');
 
-  const CurrentView = viewComponents[activeView] || DashboardView;
+  const CurrentView = viewComponents[activeView] || DashboardLean;
   const currentViewInfo = navigationItems.find(item => item.id === activeView) || { title: 'Dashboard' };
+
+  useEffect(() => {
+    const onKey = (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') e.preventDefault(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   return (
     <div className="dashboard-container">

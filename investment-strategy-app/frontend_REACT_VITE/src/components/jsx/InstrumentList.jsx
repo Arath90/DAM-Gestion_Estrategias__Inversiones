@@ -1,15 +1,19 @@
 //src/components/jsx/InstrumentList.jsx
 import { useEffect, useState } from 'react';
+import axios from 'axios'; // <-- Importa Axios
 import '../css/InstrumentList.css';
 
 function InstrumentList() {
   const [instruments, setInstruments] = useState([]);
-//fetch no va a ser la tecnología más adecuada para producción, pero es suficiente para este ejemplo
-//después se puede cambiar por axios o similar.
+// OData: la respuesta tiene un objeto 'value' que contiene los datos
+//usando Axios para la llamada HTTP GET a la API OData de instrumentos
   useEffect(() => {
-    fetch('http://localhost:4004/odata/v4/catalog/Instruments')
-      .then(res => res.json())
-      .then(data => setInstruments(data.value)); // <-- usa data.value
+    axios.get('http://localhost:4004/odata/v4/catalog/Instruments')
+      .then(res => setInstruments(res.data.value)) // OData: usa res.data.value
+      .catch(err => {
+        console.error('Error fetching instruments:', err);
+        setInstruments([]);
+      });
   }, []);
 
   return (

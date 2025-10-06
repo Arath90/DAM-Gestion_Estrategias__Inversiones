@@ -1,41 +1,42 @@
-//src/services/odata.js
-import api from '../config/apiClient'
-export const odataNormalize = (data) => (Array.isArray(data?.value) ? data.value : data)
-export const key = (id) => `(ID='${encodeURIComponent(id)}')`
+// src/services/odata.js
+import api from '../config/apiClient';
 
-export const odataList = async (entity, { top = 20, skip = 0, filter, orderby } = {}) => {
-  const q = new URLSearchParams()
-  if (top) q.set('$top', top)
-  if (skip) q.set('$skip', skip)
-  if (filter) q.set('$filter', filter)
-  if (orderby) q.set('$orderby', orderby)
-  const url = `/${entity}${q.toString() ? `?${q}` : ''}`
-  const { data } = await api.get(url)
-  return odataNormalize(data)
-}
+// --- Utilidades OData ---
+const keyV2 = (id) => `(ID='${encodeURIComponent(id)}')`;
+const normalize = (data) => (Array.isArray(data?.value) ? data.value : data);
+const ensureArray = (x) => (Array.isArray(x) ? x : []);
 
-export const odataGet = async (entity, id) => {
-  const { data } = await api.get(`/${entity}${key(id)}`)
-  return data
-}
-export const odataCreate = async (entity, payload) => {
-  const { data } = await api.post(`/${entity}`, payload)
-  return data
-}
-export const odataPatch = async (entity, id, payload) => {
-  const { data } = await api.patch(`/${entity}${key(id)}`, payload)
-  return data
-}
-export const odataDelete = async (entity, id) => {
-  await api.delete(`/${entity}${key(id)}`)
-  return true
-}
+// --- CRUD genérico ---
+const createCrudApiService = (entity) => ({
+  list: async ({ top = 20, skip = 0, filter, orderby } = {}) => {
+    const q = new URLSearchParams();
+    if (top != null) q.set('$top', top);
+    if (skip) q.set('$skip', skip);
+    if (filter) q.set('$filter', filter);
+    if (orderby) q.set('$orderby', orderby);
+    const url = `/${entity}${q.toString() ? `?${q}` : ''}`;
+    const { data } = await api.get(url);
+    return ensureArray(normalize(data));
+  },
+  get: async (id) => (await api.get(`/${entity}${keyV2(id)}`)).data,
+  create: async (payload) => (await api.post(`/${entity}`, payload)).data,
+  update: async (id, payload) => (await api.patch(`/${entity}${keyV2(id)}`, payload)).data,
+  remove: async (id) => { await api.delete(`/${entity}${keyV2(id)}`); return true; },
+});
 
-/* APIs específicas */
-export const InstrumentsAPI = {
-  list: (opts) => odataList('Instruments', opts),
-  get: (id) => odataGet('Instruments', id),
-  create: (p) => odataCreate('Instruments', p),
-  update: (id, p) => odataPatch('Instruments', id, p),
-  remove: (id) => odataDelete('Instruments', id),
-}
+// --- Exporta todas las entidades ---
+export const InstrumentsAPI              = createCrudApiService('Instruments');
+export const MLDatasetsAPI               = createCrudApiService('MLDatasets');
+export const ExecutionsAPI               = createCrudApiService('Executions');
+export const DailyPnlsAPI                = createCrudApiService('DailyPnls');
+export const OrdersAPI                   = createCrudApiService('Orders');
+export const RiskLimitsAPI               = createCrudApiService('RiskLimits');
+export const PositionsAPI                = createCrudApiService('Positions');
+export const SignalsAPI                  = createCrudApiService('Signals');
+export const BacktestsAPI                = createCrudApiService('Backtests');
+export const CandlesAPI                  = createCrudApiService('Candles');
+export const MLModelsAPI                 = createCrudApiService('MLModels');
+export const NewsArticlesAPI             = createCrudApiService('NewsArticles');
+export const OptionChainSnapshotsAPI     = createCrudApiService('OptionChainSnapshots');
+export const OptionChainSnapshotItemsAPI = createCrudApiService('OptionChainSnapshotItems');
+export const OptionQuotesAPI             = createCrudApiService('OptionQuotes');

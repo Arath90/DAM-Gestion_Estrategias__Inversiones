@@ -1,3 +1,4 @@
+//src/config/navigationConfig.js
 export const navigationItems = [
     { id: 'dashboard', title: 'Inicio', icon: '🏠', label: 'home' },
     { id: 'instruments', title: 'Instrumentos', icon: '💼', label: 'instruments' },

@@ -1,5 +1,5 @@
+//src/services/odata.js
 import api from '../config/apiClient'
-
 export const odataNormalize = (data) => (Array.isArray(data?.value) ? data.value : data)
 export const key = (id) => `(ID='${encodeURIComponent(id)}')`
 

@@ -1,3 +1,4 @@
+//src/components/jsx/InstrumentList.jsx
 import { useEffect, useState } from 'react';
 import '../css/InstrumentList.css';
 
@@ -8,7 +9,7 @@ function InstrumentList() {
   useEffect(() => {
     fetch('http://localhost:4004/odata/v4/catalog/Instruments')
       .then(res => res.json())
-      .then(data => setInstruments(data));
+      .then(data => setInstruments(data.value)); // <-- usa data.value
   }, []);
 
   return (
@@ -26,7 +27,7 @@ function InstrumentList() {
         </thead>
         <tbody>
           {instruments.map(inst => (
-            <tr key={inst._id}>
+            <tr key={inst.ID}>
               <td>{inst.ib_conid}</td>
               <td>{inst.symbol}</td>
               <td>{inst.exchange}</td>

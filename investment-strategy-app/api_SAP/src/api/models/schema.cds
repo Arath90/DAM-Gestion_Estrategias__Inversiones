@@ -1,5 +1,5 @@
 namespace inv;
-
+//schema.cds
 /* ===== Core ===== */
 @cds.persistence.skip
 entity Instruments {

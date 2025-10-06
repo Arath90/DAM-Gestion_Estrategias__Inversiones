@@ -1,3 +1,4 @@
+//src/hooks/useSidebar.js
 import { useState, useCallback } from 'react';
 
 export const useSidebar = () => {

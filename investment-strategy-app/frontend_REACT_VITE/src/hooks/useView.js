@@ -1,3 +1,4 @@
+//src/hooks/useView.js
 import { useState, useCallback } from 'react';
 
 export const useView = (initialView = 'dashboard') => {

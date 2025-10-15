@@ -11,7 +11,15 @@
 //=============================================
 //      IMPORTS NECESARIOS
 //=============================================
+const mongoose = require('mongoose');
+const cds = require('@sap/cds'); // <- por si quieres throw cds.error
 const { BITACORA, DATA, AddMSG, OK, FAIL } = require('../../middlewares/respPWA.handler');
+
+const env = (typeof process !== 'undefined' && process.env) ? process.env : {};
+const isStrict = ['true', '1', 'yes', 'on'].includes(String(env.STRICT_HTTP_ERRORS || '').toLowerCase());
+const debugLogs = ['true', '1', 'yes', 'on'].includes(String(env.DEBUG_LOGS || '').toLowerCase());
+const includeBita = ['true', '1', 'yes', 'on'].includes(String(env.INCLUDE_BITACORA_IN_ERROR || '').toLowerCase());
+
 
 //--------------------------------------------
 // FUNCIONES DE MAPEADO ENTRE CDS Y MONGODB
@@ -42,6 +50,10 @@ function readQueryBounds(req) {
   const skip = Number(req._query?.$skip ?? 0);
   return { top, skip };
 }
+//isValidId verifica si un ID es un ObjectId válido de MongoDB
+function isValidId(id) {//un ID válido es una cadena que cumple con el formato de ObjectId de MongoDB
+  return typeof id === 'string' && mongoose.isValidObjectId(id);//
+}
 
 //-----------------------------------
 // FUNCIÓN ENVOLVENTE: wrapOperation()
@@ -62,12 +74,13 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
 
   //metadatos iniciales
   bitacora.process = process;//se asigna el proceso a la bitácora, si esta no definido se asigna una cadena vacía.
-  const env = process?.env || {};//se obtienen las variables de entorno para obtener el nombre de la base de datos 
+  const env = (typeof process !== 'undefined' && process.env) ? process.env : {};//se obtiene el objeto env de process si está definido, de lo contrario se usa un objeto vacío
   bitacora.dbServer = env.MONGO_INV_DB || env.MONGODB_DB || env.DATABASE || 'Inversiones';//nombre de la base de datos
 
   data.method = method;//se asigna el método (CRUD)
   data.api = api;//se asigna la API
   data.dataReq = req.data || req._query || {};//se asignan los datos de la solicitud
+
   // lo anterior es el registro de los metadatos iniciales en la bitácora y el objeto de datos en el request de la operación CRUD 
   //flujo controlado
   //con flujo controlado nos referimos a que la operación se ejecuta dentro de un bloque try-catch
@@ -82,21 +95,22 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
       //configuración de respuesta exitosa
       data.status = (method === 'CREATE') ? 201 : 200;//201 para creación, 200 para los demás
       data.messageUSR = 'Operación realizada con éxito.';//mensaje para el usuario
-      data.messageDEV = 'Operacion realizada con exito DEV';//mensaje para el desarrollador 
+      data.messageDEV = 'Operacion realizada con exito MI DESARROLLADORA BANDA LIMON';//mensaje para el desarrollador 
       data.dataRes = result;//resultado de la operación
 
       //se agrega el mensaje a la bitácora
       AddMSG(bitacora, data, 'OK', data.status, true);
-      if (process.env.DEBUG_LOGS === 'true' && Array.isArray(bitacora.data) && bitacora.data.length > 0) {
-        console.log('🧾 BITACORA =>');
-        console.table(bitacora.data.map(b => ({
-          Metodo: b.method,
-          API: b.api,
-          Status: b.status,
-          Exito: b.success,
-          Mensaje: b.messageUSR
-        })));
+
+      if (debugLogs) {
+        try {
+          console.log('🧾 BITACORA =>');
+          console.table(bitacora.data.map(b => ({
+            Metodo: b.method, API: b.api, Status: b.status, Exito: b.success, Mensaje: b.messageUSR
+          })));
+        } catch { }
       }
+
+
 
       //retornamos un formato estandarizado de éxito
       return OK(bitacora);
@@ -112,19 +126,61 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
       }
       */
     } catch (err) {
-      //configuración de respuesta de error
-      data.status = err.status || 500;
+      let status = err.status || (err.name === 'CastError' ? 400 : 500);
+      // util para compactar bitácora
+      function compactBitacora(b) {
+        return {
+          success: b.success,
+          status: b.status,
+          process: b.process,
+          messageUSR: b.messageUSR,
+          messageDEV: b.messageDEV,
+          dbServer: b.dbServer,
+          // solo lo esencial de cada paso:
+          data: (b.data || []).map(d => ({
+            method: d.method,
+            api: d.api,
+            status: d.status,
+            success: d.success,
+            messageUSR: d.messageUSR,
+            messageDEV: d.messageDEV,
+            countDataReq: d.countDataReq,
+            countDataRes: d.countDataRes
+          }))
+        };
+      }
+      data.status = status;
       data.messageUSR = 'La operación no se pudo completar.';
       data.messageDEV = err.message || String(err);
       data.dataRes = { error: err?.stack || String(err) };
 
-      //registramos el error en la bitácora
-      AddMSG(bitacora, data, 'FAIL', data.status, true);
+      AddMSG(bitacora, data, 'FAIL', status, true);
 
-      //retornamos un formato estandarizado de error
-      
+      if (isStrict) {
+        req.error({
+          code: status >= 500 ? 'Internal-Server-Error' : 'Bad-Request',
+          status,
+          message: data.messageUSR,
+          target: data.messageDEV,
+          '@Common.numericSeverity': status >= 500 ? 4 : 2,
+          // opcional: lista de detalles
+          details: [
+            {
+              message: data.messageDEV,
+              '@Common.numericSeverity': status >= 500 ? 4 : 2
+            }
+          ],
+          // comprimiendo la bitacora como la coca para que no ocupe tanto espacio y quepa mas en la troca (response)
+          innererror: includeBita ? compactBitacora(bitacora) : undefined
+        });
+        return; // no se llega a este return, pero lo pongo para que el linter no se queje, maldito como me  obligas a  poner returns. #NoHateLinterPeroEsLaNeta
+      }
+
+      // Modo dev: se devuelve FAIL(...) en el body (OData lo envolverá como 200)
       return FAIL(bitacora);
     }
+
+
   })();
 }
 
@@ -150,16 +206,17 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
   //si no, se realiza una consulta general con top y skip para paginación
   //osea get all y get one, tambien se podria un get many con más de un ID pero eso no esta implementado aqui... aun
   srv.on('READ', cdsEntity, async (req) => {
-    const res = await wrapOperation({
-      req,
-      method: 'READ',
+    return wrapOperation({
+      req, method: 'READ',
       api: `READ ${cdsEntity.name}`,
       process: `Lectura de ${cdsEntity.name}`,
       handler: async () => {
         if (req.data.ID) {
+          if (!isValidId(req.data.ID)) { const e = new Error('ID inválido'); e.status = 400; throw e; }
           const doc = await Model.findById(req.data.ID);
           return doc ? [mapOut(doc)] : [];
         }
+
         const { top, skip } = readQueryBounds(req);
         let q = Model.find();
         if (skip) q = q.skip(skip);
@@ -168,7 +225,6 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
         return docs.map(mapOut);
       }
     });
-    req.reply(res, res.status); // <-- Esto fuerza el código HTTP correcto
   });
 
 
@@ -176,56 +232,61 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
   // OPERACIÓN: CREATE
   //-----------------------------------
   //CREATE es el verbo usado por CDS para crear un nuevo registro (equivalente a POST)
-  srv.on('CREATE', cdsEntity, async (req) => wrapOperation({
-    req,
-    method: 'CREATE',
-    api: `CREATE ${cdsEntity.name}`,
-    process: `Creación de ${cdsEntity.name}`,
-    handler: async () => {
-      if (beforeCreate) await beforeCreate(req);
-      if (uniqueCheck) await uniqueCheck(req);
-      const created = await Model.create(mapIn(req.data));
-      return mapOut(created);
-    }
-  }));
-
+  srv.on('CREATE', cdsEntity, async (req) => {
+    return wrapOperation({
+      req, method: 'CREATE',
+      api: `CREATE ${cdsEntity.name}`,
+      process: `Creación de ${cdsEntity.name}`,
+      handler: async () => {
+        if (beforeCreate) await beforeCreate(req);
+        if (uniqueCheck) await uniqueCheck(req);
+        const created = await Model.create(mapIn(req.data));
+        return mapOut(created);
+      }
+    });
+  });
 
   //-----------------------------------
   // OPERACIÓN: UPDATE
   //-----------------------------------
   //UPDATE corresponde al verbo PUT o PATCH en REST.
   //se actualiza un registro existente a partir de su ID
-  srv.on('UPDATE', cdsEntity, async (req) => wrapOperation({
-    req,
-    method: 'UPDATE',
-    api: `UPDATE ${cdsEntity.name}`,
-    process: `Actualización de ${cdsEntity.name}`,
-    handler: async () => {
-      if (!req.data.ID) { const e = new Error('ID requerido'); e.status = 400; throw e; }
-      if (beforeUpdate) await beforeUpdate(req);
-      const updated = await Model.findByIdAndUpdate(req.data.ID, mapIn(req.data), { new: true, runValidators: true });
-      if (!updated) { const e = new Error('No encontrado'); e.status = 404; throw e; }
-      return mapOut(updated);
-    }
-  }));
+  srv.on('UPDATE', cdsEntity, async (req) => {
+    return wrapOperation({
+      req, method: 'UPDATE',
+      api: `UPDATE ${cdsEntity.name}`,
+      process: `Actualización de ${cdsEntity.name}`,
+      handler: async () => {
+        if (!req.data.ID) { const e = new Error('ID requerido'); e.status = 400; throw e; }
+        if (!isValidId(req.data.ID)) { const e = new Error('ID inválido'); e.status = 400; throw e; }
 
+        if (beforeUpdate) await beforeUpdate(req);
+        const updated = await Model.findByIdAndUpdate(req.data.ID, mapIn(req.data), { new: true, runValidators: true });
+        if (!updated) { const e = new Error('No encontrado'); e.status = 404; throw e; }
+        return mapOut(updated);
+      }
+    });
+  });
 
   //-----------------------------------
   // OPERACIÓN: DELETE
   //-----------------------------------
   //DELETE elimina un registro a partir de su ID
-  srv.on('DELETE', cdsEntity, async (req) => wrapOperation({
-    req,
-    method: 'DELETE',
-    api: `DELETE ${cdsEntity.name}`,
-    process: `Eliminación de ${cdsEntity.name}`,
-    handler: async () => {
-      if (!req.data.ID) { const e = new Error('ID requerido'); e.status = 400; throw e; }
-      const ok = await Model.findByIdAndDelete(req.data.ID);
-      if (!ok) { const e = new Error('No encontrado'); e.status = 404; throw e; }
-      return { deleted: true, ID: req.data.ID };
-    }
-  }));
+  srv.on('DELETE', cdsEntity, async (req) => {
+    return wrapOperation({
+      req, method: 'DELETE',
+      api: `DELETE ${cdsEntity.name}`,
+      process: `Eliminación de ${cdsEntity.name}`,
+      handler: async () => {
+        if (!req.data.ID) { const e = new Error('ID requerido'); e.status = 400; throw e; }
+        if (!isValidId(req.data.ID)) { const e = new Error('ID inválido'); e.status = 400; throw e; }
+
+        const ok = await Model.findByIdAndDelete(req.data.ID);
+        if (!ok) { const e = new Error('No encontrado'); e.status = 404; throw e; }
+        return { deleted: true, ID: req.data.ID };
+      }
+    });
+  });
 }
 
 //exportamos el servicio CRUD para ser usado por las entidades

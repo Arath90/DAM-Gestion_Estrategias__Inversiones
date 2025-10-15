@@ -1,6 +1,6 @@
 // src/api/services/crud.service.js
 
-//porque es un servicio? 
+//porque es un servicio?
 //porque define una funcionalidad reutilizable que puede ser utilizada por diferentes partes de la aplicación.
 //este servicio define operaciones CRUD estandarizadas para las entidades del sistema.
 //CRUD = Create, Read, Update, Delete.
@@ -8,17 +8,31 @@
 //el servicio utiliza Mongoose para interactuar con MongoDB
 //y mapear los datos entre el formato utilizado por CDS y el formato utilizado por MongoDB (osea entre el formato de los modelos y el formato de los documentos).
 
+//{{CARNALGAS, COMO JALA ESTE ROLLO?, COMO QUE WRAPER Y CRUD Y TODO ESO?}}
+//?primero que nada se definen varias funciones auxiliares para mapear datos entre CDS y MongoDB (mapIn y mapOut)
+    //*estas dos madresotas son indispensables para que el servicio funcione correctamente,
+    //*convierten los datos entre los dos formatos,
+    //*nambre imagina lo que tendria que hacer para cada fokin operacion CRUD si no existieran estas funciones, un desmadre.
+//?luego se define una función envolvente (wrapOperation) que maneja la bitácora y las respuestas estandarizadas para cada operación CRUD
+    //*esta función se encarga de registrar toda la información relevante en la bitácora,
+    //*basicamente es como pues una lamina de plastico que envuelve la operación CRUD asegurandose que se mantenga dicha operacion, libre de errores y con un formato estandarizado
+    //*además, captura cualquier error que ocurra durante la operación y lo maneja de manera adecuada,
+    //*devolviendo una respuesta estandarizada con OK() o FAIL().
+//?finalmente, se define la función principal (registerCRUD) que registra los manejadores para cada verbo CRUD (CREATE, READ, UPDATE, DELETE)
+    //*esta función toma como parámetros el servicio CDS, la entidad CDS, el modelo de datos Mongoose y opciones adicionales.
+    //*y registra los manejadores para cada verbo CRUD utilizando la función envolvente (wrapOperation) para asegurar un manejo consistente de errores y bitácora.
+//! y pues ya, tienes una respuesta estandarizada para todas las operaciones CRUD en todas las entidades que usen este servicio, sin necesidad de repetir el mismo código una y otra vez.
 //=============================================
 //      IMPORTS NECESARIOS
 //=============================================
 const mongoose = require('mongoose');
-const cds = require('@sap/cds'); // <- por si quieres throw cds.error
-const { BITACORA, DATA, AddMSG, OK, FAIL } = require('../../middlewares/respPWA.handler');
+const cds = require('@sap/cds'); 
+const { BITACORA, DATA, AddMSG, OK, FAIL } = require('../../middlewares/respPWA.handler');//manejo estandarizado de respuestas y bitácora
 
 const env = (typeof process !== 'undefined' && process.env) ? process.env : {};
-const isStrict = ['true', '1', 'yes', 'on'].includes(String(env.STRICT_HTTP_ERRORS || '').toLowerCase());
-const debugLogs = ['true', '1', 'yes', 'on'].includes(String(env.DEBUG_LOGS || '').toLowerCase());
-const includeBita = ['true', '1', 'yes', 'on'].includes(String(env.INCLUDE_BITACORA_IN_ERROR || '').toLowerCase());
+const isStrict = ['true', '1', 'yes', 'on'].includes(String(env.STRICT_HTTP_ERRORS || '').toLowerCase());//si STRICT_HTTP_ERRORS está activado, se lanzan errores HTTP reales
+const debugLogs = ['true', '1', 'yes', 'on'].includes(String(env.DEBUG_LOGS || '').toLowerCase());//si DEBUG_LOGS está activado, se muestran logs detallados en la consola
+const includeBita = ['true', '1', 'yes', 'on'].includes(String(env.INCLUDE_BITACORA_IN_ERROR || '').toLowerCase());//si INCLUDE_BITACORA_IN_ERROR está activado, se incluye una versión compacta de la bitácora en los errores
 
 
 //--------------------------------------------
@@ -93,7 +107,7 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
 
 
       //configuración de respuesta exitosa
-      data.status = (method === 'CREATE') ? 201 : 200;//201 para creación, 200 para los demás
+      data.status = (method === 'CREATE') ? 201 : 200;//un if primitivo bien macabro que asigna 201 si el método es CREATE, sino 200
       data.messageUSR = 'Operación realizada con éxito.';//mensaje para el usuario
       data.messageDEV = 'Operacion realizada con exito MI DESARROLLADORA BANDA LIMON';//mensaje para el desarrollador 
       data.dataRes = result;//resultado de la operación
@@ -109,12 +123,8 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
           })));
         } catch { }
       }
-
-
-
       //retornamos un formato estandarizado de éxito
       return OK(bitacora);
-
       //lo anterior aparecera en la respuesta HTTP de la API en mi caso uso POSTMAN  y me aparecera algo asi
       /*
       {
@@ -259,18 +269,27 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
           const v = validateObjectIdDetailed(req.data.ID);
           if (!v.ok) { const e = new Error(`ID inválido: ${v.reason}`); e.status = 400; throw e; }
 
-          const doc = await Model.findById(req.data.ID);
+          const doc = await Model.findById(req.data.ID);//se busca el documento por ID y se espera el resultado (una promesa resuelta con await)
+          //porque no una promesa explícita? porque findById ya devuelve una promesa, no es necesario envolverlo en otra promesa
+          //además, usar await simplifica el código y evita el callback hell.
           if (!doc) { const e = new Error('No encontrado'); e.status = 404; throw e; }
           return [mapOut(doc)];
         }
 
         // GET ALL (con paginación)
-        const { top, skip } = readQueryBounds(req);
-        let q = Model.find();
-        if (skip) q = q.skip(skip);
-        if (top) q = q.limit(top);
-        const docs = await q;
-        return docs.map(mapOut);
+        const { top, skip } = readQueryBounds(req);//top= numero máximo de registros a devolver, skip= número de registros a omitir
+        //readQueryBounds lee los parámetros $top y $skip de la consulta CDS
+        //y los convierte a números
+        //si no se proporcionan, se usan 0 por defecto (sin límite ni omisión)
+        let q = Model.find();//se crea una consulta Mongoose para encontrar todos los documentos
+        //pero find no deberia tener una promesa?, no, find devuelve un objeto Query que representa la consulta
+        //y la consulta se ejecuta cuando se itera sobre ella o se usa await
+        //en este caso , se usa await q más adelante para ejecutar la consulta y obtener los documentos, pero la promesaaa... dirias llorando.
+        //Bro, no hay necesidad de usar una fokin promesa explícita aquí, Mongoose maneja eso internamente seria como ponerte un chaleco antibalas cuando ya tienes un tanque, es innecesario y solo complica las cosas.
+        if (skip) q = q.skip(skip);//que hace skip? omite los primeros 'skip' documentos de la consulta, osease si skip=5, se omiten los primeros 5 documentos
+        if (top) q = q.limit(top);//que hace limit? limita el número máximo de documentos devueltos a 'top', osease si top=10, se devuelven como máximo 10 documentos
+        const docs = await q;//se ejecuta la consulta y se obtienen los documentos (otra promesa resuelta con await, find no devuelve una promesa pero await q si, denuevo donde q es la consulta a Mongoose)
+        return docs.map(mapOut);//se mapean los documentos al formato plano con mapOut y se retornan
       }
     });
   });

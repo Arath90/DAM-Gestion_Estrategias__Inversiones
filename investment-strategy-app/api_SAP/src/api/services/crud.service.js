@@ -126,8 +126,12 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
       }
       */
     } catch (err) {
-      let status = err.status || (err.name === 'CastError' ? 400 : 500);
-      // util para compactar bitácora
+      //configuración de respuesta en caso de error donde 400 es error del cliente y 500 es error del servidor
+      let status = err.status || (err.name === 'CastError' ? 400 : 500);//si el error tiene un status se usa ese, si es un CastError (error de conversión de tipo) se usa 400, sino 500
+
+     
+
+      // utilidad para compactar bitácora
       function compactBitacora(b) {
         return {
           success: b.success,
@@ -149,25 +153,31 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
           }))
         };
       }
-      data.status = status;
-      data.messageUSR = 'La operación no se pudo completar.';
-      data.messageDEV = err.message || String(err);
-      data.dataRes = { error: err?.stack || String(err) };
+      data.status = status;//se asigna el status al objeto de datos
+      data.messageUSR = 'La operación no se pudo completar.';//mensaje genérico para el usuario
+      data.messageDEV = err.message || String(err);//mensaje del error para el desarrollador
+      data.dataRes = { error: err?.stack || String(err) };//detalles del error
 
-      AddMSG(bitacora, data, 'FAIL', status, true);
+      AddMSG(bitacora, data, 'FAIL', status, true);//se agrega el mensaje de error a la bitácora
 
       if (isStrict) {
-        req.error({
-          code: status >= 500 ? 'Internal-Server-Error' : 'Bad-Request',
-          status,
-          message: data.messageUSR,
-          target: data.messageDEV,
-          '@Common.numericSeverity': status >= 500 ? 4 : 2,
+        // si STRICT_HTTP_ERRORS=true → usamos req.error(...) para que OData responda con HTTP 4xx/5xx real
+        // además incluimos (opcional) una versión compacta de la bitácora en innererror para depurar
+        req.error({//se lanza un error con cds.error
+          code: status >= 500 ? 'Internal-Server-Error' : 'Bad-Request', //código de error donde si status es mayor o igual a 500 es error interno,
+          //  pero porque >=500?, no seria mejor solo 500? bueno es para cubrir otros posibles errores del servidor como 501, 502, etc 
+          status,//status HTTP
+          message: data.messageUSR,//mensaje para el usuario
+          target: data.messageDEV,//mensaje para el desarrollador
+          '@Common.numericSeverity': status >= 500 ? 4 : 2,//severidad numérica (4 para errores del servidor, 2 para errores del cliente)
+          // adicionalmente se pueden agregar más detalles al error
+          // como un código específico de la aplicación, una lista de errores relacionados, etc.
+          codeSAP: 'CRUD_SERVICE_ERROR',//código específico de la aplicación
           // opcional: lista de detalles
           details: [
             {
-              message: data.messageDEV,
-              '@Common.numericSeverity': status >= 500 ? 4 : 2
+              message: data.messageDEV,//mensaje del error para el desarrollador
+              '@Common.numericSeverity': status >= 500 ? 4 : 2//severidad numérica
             }
           ],
           // comprimiendo la bitacora como la coca para que no ocupe tanto espacio y quepa mas en la troca (response)
@@ -177,7 +187,20 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
       }
 
       // Modo dev: se devuelve FAIL(...) en el body (OData lo envolverá como 200)
-      return FAIL(bitacora);
+      return FAIL(bitacora);//se devuelve un formato estandarizado de error
+      //por ejemplo en Postman con un GET a una entidad que no existe http://localhost:4004/odata/v4/catalog/MLDatasets/66f0000000000000000000101
+      /*
+      {
+        "status": 400,
+        "messageUSR": "La operación no se pudo completar.",
+        "messageDEV": "No encontrado",
+        "dataRes": {
+          "error": "Error: No encontrado\n    at ...stack trace..."
+        },
+        "bitacora": { ...detalles de la bitácora... }
+      }
+      */
+
     }
 
 
@@ -196,7 +219,26 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
 // - opts: opciones adicionales (uniqueCheck, beforeCreate, beforeUpdate)
 function registerCRUD(srv, cdsEntity, Model, opts = {}) {
   const { uniqueCheck, beforeCreate, beforeUpdate } = opts;
-
+   // valida un ObjectId con “motivo” detallado para mensajes exactos
+      function validateObjectIdDetailed(id) {
+        // 1) tipo correcto
+        if (typeof id !== 'string') {
+          return { ok: false, reason: 'El ID debe ser una cadena.' };
+        }
+        // 2) longitud exacta (24) — ObjectId es 24 caracteres hex
+        if (id.length !== 24) {
+          return { ok: false, reason: `Longitud inválida (${id.length}). Se esperan 24 caracteres.` };
+        }
+        // 3) caracteres hex válidos
+        if (!/^[0-9a-fA-F]{24}$/.test(id)) {
+          return { ok: false, reason: 'Formato inválido. Debe contener solo caracteres hexadecimales [0-9a-f].' };
+        }
+        // 4) validación final de Mongoose
+        if (!mongoose.isValidObjectId(id)) {
+          return { ok: false, reason: 'ObjectId inválido.' };
+        }
+        return { ok: true, reason: '' };
+      }
   //-----------------------------------
   // OPERACIÓN: READ
   //-----------------------------------
@@ -205,6 +247,7 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
   //si se proporciona un ID, se busca el documento por ID
   //si no, se realiza una consulta general con top y skip para paginación
   //osea get all y get one, tambien se podria un get many con más de un ID pero eso no esta implementado aqui... aun
+  // READ (Get One / Get All)
   srv.on('READ', cdsEntity, async (req) => {
     return wrapOperation({
       req, method: 'READ',
@@ -212,11 +255,16 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
       process: `Lectura de ${cdsEntity.name}`,
       handler: async () => {
         if (req.data.ID) {
-          if (!isValidId(req.data.ID)) { const e = new Error('ID inválido'); e.status = 400; throw e; }
+          // validación “exacta”
+          const v = validateObjectIdDetailed(req.data.ID);
+          if (!v.ok) { const e = new Error(`ID inválido: ${v.reason}`); e.status = 400; throw e; }
+
           const doc = await Model.findById(req.data.ID);
-          return doc ? [mapOut(doc)] : [];
+          if (!doc) { const e = new Error('No encontrado'); e.status = 404; throw e; }
+          return [mapOut(doc)];
         }
 
+        // GET ALL (con paginación)
         const { top, skip } = readQueryBounds(req);
         let q = Model.find();
         if (skip) q = q.skip(skip);
@@ -251,6 +299,7 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
   //-----------------------------------
   //UPDATE corresponde al verbo PUT o PATCH en REST.
   //se actualiza un registro existente a partir de su ID
+  // UPDATE
   srv.on('UPDATE', cdsEntity, async (req) => {
     return wrapOperation({
       req, method: 'UPDATE',
@@ -258,7 +307,8 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
       process: `Actualización de ${cdsEntity.name}`,
       handler: async () => {
         if (!req.data.ID) { const e = new Error('ID requerido'); e.status = 400; throw e; }
-        if (!isValidId(req.data.ID)) { const e = new Error('ID inválido'); e.status = 400; throw e; }
+        const v = validateObjectIdDetailed(req.data.ID);
+        if (!v.ok) { const e = new Error(`ID inválido: ${v.reason}`); e.status = 400; throw e; }
 
         if (beforeUpdate) await beforeUpdate(req);
         const updated = await Model.findByIdAndUpdate(req.data.ID, mapIn(req.data), { new: true, runValidators: true });
@@ -272,6 +322,7 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
   // OPERACIÓN: DELETE
   //-----------------------------------
   //DELETE elimina un registro a partir de su ID
+  // DELETE
   srv.on('DELETE', cdsEntity, async (req) => {
     return wrapOperation({
       req, method: 'DELETE',
@@ -279,7 +330,8 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
       process: `Eliminación de ${cdsEntity.name}`,
       handler: async () => {
         if (!req.data.ID) { const e = new Error('ID requerido'); e.status = 400; throw e; }
-        if (!isValidId(req.data.ID)) { const e = new Error('ID inválido'); e.status = 400; throw e; }
+        const v = validateObjectIdDetailed(req.data.ID);
+        if (!v.ok) { const e = new Error(`ID inválido: ${v.reason}`); e.status = 400; throw e; }
 
         const ok = await Model.findByIdAndDelete(req.data.ID);
         if (!ok) { const e = new Error('No encontrado'); e.status = 404; throw e; }
@@ -287,6 +339,7 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
       }
     });
   });
+
 }
 
 //exportamos el servicio CRUD para ser usado por las entidades

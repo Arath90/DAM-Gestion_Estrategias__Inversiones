@@ -1,23 +1,29 @@
 {
-  "name": "investment-strategy-cap",
+  "name": "servicio-estrategias-inversion",
   "version": "1.0.0",
   "scripts": {
-    "start": "cds-serve",          
+    "build": "cds build",
     "dev": "cds watch",
-    "build": "cds build"
+    "start": "cds-serve"
   },
   "dependencies": {
     "@sap/cds": "^9",
-    "mongoose": "^8",
-    "cors": "^2"
+    "@dotenvx/dotenvx": "^1.49.1",
+    "express": "^4",
+    "cors": "^2",
+    "mongoose": "^8"
+  },
+  "devDependencies": {
+    "@cap-js/sqlite": "^2"
   },
   "cds": {
     "folders": {
-      "db":  "src/api/models",   
-      "srv": "src/api/routes"      
-    },
-    "requires": {
-      "db": false            
+      "db":  "src/api/models",
+      "srv": "src/api/routes",
+      "app": "app"
     }
+  },
+  "requires": {
+    "db": false
   }
 }

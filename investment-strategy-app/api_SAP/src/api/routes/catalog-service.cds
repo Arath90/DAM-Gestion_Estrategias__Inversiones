@@ -1,8 +1,6 @@
-//catalog-service.cds
 using inv from '../models/schema';
 
-
-@impl: './handlers.js'
+@impl: 'src/api/controllers/catalog-controller.js'
 service CatalogService {
   entity Instruments               as projection on inv.Instruments;
   entity MLDatasets                as projection on inv.MLDatasets;

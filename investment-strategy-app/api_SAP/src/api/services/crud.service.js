@@ -39,6 +39,7 @@ const includeBita = ['true', '1', 'yes', 'on'].includes(String(env.INCLUDE_BITAC
 //--------------------------------------------
 
 //mapOut convierte un documento de MongoDB a un objeto plano con un campo ID en lugar de _id
+//entonces va a ser usado para devolver datos desde MongoDB a CDS osea sacar datos por eso el OUT
 const mapOut = (doc) => {
   const o = doc?.toObject ? doc.toObject() : doc; //toObject convierte un documento de Mongoose a un objeto JS plano
   const { _id, __v, ...rest } = o || {}; //__v es un campo interno de Mongoose que indica la versión del documento
@@ -46,6 +47,7 @@ const mapOut = (doc) => {
 };
 
 //mapIn convierte un objeto plano con un campo ID a un objeto adecuado para MongoDB (sin el campo ID)
+//entonces va a ser usado para crear o actualizar documentos en MongoDB 
 const mapIn = (data) => {
   const { ID, ...rest } = data || {}; //se elimina el campo ID y se retornan los demás campos
   return rest; //se retornan los demás campos sin el ID
@@ -101,7 +103,11 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
   // Esta funcion regresa una promesa porque el IIFE async siempre produce un Promise resuelto o rechazado. (IIFE = )
   // Con este patron evitamos crear new Promise((resolve, reject) => ...) y encadenar .then()/.catch().
   // Usar async/await nos deja leer el flujo como si fuera sincrono y delega la propagacion de errores al motor de JS via throw.
-  return (async () => {
+  return (async () => {//! <-- IIFE async (Immediately Invoked Function Expression)
+    // IIFE async: función asíncrona autoejecutable.
+    // Permite usar await y throw dentro de este bloque sin crear funciones adicionales.
+    // Cualquier return aquí resuelve la promesa devuelta por wrapOperation (osea que lo que retorne esta funcion sera lo que retorne wrapOperation)
+    // Cualquier throw aquí rechaza la promesa devuelta por wrapOperation.
     try {
       //ejecutamos la operación específica (READ, CREATE, UPDATE, DELETE)
       const result = await handler(); // handler es la función principal y await evita encadenar .then()
@@ -133,7 +139,7 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
         "bitacora": { ...detalles de la bitácora... }
       }
       */
-    } catch (err) {
+    } catch (err) {//!<--- gracias a async/await cualquier error lanzado en handler se captura aquí sin .catch adicional
       //configuración de respuesta en caso de error donde 400 es error del cliente y 500 es error del servidor
       let status = err.status || (err.name === 'CastError' ? 400 : 500);//si el error tiene un status se usa ese, si es un CastError (error de conversión de tipo) se usa 400, sino 500
       // utilidad para compactar bitácora
@@ -385,4 +391,47 @@ module.exports = { registerCRUD };
 
 
 //!pero porque es mejor async/await que la encadenacion de Promise con .then, reject, resolve ?
-//*
+//* por varias razones:
+//* 1. Legibilidad: El código con async/await se lee de manera más lineal y secuencial, similar al código síncrono.
+//*    Esto facilita entender el flujo de la lógica sin tener que saltar entre múltiples callbacks.
+//* 2. Manejo de errores: Con async/await, el manejo de errores se realiza de manera uniforme utilizando bloques try/catch.
+//*    Cualquier error lanzado dentro de una función async se captura en el bloque catch, evitando la necesidad de múltiples .catch() en una cadena de promesas.
+  //? por ejemplo, si una función async llama a otra función async que lanza un error, ese error se propaga automáticamente al bloque catch del llamador.
+    /* 
+    ! Ejemplo con async/await:
+    async function example() {
+      try {
+        * await someAsyncFunction();
+      } catch (error) {
+        throw error; <---- si se lanza un error aquí, se propaga automáticamente en el caso de este servicio CRUD se captura en wrapOperation
+        haciendo innecesario el uso de reject(error);
+        ? console.error('Error capturado:', error);
+      }
+    ! Ejemplo con promesas encadenadas con Promise:
+    function example() {<---- no es async
+      someAsyncFunction() <---- esta es la PROMESA
+        .then(() => {<---- callback de éxito
+         *éxito
+        })
+        .catch((error) => {<---- callback de error
+          reject(error); <---- si se lanza un error aquí, no se propaga automáticamente
+          ? console.error('Error capturado:', error);
+        });
+    */ 
+//* 3. Stack traces más claros: Los errores lanzados dentro de funciones async mantienen una traza de pila más clara,
+//*    lo que facilita la depuración en comparación con las promesas encadenadas, donde la traza puede cortarse entre callbacks.
+//* 4. Evita la pirámide de la perdición: Al usar async/await, se evita la anidación profunda de callbacks que puede ocurrir con las promesas encadenadas,
+//*    lo que mejora la estructura del código y reduce la complejidad visual.
+//* 5. Menos boilerplate: No es necesario crear nuevas promesas manualmente con new Promise((resolve, reject) => ...),
+//*    ya que las funciones async devuelven automáticamente una promesa.
+//*    Esto reduce la cantidad de código repetitivo y hace que el código sea más conciso.
+//* En resumen, async/await mejora la legibilidad, simplifica el manejo de errores y reduce la complejidad del código en comparación con las promesas encadenadas.
+//?esto no quiere decir que las promesas encadenadas sean malas, de hecho en algunos casos pueden ser más adecuadas,
+//?pero en la mayoría de los casos, async/await ofrece una forma más limpia y manejable de trabajar con operaciones asíncronas en JavaScript.
+//! Nota final:
+//* El uso de async/await no elimina el uso de promesas, ya que async/await se basa en promesas.
+//* Más bien, async/await es una sintaxis más conveniente para trabajar con promesas,
+//* permitiendo escribir código asíncrono de manera más similar al código síncrono.
+//* En este servicio CRUD, async/await se utiliza para manejar las operaciones asíncronas de manera más legible y manejable,
+//* mientras que las promesas subyacentes son manejadas por Mongoose y CDS.
+//* Esto permite aprovechar las ventajas de ambas técnicas para crear un código más limpio y eficiente.

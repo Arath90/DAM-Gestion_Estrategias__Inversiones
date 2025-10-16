@@ -8,6 +8,8 @@
 //y mapear los datos entre el formato utilizado por CDS y el formato utilizado por MongoDB (osea entre el formato de los modelos y el formato de los documentos).
 
 //{{CARNALGAS, COMO JALA ESTE ROLLO?, COMO QUE WRAPER Y CRUD Y TODO ESO?}}
+ 
+
 //?primero que nada se definen varias funciones auxiliares para mapear datos entre CDS y MongoDB (mapIn y mapOut)
     //*estas dos madresotas son indispensables para que el servicio funcione correctamente,
     //*convierten los datos entre los dos formatos,
@@ -33,6 +35,79 @@ const isStrict = ['true', '1', 'yes', 'on'].includes(String(env.STRICT_HTTP_ERRO
 const debugLogs = ['true', '1', 'yes', 'on'].includes(String(env.DEBUG_LOGS || '').toLowerCase());//si DEBUG_LOGS está activado, se muestran logs detallados en la consola
 const includeBita = ['true', '1', 'yes', 'on'].includes(String(env.INCLUDE_BITACORA_IN_ERROR || '').toLowerCase());//si INCLUDE_BITACORA_IN_ERROR está activado, se incluye una versión compacta de la bitácora en los errores
 
+
+//--------------------------------------------
+// MULTI-DB: Parámetros y validación
+//--------------------------------------------
+const cfg = require('../../config/dotenvXConfig');
+
+function buildStdParams(req) {
+  try {
+    const expressReq = req && req.req ? req.req : {};
+    const paramsQuery = expressReq.query || {};
+    const rawUrl = typeof expressReq.originalUrl === 'string' ? expressReq.originalUrl : '';
+    const qs = rawUrl.includes('?') ? rawUrl.split('?')[1] : '';
+    const paramString = new URLSearchParams(qs || '');
+    const body = expressReq.body || {};
+    return { paramsQuery, paramString, body };
+  } catch (_) {
+    return { paramsQuery: {}, paramString: new URLSearchParams(''), body: {} };
+  }
+}
+
+function detectDbRoles(stdParams) {
+  const q = (stdParams && stdParams.paramsQuery) || {};
+  const desired = String(q.db || q.dbType || q.database || '').toLowerCase();
+  const primary = String(process.env.PRIMARY_DB || 'hana').toLowerCase();
+  const secondary = primary === 'hana' ? 'mongo' : 'hana';
+  const target = desired === 'hana' || desired === 'mongo' ? desired : primary;
+  return { primary, secondary, target };
+}
+
+async function ensureDbConnections({ req, bitacora, method }) {
+  const stdParams = buildStdParams(req);
+  const roles = detectDbRoles(stdParams);
+
+  const dataStep = DATA();
+  dataStep.method = method || 'READ';
+  dataStep.api = 'DB Validation';
+  dataStep.process = 'Validación conexiones BD';
+  dataStep.dataReq = { query: stdParams.paramsQuery };
+
+  let hanaOk = false; let mongoOk = false; let tempMongo = false;
+  let hanaErr = null; let mongoErr = null; let hanaService = null;
+
+  try { hanaService = await cds.connect.to('db'); hanaOk = !!hanaService; }
+  catch (e) { hanaErr = e; hanaOk = false; }
+
+  try {
+    const ready = mongoose.connection && mongoose.connection.readyState === 1;
+    if (!ready) {
+      const c = await mongoose.connect(cfg.CONNECTION_STRING, { dbName: cfg.DATABASE, serverSelectionTimeoutMS: 5000 });
+      tempMongo = true;
+      mongoOk = !!c && mongoose.connection.readyState === 1;
+    } else { mongoOk = true; }
+  } catch (e) { mongoErr = e; mongoOk = false; }
+
+  dataStep.dataRes = { roles, hanaConnected: hanaOk, mongoConnected: mongoOk };
+  dataStep.messageUSR = 'Validación de conexiones completada';
+  dataStep.messageDEV = [
+    hanaOk ? 'HANA OK' : `HANA FAIL: ${hanaErr?.message || 'desconocido'}`,
+    mongoOk ? 'Mongo OK' : `Mongo FAIL: ${mongoErr?.message || 'desconocido'}`
+  ].join(' | ');
+  AddMSG(bitacora, dataStep, (hanaOk && mongoOk) ? 'OK' : 'FAIL', (hanaOk && mongoOk) ? 200 : 503, false);
+
+  if ((method || 'READ') === 'READ') {
+    if (!hanaOk || !mongoOk) {
+      const e = new Error('No hay conexión a todas las bases de datos requeridas');
+      e.status = 503; e.details = { hanaOk, mongoOk }; throw e;
+    }
+  }
+
+  const cleanup = async () => { try { if (tempMongo) await mongoose.connection.close(); } catch {} };
+
+  return { stdParams, roles, hanaService, cleanup };
+}
 
 //--------------------------------------------
 // FUNCIONES DE MAPEADO ENTRE CDS Y MONGODB
@@ -109,13 +184,18 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
     // Cualquier return aquí resuelve la promesa devuelta por wrapOperation (osea que lo que retorne esta funcion sera lo que retorne wrapOperation)
     // Cualquier throw aquí rechaza la promesa devuelta por wrapOperation.
     try {
+      // Validación previa multi‑BD (solo lectura exige ambas conexiones)
+      try { await ensureDbConnections({ req, bitacora, method }); } catch (preErr) { throw preErr; }
       //ejecutamos la operación específica (READ, CREATE, UPDATE, DELETE)
       const result = await handler(); // handler es la función principal y await evita encadenar .then()
       // al usar await, cualquier throw dentro del handler se captura en este mismo try sin .catch adicional.
       //configuración de respuesta exitosa
       data.status = (method === 'CREATE') ? 201 : 200;//un if primitivo bien macabro que asigna 201 si el método es CREATE, sino 200
+      //pero como toma el status de data como sabe que metodo se esta ejecutando?
+      //pues porque en cada verbo CRUD (srv.on('READ'...), srv.on('CREATE'...), etc)!, pilas lector
+      //se llama a wrapOperation pasando el método correspondiente como parámetro
       data.messageUSR = 'Operación realizada con éxito.';//mensaje para el usuario
-      data.messageDEV = 'Operacion realizada con exito MI DESARROLLADORA BANDA LIMON';//mensaje para el desarrollador 
+      data.messageDEV = 'Operacion realizada con exito MI DESARROLLADORA BANDA LIMON';//mensaje para el desarrollador
       data.dataRes = result;//resultado de la operación
       //se agrega el mensaje a la bitácora
       AddMSG(bitacora, data, 'OK', data.status, true);
@@ -259,13 +339,13 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
         if (doc) return doc;
         return Model.findOne(buildStringIdFilter(id));
       };
-
+      // Actualiza un documento por ID, soportando tanto ObjectId como IDs en texto legado
       const updateDocById = async (id, payload) => {
         const updated = await Model.findByIdAndUpdate(id, payload, { new: true, runValidators: true });
         if (updated) return updated;
         return Model.findOneAndUpdate(buildStringIdFilter(id), payload, { new: true, runValidators: true });
       };
-
+      // Elimina un documento por ID, soportando tanto ObjectId como IDs en texto legado
       const deleteDocById = async (id) => {
         const deleted = await Model.findByIdAndDelete(id);
         if (deleted) return deleted;
@@ -283,7 +363,7 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
   srv.on('READ', cdsEntity, async (req) => {
     // Este callback es async, asi que CDS recibe una Promise sin construir resolve/reject manuales.
     // Permite escribir el flujo igual que sincrono y los errores se propagan con throw (equivalente a reject()).
-    return wrapOperation({
+    return wrapOperation({//! <-- llamada a wrapOperation usando return porque wrapOperation devuelve una promesa. pilas lector
       req, method: 'READ',
       api: `READ ${cdsEntity.name}`,
       process: `Lectura de ${cdsEntity.name}`,

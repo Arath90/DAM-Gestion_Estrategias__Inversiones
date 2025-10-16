@@ -236,7 +236,7 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
         if (typeof id !== 'string') {
           return { ok: false, reason: 'El ID debe ser una cadena.' };
         }
-        // 2) longitud exacta (24) — ObjectId es 24 caracteres hex
+        // 2) longitud exacta (24) – ObjectId es 24 caracteres hex
         if (id.length !== 24) {
           return { ok: false, reason: `Longitud inválida (${id.length}). Se esperan 24 caracteres.` };
         }
@@ -250,6 +250,27 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
         }
         return { ok: true, reason: '' };
       }
+
+      // algunos documentos antiguos tuvieron _id almacenado como cadena pura; este helper busca ambos casos
+      const buildStringIdFilter = (id) => ({ $expr: { $eq: [{ $toString: '$_id' }, id] } });
+
+      const findDocById = async (id) => {
+        const doc = await Model.findById(id);
+        if (doc) return doc;
+        return Model.findOne(buildStringIdFilter(id));
+      };
+
+      const updateDocById = async (id, payload) => {
+        const updated = await Model.findByIdAndUpdate(id, payload, { new: true, runValidators: true });
+        if (updated) return updated;
+        return Model.findOneAndUpdate(buildStringIdFilter(id), payload, { new: true, runValidators: true });
+      };
+
+      const deleteDocById = async (id) => {
+        const deleted = await Model.findByIdAndDelete(id);
+        if (deleted) return deleted;
+        return Model.findOneAndDelete(buildStringIdFilter(id));
+      };
   //-----------------------------------
   // OPERACIÓN: READ
   //-----------------------------------
@@ -274,7 +295,7 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
           const v = validateObjectIdDetailed(req.data.ID);
           if (!v.ok) { const e = new Error(`ID inválido: ${v.reason}`); e.status = 400; throw e; }
 
-          const doc = await Model.findById(req.data.ID);//se busca el documento por ID y se espera el resultado (una promesa resuelta con await)
+          const doc = await findDocById(req.data.ID);//buscamos soportando tanto ObjectId como IDs en texto legado
           // findById devuelve una Query thenable (ya es una promesa), por eso no creamos new Promise ni encadenamos .then().
           // Con async/await ganamos:
           //   1) Legibilidad lineal: el flujo parece síncrono y se entiende rápido qué sucede paso a paso.
@@ -354,7 +375,7 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
         if (!v.ok) { const e = new Error(`ID inválido: ${v.reason}`); e.status = 400; throw e; }
 
         if (beforeUpdate) await beforeUpdate(req);
-        const updated = await Model.findByIdAndUpdate(req.data.ID, mapIn(req.data), { new: true, runValidators: true });
+        const updated = await updateDocById(req.data.ID, mapIn(req.data));
         if (!updated) { const e = new Error('No encontrado'); e.status = 404; throw e; }
         return mapOut(updated);
       }
@@ -377,7 +398,7 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
         const v = validateObjectIdDetailed(req.data.ID);
         if (!v.ok) { const e = new Error(`ID inválido: ${v.reason}`); e.status = 400; throw e; }
 
-        const ok = await Model.findByIdAndDelete(req.data.ID);
+        const ok = await deleteDocById(req.data.ID);
         if (!ok) { const e = new Error('No encontrado'); e.status = 404; throw e; }
         return { deleted: true, ID: req.data.ID };
       }

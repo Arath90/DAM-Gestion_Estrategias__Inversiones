@@ -57,12 +57,13 @@ const mapIn = (data) => {
 
 
 //-----------------------------------
-// FUNCIONES AUXILIARES PARA BITÁCORA
+//! FUNCIONES AUXILIARES PARA BITÁCORA
 //-----------------------------------
+//readQueryBounds lee los parámetros $top y $skip de la consulta CDS para paginación
 function readQueryBounds(req) {
-  const top = Number(req._query?.$top ?? 0);
-  const skip = Number(req._query?.$skip ?? 0);
-  return { top, skip };
+  const top = Number(req._query?.$top ?? 0);//donde top es el número máximo de registros a devolver y aqui se asigna 0 si no se proporciona
+  const skip = Number(req._query?.$skip ?? 0);//donde skip es el número de registros a omitir y aqui se asigna 0 si no se proporciona
+  return { top, skip };//ya al final nomas retorna los datos pequeños pero importantes. (en formato objeto para paginar mas abajo en los verbos CRUD)
 }
 //isValidId verifica si un ID es un ObjectId válido de MongoDB
 function isValidId(id) {//un ID válido es una cadena que cumple con el formato de ObjectId de MongoDB
@@ -85,16 +86,13 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
   // - handler: una función asíncrona que realiza la operación específica y devuelve el resultado
   const bitacora = BITACORA();//se inicializa la bitácora 
   const data = DATA();//y el objeto de datos
-
   //metadatos iniciales
   bitacora.process = process;//se asigna el proceso a la bitácora, si esta no definido se asigna una cadena vacía.
   const env = (typeof process !== 'undefined' && process.env) ? process.env : {};//se obtiene el objeto env de process si está definido, de lo contrario se usa un objeto vacío
   bitacora.dbServer = env.MONGO_INV_DB || env.MONGODB_DB || env.DATABASE || 'Inversiones';//nombre de la base de datos
-
   data.method = method;//se asigna el método (CRUD)
   data.api = api;//se asigna la API
   data.dataReq = req.data || req._query || {};//se asignan los datos de la solicitud
-
   // lo anterior es el registro de los metadatos iniciales en la bitácora y el objeto de datos en el request de la operación CRUD 
   //flujo controlado
   //con flujo controlado nos referimos a que la operación se ejecuta dentro de un bloque try-catch
@@ -104,17 +102,13 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
     try {
       //ejecutamos la operación específica (READ, CREATE, UPDATE, DELETE)
       const result = await handler();//handler es la función que realiza la operación específica 
-
-
       //configuración de respuesta exitosa
       data.status = (method === 'CREATE') ? 201 : 200;//un if primitivo bien macabro que asigna 201 si el método es CREATE, sino 200
       data.messageUSR = 'Operación realizada con éxito.';//mensaje para el usuario
       data.messageDEV = 'Operacion realizada con exito MI DESARROLLADORA BANDA LIMON';//mensaje para el desarrollador 
       data.dataRes = result;//resultado de la operación
-
       //se agrega el mensaje a la bitácora
       AddMSG(bitacora, data, 'OK', data.status, true);
-
       if (debugLogs) {
         try {
           console.log('🧾 BITACORA =>');
@@ -138,9 +132,6 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
     } catch (err) {
       //configuración de respuesta en caso de error donde 400 es error del cliente y 500 es error del servidor
       let status = err.status || (err.name === 'CastError' ? 400 : 500);//si el error tiene un status se usa ese, si es un CastError (error de conversión de tipo) se usa 400, sino 500
-
-     
-
       // utilidad para compactar bitácora
       function compactBitacora(b) {
         return {
@@ -289,7 +280,7 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
         if (skip) q = q.skip(skip);//que hace skip? omite los primeros 'skip' documentos de la consulta, osease si skip=5, se omiten los primeros 5 documentos
         if (top) q = q.limit(top);//que hace limit? limita el número máximo de documentos devueltos a 'top', osease si top=10, se devuelven como máximo 10 documentos
         const docs = await q;//se ejecuta la consulta y se obtienen los documentos (otra promesa resuelta con await, find no devuelve una promesa pero await q si, denuevo donde q es la consulta a Mongoose)
-        return docs.map(mapOut);//se mapean los documentos al formato plano con mapOut y se retornan
+        return docs.map(mapOut);//se mapean los documentos al formato plano con mapOut y se retornan en un array de objetos listo para ser enviado en la respuesta HTTP el formato de envia es en array porque en CDS un READ siempre devuelve un array, incluso si solo hay un registro.
       }
     });
   });

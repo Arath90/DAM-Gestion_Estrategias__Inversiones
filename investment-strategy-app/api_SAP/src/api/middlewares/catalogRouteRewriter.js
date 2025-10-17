@@ -83,6 +83,7 @@ module.exports = function registerCatalogRouteRewriter(app) {
     }
 
     const queryString = searchParams.toString();
+    req.catalogRewrittenPath = rewrittenPath;
     req.url = queryString ? `${rewrittenPath}?${queryString}` : rewrittenPath;
 
     next();

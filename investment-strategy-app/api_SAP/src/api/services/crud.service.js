@@ -108,6 +108,54 @@ async function ensureDbConnections({ req, bitacora, method }) {
   return { stdParams, roles, hanaService, cleanup };
 }
 
+function parseMongoUserFromUri(uri) {
+  if (!uri) return null;
+  let normalized = uri.trim();
+  if (!normalized) return null;
+  if (normalized.startsWith('mongodb+srv://')) normalized = normalized.replace('mongodb+srv://', 'mongodb://');
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.username) return decodeURIComponent(parsed.username);
+  } catch (_) { }
+  const match = normalized.match(/^mongodb[\w+]*:\/\/([^:@/]+)[:@]/i);
+  if (match && match[1]) return decodeURIComponent(match[1]);
+  return null;
+}
+
+function getMongoConnectionUser() {
+  const conn = mongoose.connection;
+  if (conn) {
+    const client = (typeof conn.getClient === 'function') ? conn.getClient() : conn.client;
+    const fromClient = client?.options?.credentials?.username
+      || client?.options?.auth?.username
+      || client?.s?.options?.credentials?.username
+      || client?.s?.options?.auth?.username;
+    const direct = conn.user || conn?.config?.user;
+    const resolved = fromClient || direct;
+    if (resolved) return resolved;
+  }
+  const envUser = process.env.MONGO_INV_USER || process.env.MONGODB_USER;
+  if (envUser) return envUser;
+  const envUri = cfg.CONNECTION_STRING || process.env.MONGODB_URI || process.env.CONNECTION_STRING || '';
+  return parseMongoUserFromUri(envUri);
+}
+
+function getHanaConnectionUser(hanaService) {
+  const creds = hanaService?.options?.credentials
+    || hanaService?.credentials
+    || hanaService?.options
+    || {};
+  return creds.username || creds.user || creds.uid || creds.User || process.env.HANA_USER || process.env.VCAP_USER;
+}
+
+function resolveLoggedUser({ target, hanaService }) {
+  if (target === 'mongo') return getMongoConnectionUser();
+  if (target === 'hana') return getHanaConnectionUser(hanaService);
+  const mongoUser = getMongoConnectionUser();
+  if (mongoUser) return mongoUser;
+  return getHanaConnectionUser(hanaService);
+}
+
 //--------------------------------------------
 // FUNCIONES DE MAPEADO ENTRE CDS Y MONGODB
 //--------------------------------------------
@@ -162,14 +210,14 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
   const bitacora = BITACORA();//se inicializa la bitácora 
   const data = DATA();//y el objeto de datos
   const expressReq = (req && req.req) ? req.req : {};
-  const loggedUserFromRequest = expressReq.catalogLoggedUser
-    || (expressReq.query && expressReq.query.loggedUser)
+  if (!expressReq.query || typeof expressReq.query !== 'object') expressReq.query = expressReq.query ? { ...expressReq.query } : {};
+  const originalQuerySnapshot = (expressReq.query && Object.keys(expressReq.query).length) ? { ...expressReq.query } : null;
+  const loggedUserRequested = expressReq.catalogLoggedUser
+    || (originalQuerySnapshot && originalQuerySnapshot.loggedUser)
     || (expressReq.headers && (expressReq.headers['x-logged-user'] || expressReq.headers['logged-user']));
-  if (loggedUserFromRequest) bitacora.loggedUser = loggedUserFromRequest;
-  const dbTargetFromRequest = expressReq.catalogDbTarget
-    || (expressReq.query && (expressReq.query.db || expressReq.query.dbType || expressReq.query.database))
+  const dbTargetRequested = expressReq.catalogDbTarget
+    || (originalQuerySnapshot && (originalQuerySnapshot.db || originalQuerySnapshot.dbType || originalQuerySnapshot.database))
     || (expressReq.headers && (expressReq.headers['x-db-target'] || expressReq.headers['db-target']));
-  if (dbTargetFromRequest) bitacora.dbServer = dbTargetFromRequest;
   //metadatos iniciales
   bitacora.process = process;//se asigna el proceso a la bitácora, si esta no definido se asigna una cadena vacía.
   const env = (typeof process !== 'undefined' && process.env) ? process.env : {};//se obtiene el objeto env de process si está definido, de lo contrario se usa un objeto vacío
@@ -177,9 +225,6 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
   data.method = method;//se asigna el método (CRUD)
   data.api = api;//se asigna la API
   const queryPayload = req.data || req._query || {};
-  const expressQuery = expressReq.query && Object.keys(expressReq.query).length ? expressReq.query : null;
-  if (expressQuery) data.dataReq = { ...expressQuery, _cds: queryPayload };
-  else data.dataReq = queryPayload;//se asignan los datos de la solicitud
   // lo anterior es el registro de los metadatos iniciales en la bitácora y el objeto de datos en el request de la operación CRUD 
   //flujo controlado
   //con flujo controlado nos referimos a que la operación se ejecuta dentro de un bloque try-catch
@@ -196,9 +241,45 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
     // Cualquier throw aquí rechaza la promesa devuelta por wrapOperation.
     try {
       // Validación previa multi‑BD (solo lectura exige ambas conexiones)
-      try { await ensureDbConnections({ req, bitacora, method }); } catch (preErr) { throw preErr; }
+      let connectionsMeta = null;
+      try { connectionsMeta = await ensureDbConnections({ req, bitacora, method }); } catch (preErr) { throw preErr; }
+
+      const targetDb = connectionsMeta?.roles?.target || dbTargetRequested || bitacora.dbServer;
+      if (targetDb) {
+        bitacora.dbServer = targetDb;
+        if (expressReq.query) expressReq.query.db = targetDb;
+        expressReq.catalogDbTarget = targetDb;
+      }
+
+      const resolvedLoggedUser = resolveLoggedUser({ target: targetDb, hanaService: connectionsMeta?.hanaService });
+      if (resolvedLoggedUser) {
+        bitacora.loggedUser = resolvedLoggedUser;
+        if (expressReq.query) expressReq.query.loggedUser = resolvedLoggedUser;
+        expressReq.catalogLoggedUser = resolvedLoggedUser;
+      } else if (loggedUserRequested) {
+        bitacora.loggedUser = loggedUserRequested;
+      }
+
+      const finalQuerySnapshot = (expressReq.query && Object.keys(expressReq.query).length) ? { ...expressReq.query } : null;
+      if (expressReq.catalogRewrittenPath) {
+        const qp = finalQuerySnapshot ? new URLSearchParams(finalQuerySnapshot).toString() : '';
+        expressReq.url = qp ? `${expressReq.catalogRewrittenPath}?${qp}` : expressReq.catalogRewrittenPath;
+      }
+
+      const dataReqPayload = { _cds: queryPayload };
+      if (finalQuerySnapshot) dataReqPayload.query = finalQuerySnapshot;
+      if (originalQuerySnapshot && (!finalQuerySnapshot || JSON.stringify(originalQuerySnapshot) !== JSON.stringify(finalQuerySnapshot))) {
+        dataReqPayload.requestedQuery = originalQuerySnapshot;
+      }
+      data.dataReq = dataReqPayload;
+
       //ejecutamos la operación específica (READ, CREATE, UPDATE, DELETE)
-      const result = await handler(); // handler es la función principal y await evita encadenar .then()
+      let result;
+      try {
+        result = await handler(); // handler es la función principal y await evita encadenar .then()
+      } finally {
+        try { await connectionsMeta?.cleanup?.(); } catch { }
+      }
       // al usar await, cualquier throw dentro del handler se captura en este mismo try sin .catch adicional.
       //configuración de respuesta exitosa
       data.status = (method === 'CREATE') ? 201 : 200;//un if primitivo bien macabro que asigna 201 si el método es CREATE, sino 200

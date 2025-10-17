@@ -1,6 +1,6 @@
 const dotenvx = require('@dotenvx/dotenvx');
 dotenvx.config();
-
+//src/config/dotenvXConfig.js
 module.exports = {
   HOST: process.env.HOST || 'localhost',
   PORT: process.env.PORT || '4004',

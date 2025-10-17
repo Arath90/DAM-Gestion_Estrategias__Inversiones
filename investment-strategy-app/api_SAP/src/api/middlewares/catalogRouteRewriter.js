@@ -1,5 +1,5 @@
 'use strict';
-
+// src/api/middlewares/catalogRouteRewriter.js
 const { URLSearchParams } = require('url');
 
 function safeDecode(value) {

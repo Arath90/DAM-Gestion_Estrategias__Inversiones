@@ -1,3 +1,4 @@
+//src/middlewares/respPWA.handler.js
 const { whatTypeVarIs } = require('../helpers/variables');
 // TODO---> !agregar processType!
 const BITACORA = () => ({

@@ -1,7 +1,8 @@
 namespace inv;
-//schema.cds
+//src/api/models/schema.cds
 /* ===== Core ===== */
-@cds.persistence.skip
+@cds.persistence.skip //<-- Indica que no se debe crear tabla en la BD para este modelo en mongoDB (no relacional) sirve para definir entidades "virtuales"
+//entonces en este caso no se crean tablas en la BD, pero si se pueden usar en el servicio OData sirviendo como puente para los modelos de /mongodb en  .js
 entity Instruments {
   key ID               : String;
       ib_conid         : Integer;

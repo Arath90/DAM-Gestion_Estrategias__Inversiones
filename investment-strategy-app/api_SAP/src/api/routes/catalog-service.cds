@@ -12,7 +12,6 @@ service CatalogService {
   entity Signals                   as projection on inv.Signals;
   entity Backtests                 as projection on inv.Backtests;
   entity Candles                   as projection on inv.Candles;
-
   entity MLModels                  as projection on inv.MLModels;
   entity NewsArticles              as projection on inv.NewsArticles;
   entity OptionChainSnapshots      as projection on inv.OptionChainSnapshots;

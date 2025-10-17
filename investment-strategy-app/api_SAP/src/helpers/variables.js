@@ -1,3 +1,4 @@
+//src/helpers/variables.js
 // What type of variable is it?
 function whatTypeVarIs(variable) {
   if (Array.isArray(variable)) return 'isArray';

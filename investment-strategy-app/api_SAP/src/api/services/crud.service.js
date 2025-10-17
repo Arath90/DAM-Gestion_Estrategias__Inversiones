@@ -45,9 +45,9 @@ function buildStdParams(req) {
     const expressReq = req && req.req ? req.req : {};
     const paramsQuery = expressReq.query || {};
     const rawUrl = typeof expressReq.originalUrl === 'string' ? expressReq.originalUrl : '';
-    const qs = rawUrl.includes('?') ? rawUrl.split('?')[1] : '';
-    const paramString = new URLSearchParams(qs || '');
-    const body = expressReq.body || {};
+    const qs = rawUrl.includes('?') ? rawUrl.split('?')[1] : '';//<-- cadena de consulta sin el '?' en blanco si no hay consulta
+    const paramString = new URLSearchParams(qs || '');//<-- instancia de URLSearchParams para manipular los parámetros de consulta
+    const body = expressReq.body || {};//<-- cuerpo de la solicitud (para POST, PUT, etc)
     return { paramsQuery, paramString, body };
   } catch (_) {
     return { paramsQuery: {}, paramString: new URLSearchParams(''), body: {} };
@@ -166,13 +166,20 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
     || (expressReq.query && expressReq.query.loggedUser)
     || (expressReq.headers && (expressReq.headers['x-logged-user'] || expressReq.headers['logged-user']));
   if (loggedUserFromRequest) bitacora.loggedUser = loggedUserFromRequest;
+  const dbTargetFromRequest = expressReq.catalogDbTarget
+    || (expressReq.query && (expressReq.query.db || expressReq.query.dbType || expressReq.query.database))
+    || (expressReq.headers && (expressReq.headers['x-db-target'] || expressReq.headers['db-target']));
+  if (dbTargetFromRequest) bitacora.dbServer = dbTargetFromRequest;
   //metadatos iniciales
   bitacora.process = process;//se asigna el proceso a la bitácora, si esta no definido se asigna una cadena vacía.
   const env = (typeof process !== 'undefined' && process.env) ? process.env : {};//se obtiene el objeto env de process si está definido, de lo contrario se usa un objeto vacío
-  bitacora.dbServer = env.MONGO_INV_DB || env.MONGODB_DB || env.DATABASE || 'Inversiones';//nombre de la base de datos
+  if (!bitacora.dbServer) bitacora.dbServer = env.MONGO_INV_DB || env.MONGODB_DB || env.DATABASE || 'Inversiones';//nombre de la base de datos
   data.method = method;//se asigna el método (CRUD)
   data.api = api;//se asigna la API
-  data.dataReq = req.data || req._query || {};//se asignan los datos de la solicitud
+  const queryPayload = req.data || req._query || {};
+  const expressQuery = expressReq.query && Object.keys(expressReq.query).length ? expressReq.query : null;
+  if (expressQuery) data.dataReq = { ...expressQuery, _cds: queryPayload };
+  else data.dataReq = queryPayload;//se asignan los datos de la solicitud
   // lo anterior es el registro de los metadatos iniciales en la bitácora y el objeto de datos en el request de la operación CRUD 
   //flujo controlado
   //con flujo controlado nos referimos a que la operación se ejecuta dentro de un bloque try-catch

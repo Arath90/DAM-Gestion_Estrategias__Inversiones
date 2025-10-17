@@ -64,6 +64,8 @@ module.exports = function registerCatalogRouteRewriter(app) {
     if (loggedUser && !searchParams.has('loggedUser')) searchParams.set('loggedUser', loggedUser);
 
     req.query = Object.fromEntries(searchParams.entries());
+    if (normalizedDb) req.catalogDbTarget = normalizedDb;
+    else if (req.query && req.query.db) req.catalogDbTarget = req.query.db;
     if (loggedUser) req.catalogLoggedUser = loggedUser;
 
     let rewrittenPath = '';

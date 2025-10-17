@@ -8,7 +8,6 @@
 //y mapear los datos entre el formato utilizado por CDS y el formato utilizado por MongoDB (osea entre el formato de los modelos y el formato de los documentos).
 
 //{{CARNALGAS, COMO JALA ESTE ROLLO?, COMO QUE WRAPER Y CRUD Y TODO ESO?}}
- 
 
 //?primero que nada se definen varias funciones auxiliares para mapear datos entre CDS y MongoDB (mapIn y mapOut)
     //*estas dos madresotas son indispensables para que el servicio funcione correctamente,
@@ -63,7 +62,7 @@ function detectDbRoles(stdParams) {
   const target = desired === 'hana' || desired === 'mongo' ? desired : primary;
   return { primary, secondary, target };
 }
-
+//
 async function ensureDbConnections({ req, bitacora, method }) {
   const stdParams = buildStdParams(req);
   const roles = detectDbRoles(stdParams);
@@ -162,6 +161,11 @@ function wrapOperation({ req, method, api, process, handler }) {//entonces en wr
   // - handler: una función asíncrona que realiza la operación específica y devuelve el resultado
   const bitacora = BITACORA();//se inicializa la bitácora 
   const data = DATA();//y el objeto de datos
+  const expressReq = (req && req.req) ? req.req : {};
+  const loggedUserFromRequest = expressReq.catalogLoggedUser
+    || (expressReq.query && expressReq.query.loggedUser)
+    || (expressReq.headers && (expressReq.headers['x-logged-user'] || expressReq.headers['logged-user']));
+  if (loggedUserFromRequest) bitacora.loggedUser = loggedUserFromRequest;
   //metadatos iniciales
   bitacora.process = process;//se asigna el proceso a la bitácora, si esta no definido se asigna una cadena vacía.
   const env = (typeof process !== 'undefined' && process.env) ? process.env : {};//se obtiene el objeto env de process si está definido, de lo contrario se usa un objeto vacío
@@ -489,50 +493,3 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
 
 //exportamos el servicio CRUD para ser usado por las entidades
 module.exports = { registerCRUD };
-
-
-//!pero porque es mejor async/await que la encadenacion de Promise con .then, reject, resolve ?
-//* por varias razones:
-//* 1. Legibilidad: El código con async/await se lee de manera más lineal y secuencial, similar al código síncrono.
-//*    Esto facilita entender el flujo de la lógica sin tener que saltar entre múltiples callbacks.
-//* 2. Manejo de errores: Con async/await, el manejo de errores se realiza de manera uniforme utilizando bloques try/catch.
-//*    Cualquier error lanzado dentro de una función async se captura en el bloque catch, evitando la necesidad de múltiples .catch() en una cadena de promesas.
-  //? por ejemplo, si una función async llama a otra función async que lanza un error, ese error se propaga automáticamente al bloque catch del llamador.
-    /* 
-    ! Ejemplo con async/await:
-    async function example() {
-      try {
-        * await someAsyncFunction();
-      } catch (error) {
-        throw error; <---- si se lanza un error aquí, se propaga automáticamente en el caso de este servicio CRUD se captura en wrapOperation
-        haciendo innecesario el uso de reject(error);
-        ? console.error('Error capturado:', error);
-      }
-    ! Ejemplo con promesas encadenadas con Promise:
-    function example() {<---- no es async
-      someAsyncFunction() <---- esta es la PROMESA
-        .then(() => {<---- callback de éxito
-         *éxito
-        })
-        .catch((error) => {<---- callback de error
-          reject(error); <---- si se lanza un error aquí, no se propaga automáticamente
-          ? console.error('Error capturado:', error);
-        });
-    */ 
-//* 3. Stack traces más claros: Los errores lanzados dentro de funciones async mantienen una traza de pila más clara,
-//*    lo que facilita la depuración en comparación con las promesas encadenadas, donde la traza puede cortarse entre callbacks.
-//* 4. Evita la pirámide de la perdición: Al usar async/await, se evita la anidación profunda de callbacks que puede ocurrir con las promesas encadenadas,
-//*    lo que mejora la estructura del código y reduce la complejidad visual.
-//* 5. Menos boilerplate: No es necesario crear nuevas promesas manualmente con new Promise((resolve, reject) => ...),
-//*    ya que las funciones async devuelven automáticamente una promesa.
-//*    Esto reduce la cantidad de código repetitivo y hace que el código sea más conciso.
-//* En resumen, async/await mejora la legibilidad, simplifica el manejo de errores y reduce la complejidad del código en comparación con las promesas encadenadas.
-//?esto no quiere decir que las promesas encadenadas sean malas, de hecho en algunos casos pueden ser más adecuadas,
-//?pero en la mayoría de los casos, async/await ofrece una forma más limpia y manejable de trabajar con operaciones asíncronas en JavaScript.
-//! Nota final:
-//* El uso de async/await no elimina el uso de promesas, ya que async/await se basa en promesas.
-//* Más bien, async/await es una sintaxis más conveniente para trabajar con promesas,
-//* permitiendo escribir código asíncrono de manera más similar al código síncrono.
-//* En este servicio CRUD, async/await se utiliza para manejar las operaciones asíncronas de manera más legible y manejable,
-//* mientras que las promesas subyacentes son manejadas por Mongoose y CDS.
-//* Esto permite aprovechar las ventajas de ambas técnicas para crear un código más limpio y eficiente.

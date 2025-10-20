@@ -132,17 +132,17 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
       method: 'READ',
       api: `READ ${cdsEntity.name}`,
       process: `Lectura de ${cdsEntity.name}`,
-      handler: ({ params }) => {
+      handler: ({ params }) => {// el handler toma nuestros params : body,ProcessType, LoggedUser y ya extraidos en wrapOperation
         // 1) Si llega ID por OData (req.data.ID) → GetOne
-        if (req.data && req.data.ID) {
-          const id = req.data.ID;
+        if (req.data && req.data.ID) {//si req.data existe y tiene ID entonces sera un getOne o findById en terminos Mongoose
+          const id = req.data.ID;// extraemos el ID
           // validamos formato ObjectId
           if (!isValidObjectId(id)) {
-            const e = new Error('ID inválido'); e.status = 400; throw e;
+            const e = new Error('ID inválido'); e.status = 400; throw e;// si no es valido lanzamos error 400 que sera capturado en wrapOperation
           }
           // buscar y mapear a respuesta CDS
           return Model.findById(id)
-            .then((doc) => {
+            .then((doc) => {//<- se resuelve la promesa de findById
               if (!doc) { const e = new Error('No encontrado'); e.status = 404; throw e; }
               return [mapOut(doc)]; // OData espera array
             });

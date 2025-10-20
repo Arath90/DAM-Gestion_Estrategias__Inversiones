@@ -1,12 +1,3 @@
-/**
- * Servicio CRUD (MongoDB + SAP CDS)
- * ---------------------------------------------------------------------------
- * - BD por defecto: "mongo"
- * - Switch por dbServer (mongo | hana)
- * - ID extraíble desde: req.data.ID / req.req.query / req.req.params
- * - Requiere siempre: ProcessType (excepto para pruebas internas)
- * - Manejo robusto de errores con mensajes explícitos
- */
 
 const mongoose = require('mongoose');
 const cds = require('@sap/cds');

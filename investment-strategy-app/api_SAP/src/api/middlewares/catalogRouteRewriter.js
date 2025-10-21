@@ -45,7 +45,9 @@ module.exports = function registerCatalogRouteRewriter(app) {
     if (!segments.length) return next();
 
     const operation = (segments[0] || '').toLowerCase();
-    if (operation !== 'getall' && operation !== 'getbyid') return next();
+    // soportar más verbos además de get*
+    const supported = new Set(['getall', 'getbyid', 'create', 'update', 'patch', 'delete']);
+    if (!supported.has(operation)) return next();
 
     const contextSegment = segments[1] || '';
     const entitySegment = segments[2];
@@ -69,9 +71,12 @@ module.exports = function registerCatalogRouteRewriter(app) {
     if (loggedUser) req.catalogLoggedUser = loggedUser;
 
     let rewrittenPath = '';
+    // determinar método HTTP a aplicar en base a la operación
+    let targetMethod = req.method; // por defecto mantener el método original si se prefiere
     if (operation === 'getall') {
       rewrittenPath = `/${entitySegment}`;
-    } else {
+      targetMethod = 'GET';
+    } else if (operation === 'getbyid') {
       const idSegment = remaining[0];
       if (!idSegment) {
         res.status(400).json({ error: 'ID segment is required for getById.' });
@@ -80,11 +85,47 @@ module.exports = function registerCatalogRouteRewriter(app) {
       const id = safeDecode(idSegment);
       const sanitizedId = (id || '').replace(/'/g, "''");
       rewrittenPath = `/${entitySegment}('${sanitizedId}')`;
+      targetMethod = 'GET';
+    } else if (operation === 'create') {
+      rewrittenPath = `/${entitySegment}`;
+      targetMethod = 'POST';
+    } else if (operation === 'update') {
+      const idSegment = remaining[0];
+      if (!idSegment) {
+        res.status(400).json({ error: 'ID segment is required for update.' });
+        return;
+      }
+      const id = safeDecode(idSegment);
+      const sanitizedId = (id || '').replace(/'/g, "''");
+      rewrittenPath = `/${entitySegment}('${sanitizedId}')`;
+      targetMethod = 'PUT';
+    } else if (operation === 'patch') {
+      const idSegment = remaining[0];
+      if (!idSegment) {
+        res.status(400).json({ error: 'ID segment is required for patch.' });
+        return;
+      }
+      const id = safeDecode(idSegment);
+      const sanitizedId = (id || '').replace(/'/g, "''");
+      rewrittenPath = `/${entitySegment}('${sanitizedId}')`;
+      targetMethod = 'PATCH';
+    } else if (operation === 'delete') {
+      const idSegment = remaining[0];
+      if (!idSegment) {
+        res.status(400).json({ error: 'ID segment is required for delete.' });
+        return;
+      }
+      const id = safeDecode(idSegment);
+      const sanitizedId = (id || '').replace(/'/g, "''");
+      rewrittenPath = `/${entitySegment}('${sanitizedId}')`;
+      targetMethod = 'DELETE';
     }
 
     const queryString = searchParams.toString();
     req.catalogRewrittenPath = rewrittenPath;
     req.url = queryString ? `${rewrittenPath}?${queryString}` : rewrittenPath;
+    // actualizar el método para que Express/otros middlewares lo procesen correctamente
+    req.method = targetMethod;
 
     next();
   });

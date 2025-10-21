@@ -232,3 +232,4 @@ entity OptionQuotes {
       createdAt     : DateTime;
       updatedAt     : DateTime;
 }
+

@@ -41,30 +41,46 @@ const isStrict = ['true', '1', 'yes', 'on'].includes(String(process.env.STRICT_H
 // =====================
 // Núcleo: wrapOperation
 // =====================
-
+//req: objeto request de cds
+//method: string con el metodo CRUD (CREATE, READ, UPDATE, DELETE)
+//api: string con el nombre del API (ej. CREATE EntityName)
+//process: string con la descripcion del proceso (ej. Creación de EntityName)
+//handler: funcion que contiene la logica especifica del CRUD (READ, CREATE, UPDATE, DELETE)
 function wrapOperation({ req, method, api, process, handler }) {
   const bitacora = BITACORA();
   const data = DATA();
 
   const expressReq = req.req || {};
+
+  // 1️ Prioridad de origen de usuario
+  const loggedUserParam  = expressReq.query?.LoggedUser;                     // query param
+  const loggedUserHeader = expressReq.headers?.['x-logged-user'];            // header
+  const loggedUserBody   = req.data?.LoggedUser || req.data?.loggedUser;     // body (ej. en Mongo)
+  const LoggedUser = loggedUserParam || loggedUserHeader || loggedUserBody || 'anonymous';
+
+  // 2️ Otros parámetros
   const ProcessType = expressReq.query?.ProcessType;
-  const LoggedUser = expressReq.query?.LoggedUser || expressReq.headers?.['x-logged-user'] || '';
   const dbServerRaw = req.catalogDbTarget || expressReq.query?.dbServer || expressReq.query?.db || 'mongo';
   const dbServer = String(dbServerRaw || 'mongo').toLowerCase();
-  const idParam = extractId(req);
+  const idParam  = extractId(req);
 
-  bitacora.loggedUser = LoggedUser || '';
+  // 3️ Asignar a estructuras base
+  bitacora.loggedUser  = LoggedUser;
   bitacora.processType = ProcessType || '';
-  bitacora.dbServer = dbServer;
-  bitacora.process = process;
+  bitacora.dbServer    = dbServer;
+  bitacora.process     = process;
   data.method = method;
-  data.api = api;
+  data.api    = api;
+  data.loggedUser = LoggedUser;
+  data.ProcessType = ProcessType;
+  data.dbServer = dbServer;
 
   return new Promise((resolve) => {
     Promise.resolve()
       .then(() => {
-        // ProcessType obligatorio
+        // Validar ProcessType obligatorio
         if (!ProcessType) {
+          //ProcessType obligatorio cawn
           const e = new Error('Missing query param: ProcessType');
           e.status = 400;
           e.messageUSR = 'Debe especificar el tipo de proceso (ProcessType).';
@@ -72,23 +88,33 @@ function wrapOperation({ req, method, api, process, handler }) {
           throw e;
         }
       })
-      .then(() => handler({ dbServer, idParam }))
-      .then((result) => {
-        data.status = method === 'CREATE' ? 201 : 200;
-        data.messageUSR = 'Operación realizada con éxito.';
+      //los .then encadenados permiten capturar errores en cualquier parte del proceso basicamente cuando se lanza un error en un then se salta al catch final
+      .then(() => handler({ dbServer, idParam, LoggedUser })) // en este caso then con una funcion arrow que llama al handler pasado como parametro para ejecutar la logica del crud
+      .then((result) => {//.then que recibe el resultado del handler osea el resultado de la operacion crud y en base a el estado que tenga da el tipo de salida en el postman o lo que uses
+        const res = req?._?.res || req.res;
+        const statusCodeByMethod = { CREATE: 201, READ: 200, UPDATE: 200, DELETE: 200 };
+        const statusCode = statusCodeByMethod[method] || 200;
+         if (res && !res.headersSent) res.status(statusCode);
+        data.status = method === 'CREATE' ? 201 : 200;// si es create 201 sino 200 asigna a data.status
+        data.messageUSR = 'Operación realizada con éxito';
         data.messageDEV = `OK ${api} [db:${dbServer}]`;
+        data.loggedUser = LoggedUser;
+        data.dbServer = dbServer;
         data.dataRes = result;
+        data.ProcessType = ProcessType;
+        data.dbServer = dbServer;
         AddMSG(bitacora, data, 'OK', data.status, true);
         return resolve(OK(bitacora));
       })
       .catch((err) => {
         const status = err?.status || 500;
-        data.status = status;
+        data.status= status;
         data.messageUSR = err?.messageUSR || (status >= 500 ? 'Ocurrió un error interno.' : 'La operación no se pudo completar.');
         data.messageDEV = err?.messageDEV || err?.message || String(err);
-        data.dataRes = { error: err?.stack || String(err) };
+        bitacora.loggedUser = LoggedUser;
+        bitacora.dbServer = dbServer;
+        data.dataRes    = { error: err?.stack || String(err) };
         AddMSG(bitacora, data, 'FAIL', status, true);
-
         if (isStrict && typeof req.error === 'function') {
           try {
             req.error({
@@ -99,14 +125,13 @@ function wrapOperation({ req, method, api, process, handler }) {
               '@Common.numericSeverity': status >= 500 ? 4 : 2,
               details: [{ message: data.messageDEV }],
             });
-            return resolve();
-          } catch (_) {
-            // si falla req.error, continuamos al fallback
-          }
+            return resolve(); // cerrar promesa sin cuerpo
+          } catch (_) {}
         }
+
+        // fallback
         return resolve(FAIL(bitacora));
       });
-
   });
 }
 
@@ -116,7 +141,10 @@ function wrapOperation({ req, method, api, process, handler }) {
 function registerCRUD(srv, cdsEntity, Model, opts = {}) {
   const { uniqueCheck, beforeCreate, beforeUpdate } = opts;
   const { SELECT, INSERT, UPDATE, DELETE } = cds;
-
+//srv: servicio cds
+//cdsEntity: entidad cds sobre la que se aplican las operaciones CRUD
+//Model: modelo mongoose asociado a la entidad cds
+//opts: opciones adicionales (uniqueCheck, beforeCreate, beforeUpdate)
   // Métodos MongoDB
   const findByIdMongo = (id) =>
     Model.findById(id).then(doc => doc || Model.findOne({ $expr: { $eq: [{ $toString: '$_id' }, id] } }));
@@ -134,6 +162,7 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
     req, method: 'READ', api: `READ ${cdsEntity.name}`, process: `Lectura de ${cdsEntity.name}`,ProcessType: `getAll`,
     handler: ({ dbServer, idParam }) => {
       switch (dbServer) {
+        // ---------------------- HANA ----------------------
         case 'hana': {
           const { top, skip } = readQueryBounds(req);
           let query = SELECT.from(cdsEntity.name);
@@ -147,7 +176,7 @@ function registerCRUD(srv, cdsEntity, Model, opts = {}) {
             return Array.isArray(rows) ? rows : [rows];
           });
         }
-
+        // ---------------------- MONGO ----------------------
         case 'mongo':
         default: {
           if (idParam) {

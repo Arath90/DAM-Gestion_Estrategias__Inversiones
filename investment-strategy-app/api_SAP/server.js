@@ -13,6 +13,18 @@ module.exports = async (o = {}) => {
   try {
     const app = express();
     app.use(express.json({ limit: '500kb' }));
+    app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && 'body' in err) {
+    return res.status(400).json({
+      error: {
+        message: 'Invalid JSON in request body',
+        statusCode: 400,
+        code: '400'
+      }
+    });
+  }
+  next(err);
+});
     app.use(cors());
     registerCatalogRouteRewriter(app);
 

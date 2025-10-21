@@ -234,3 +234,12 @@ entity OptionQuotes {
       updatedAt     : DateTime;
 }
 
+@cds.persistence.skip
+entity SecUsers {
+  key ID               : String;
+      name             : String;
+      email            : String;
+      pass             : String;
+      createdAt        : DateTime;
+      updatedAt        : DateTime;
+}

@@ -52,4 +52,8 @@ export const ENTITY_CONFIG = {
     fields: ['instrument_id', 'ts', 'bid', 'ask', 'last', 'iv', 'delta'],
     api: 'OptionQuotesAPI',
   },
+  SecUsers:{
+    fields: ['name','email','pass'],
+    api:'SecUsersAPI',
+  }
 };

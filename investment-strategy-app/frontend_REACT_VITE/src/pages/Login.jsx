@@ -1,7 +1,7 @@
-
 import React, { useReducer } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import axios from 'axios';
 import '../css/auth.css';
 
 const initialState = {
@@ -32,19 +32,30 @@ const Login = () => {
     dispatch({ type: 'field', field: e.target.name, value: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!state.email || !state.password) {
       dispatch({ type: 'error', value: 'Todos los campos son obligatorios' });
       return;
     }
     dispatch({ type: 'error', value: '' });
-    const success = login({ email: state.email, password: state.password });
-    if (success) {
-      dispatch({ type: 'reset' });
-      navigate('/');
-    } else {
-      dispatch({ type: 'error', value: 'Credenciales inválidas' });
+
+    // Enviar datos del login al backend con Axios
+    try {
+      const response = await axios.post('http://localhost:4004/odata/v4/catalog/SecUsers', {
+        email: state.email,
+        pass: state.password,
+      });
+      // Maneja la respuesta del backend aquí
+      // Si el login es exitoso, navega y resetea el form
+      if (response.data.success) {
+        dispatch({ type: 'reset' });
+        navigate('/');
+      } else {
+        dispatch({ type: 'error', value: response.data.error || 'Credenciales inválidas' });
+      }
+    } catch (error) {
+      dispatch({ type: 'error', value: 'Error de conexión o credenciales inválidas' });
     }
   };
 

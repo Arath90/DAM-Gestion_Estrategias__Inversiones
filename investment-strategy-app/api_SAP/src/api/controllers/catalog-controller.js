@@ -18,6 +18,7 @@ const NewsArticle = require('../models/mongodb/NewsArticle');
 const OptionChainSnapshot = require('../models/mongodb/OptionChainSnapshot');
 const OptionChainSnapshotItem = require('../models/mongodb/OptionChainSnapshotItem');
 const OptionQuote = require('../models/mongodb/OptionQuote');
+const SecUser = require('../models/mongodb/SecUser');
 
 // --- Controller helpers (HTTP/bitácora), no CRUD ---
 const isStrict = ['true','1','yes','on'].includes(String(process.env.STRICT_HTTP_ERRORS || '').toLowerCase());
@@ -193,7 +194,7 @@ class CatalogController extends cds.ApplicationService {
     const {
       Instruments, MLDatasets, Executions, DailyPnls, Orders, RiskLimits,
       Positions, Signals, Backtests, Candles,
-      MLModels, NewsArticles, OptionChainSnapshots, OptionChainSnapshotItems, OptionQuotes
+      MLModels, NewsArticles, OptionChainSnapshots, OptionChainSnapshotItems, OptionQuotes,SecUsers
     } = this.entities;
 
     // Utilidad para registrar una entidad
@@ -323,7 +324,14 @@ class CatalogController extends cds.ApplicationService {
         if (found) r.reject(409, 'Quote duplicado');
       },
     });
-
+    registerEntity(SecUsers,SecUser,{
+      uniqueCheck: async (r)=>{
+        const {secuser_id, ts} = r.data || {};
+        if(!secuser_id||!ts)return;
+        const found = await SecUser.findOne({secuser_id,ts});
+        if (found) r.reject(409,'Usuario Duplicado');
+      }
+    });
     return super.init();
   }
 }

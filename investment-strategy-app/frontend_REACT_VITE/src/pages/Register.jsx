@@ -3,6 +3,7 @@ import React, { useReducer } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import '../css/auth.css';
+import axios from 'axios';
 
 const initialState = {
   name: '',
@@ -41,7 +42,9 @@ const Register = () => {
     }
     dispatch({ type: 'error', value: '' });
     const result = register({ name: state.name, email: state.email, password: state.password });
+    const add = ({ name: state.name, email: state.email, pass: state.password });
     if (result.success) {
+      axios.post('http://localhost:4004/odata/v4/catalog/SecUsers?ProcessType=AddOne&dbServer=mongo&LoggedUser',add)
       dispatch({ type: 'reset' });
       navigate('/');
     } else {

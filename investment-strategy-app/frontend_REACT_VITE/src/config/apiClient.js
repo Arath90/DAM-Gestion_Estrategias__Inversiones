@@ -1,24 +1,23 @@
+// src/config/apiClient.js
 import axios from 'axios';
 
 const API_BASE =
   (import.meta?.env?.VITE_API_URL && String(import.meta.env.VITE_API_URL).trim()) ||
-  'http://localhost:4004/odata/v4/catalog'; // fallback seguro en dev
+  'http://localhost:4004/odata/v4/catalog'; // fallback local en desarrollo
 
-// 🔎 Log claro en consola para verificar qué URL usa el front
+// Simple log to verify which URL is being used
 if (typeof window !== 'undefined') {
-  // Evita spamear en producción si quieres
   // eslint-disable-next-line no-console
   console.info('[API] baseURL =', API_BASE);
 }
 
 const api = axios.create({
-  baseURL: API_BASE.replace(/\/$/, ''), // sin trailing slash
+  baseURL: API_BASE.replace(/\/$/, ''),
   timeout: 20000,
   headers: { 'Content-Type': 'application/json' },
-  // withCredentials: true, // <- descomenta si tu CAP usa cookies/sesión
+  // withCredentials: true, // habilitar si CAP usa sesion basada en cookies
 });
 
-// Manejo de errores con mensaje legible
 api.interceptors.response.use(
   (res) => res,
   (err) => {

@@ -28,7 +28,7 @@ const GenericCrudView = ({ entityName, entityConfig }) => {
     
     const fetchData = useCallback(() => {
         const filter = debouncedSearchTerm 
-            ? `contains(tolower(symbol), '${debouncedSearchTerm.toLowerCase()}')` // Ajusta 'symbol' al campo principal de búsqueda
+            ? `contains(tolower(symbol), '${debouncedSearchTerm.toLowerCase()}')` // Ajusta 'symbol' al campo principal de busqueda
             : undefined;
         return apiService.list({ filter });
     }, [apiService, debouncedSearchTerm]);

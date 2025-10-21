@@ -1,3 +1,4 @@
+// src/components/common/Drawer.jsx
 import React from 'react';
 
 export default function Drawer({ open, title, onClose, children, width = 520 }) {
@@ -11,7 +12,9 @@ export default function Drawer({ open, title, onClose, children, width = 520 }) 
       >
         <header className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">{title}</h3>
-          <button onClick={onClose} className="text-2xl leading-none opacity-70 hover:opacity-100">×</button>
+          <button onClick={onClose} className="text-2xl leading-none opacity-70 hover:opacity-100" aria-label="Close">
+            x
+          </button>
         </header>
         {children}
       </aside>

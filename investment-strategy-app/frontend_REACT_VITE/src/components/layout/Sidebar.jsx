@@ -1,4 +1,4 @@
-//src/components/layout/Sidebar.jsx
+// src/components/layout/Sidebar.jsx
 import React from 'react';
 import './Sidebar.css';
 
@@ -36,9 +36,9 @@ const Sidebar = ({
         className={logoClasses}
         onClick={handleLogoClick}
         style={{ cursor: 'pointer' }}
-        title={isLocked ? 'Desbloquear menú' : 'Bloquear menú'}
+        title={isLocked ? 'Desbloquear menu' : 'Bloquear menu'}
       >
-        ⚡
+        INV
       </div>
       <nav className="sidebar-nav">
         {navigationItems.map((item) => (

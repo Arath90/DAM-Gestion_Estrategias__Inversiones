@@ -44,9 +44,64 @@ const readQueryBounds = (req) => ({
   skip: Number(req._query?.$skip ?? 0),
 });
 
+const controlParams = new Set(['ProcessType','LoggedUser','$top','$skip','dbServer','db']);
+
+const parseLiteral = (raw='') => {
+  const v = raw.trim();
+  if (!v.length) return v;
+  if (v === 'null') return null;
+  if (v === 'undefined') return undefined;
+  if (v === 'true') return true;
+  if (v === 'false') return false;
+  const num = Number(v);
+  if (!Number.isNaN(num) && v === String(num)) return num;
+  return v;
+};
+
+const parseODataFilter = (expr='') => {
+  const result = {};
+  const parts = String(expr).split(/\s+and\s+/i).map(s => s.trim()).filter(Boolean);
+  for (const part of parts) {
+    // contains(tolower(field),'value')
+    let match = part.match(/^contains\s*\(\s*tolower\(\s*([\w.]+)\s*\)\s*,\s*'([^']*)'\s*\)\s*$/i);
+    if (match) {
+      const [, field, value] = match;
+      result[field] = { $regex: value, $options: 'i' };
+      continue;
+    }
+    // contains(field,'value')
+    match = part.match(/^contains\s*\(\s*([\w.]+)\s*,\s*'([^']*)'\s*\)\s*$/i);
+    if (match) {
+      const [, field, value] = match;
+      result[field] = { $regex: value };
+      continue;
+    }
+    // field eq/ne 'value' or value without quotes
+    match = part.match(/^([\w.]+)\s+(eq|ne)\s+(.+)$/i);
+    if (match) {
+      const [, field, op, rawValue] = match;
+      const cleaned = rawValue.replace(/^'(.*)'$/, '$1');
+      const parsedValue = parseLiteral(cleaned);
+      if (op.toLowerCase() === 'eq') result[field] = parsedValue;
+      else if (op.toLowerCase() === 'ne') result[field] = { $ne: parsedValue };
+      continue;
+    }
+    // fallback: ignore clause we can't understand
+  }
+  return result;
+};
+
 const buildFilter = (q={}) => {
-  const control = new Set(['ProcessType','LoggedUser','$top','$skip','dbServer','db']);
-  return Object.fromEntries(Object.entries(q).filter(([k]) => !control.has(k)));
+  const filter = {};
+  for (const [key, value] of Object.entries(q)) {
+    if (controlParams.has(key)) continue;
+    if (key === '$filter') {
+      Object.assign(filter, parseODataFilter(value));
+      continue;
+    }
+    filter[key] = value;
+  }
+  return filter;
 };
 
 const statusByMethod = (m) => ({ CREATE:201, READ:200, UPDATE:200, DELETE:200 }[m] || 200);

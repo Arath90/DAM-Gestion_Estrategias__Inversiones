@@ -7,6 +7,7 @@ import axios from 'axios';
 
 const initialState = {
   name: '',
+  user: '',
   email: '',
   password: '',
   error: '',
@@ -42,9 +43,9 @@ const Register = () => {
     }
     dispatch({ type: 'error', value: '' });
     const result = register({ name: state.name, email: state.email, password: state.password });
-    const add = ({ name: state.name, email: state.email, pass: state.password });
+    const add = ({ name: state.name,user: state.user , email: state.email, pass: state.password });
     if (result.success) {
-      axios.post('http://localhost:4004/odata/v4/catalog/SecUsers?ProcessType=AddOne&dbServer=mongo&LoggedUser',add)
+      axios.post('http://localhost:4004/odata/v4/catalog/SecUsers?ProcessType=AddOne&dbServer=mongo&LoggedUser='+state.user,add)
       dispatch({ type: 'reset' });
       navigate('/');
     } else {
@@ -55,7 +56,9 @@ const Register = () => {
   const inputProps = [
     { type: 'text', name: 'name', placeholder: 'Nombre', value: state.name },
     { type: 'email', name: 'email', placeholder: 'Correo electrónico', value: state.email },
+    { type: 'text', name: 'user', placeholder: 'Usuario', value: state.user},
     { type: 'password', name: 'password', placeholder: 'Contraseña', value: state.password },
+    
   ];
 
   return (

@@ -1,12 +1,34 @@
-import React, { useState, useCallback } from 'react';
+
+import React, { useReducer, useCallback, useMemo } from 'react';
 import { useFetch } from '../../hooks/useFetch.js';
 import { useDebounce } from '../../hooks/useDebounce.js';
 import FormModal from '../common/FormModal.jsx';
 import DataTable from '../common/DataTable.jsx';
 import * as api from '../../services/catalog.js';
-import '../css/GenericCrudView.css';
+import '../../css/GenericCrudView.css';
 
-// --- Iconos SVG ---
+const initialState = {
+    searchTerm: '',
+    isFormOpen: false,
+    selectedItem: null,
+    key: 0,
+};
+
+function reducer(state, action) {
+    switch (action.type) {
+        case 'search':
+            return { ...state, searchTerm: action.value };
+        case 'openForm':
+            return { ...state, isFormOpen: true, selectedItem: action.item };
+        case 'closeForm':
+            return { ...state, isFormOpen: false, selectedItem: null };
+        case 'refresh':
+            return { ...state, key: state.key + 1 };
+        default:
+            return state;
+    }
+}
+
 const Icon = ({ path, className = "w-5 h-5" }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
         <path fillRule="evenodd" d={path} clipRule="evenodd" />
@@ -17,25 +39,18 @@ const ICONS = {
 };
 
 const GenericCrudView = ({ entityName, entityConfig }) => {
-    const [searchTerm, setSearchTerm] = useState('');
-    const [isFormOpen, setIsFormOpen] = useState(false);
-    const [selectedItem, setSelectedItem] = useState(null);
-    const [key, setKey] = useState(0); // Para forzar re-fetch
-
-    const debouncedSearchTerm = useDebounce(searchTerm, 300);
-
+    const [state, dispatch] = useReducer(reducer, initialState);
+    const debouncedSearchTerm = useDebounce(state.searchTerm, 300);
     const apiService = api[entityConfig.api];
-    
+
     const fetchData = useCallback(() => {
-        const filter = debouncedSearchTerm 
-            ? `contains(tolower(symbol), '${debouncedSearchTerm.toLowerCase()}')` // Ajusta 'symbol' al campo principal de busqueda
+        const filter = debouncedSearchTerm
+            ? `contains(tolower(symbol), '${debouncedSearchTerm.toLowerCase()}')`
             : undefined;
         return apiService.list({ filter });
     }, [apiService, debouncedSearchTerm]);
 
-    const { data: items, loading, error, reload } = useFetch(fetchData, [debouncedSearchTerm, key]);
-    
-    const handleRefresh = () => setKey(k => k + 1);
+    const { data: items, loading, error, reload } = useFetch(fetchData, [debouncedSearchTerm, state.key]);
 
     const handleSave = async (item) => {
         try {
@@ -44,7 +59,7 @@ const GenericCrudView = ({ entityName, entityConfig }) => {
             } else {
                 await apiService.create(item);
             }
-            setIsFormOpen(false);
+            dispatch({ type: 'closeForm' });
             reload();
         } catch (err) {
             console.error('Failed to save item:', err);
@@ -53,7 +68,7 @@ const GenericCrudView = ({ entityName, entityConfig }) => {
     };
 
     const handleDelete = async (itemId) => {
-        if (window.confirm('Are you sure you want to delete this item?')) {
+        if (window.confirm('¿Seguro que deseas eliminar este elemento?')) {
             try {
                 await apiService.remove(itemId);
                 reload();
@@ -64,14 +79,16 @@ const GenericCrudView = ({ entityName, entityConfig }) => {
         }
     };
 
-    const openFormForCreate = () => {
-        setSelectedItem({});
-        setIsFormOpen(true);
-    };
+    const openFormForCreate = useCallback(() => {
+        dispatch({ type: 'openForm', item: {} });
+    }, []);
 
-    const openFormForEdit = (item) => {
-        setSelectedItem(item);
-        setIsFormOpen(true);
+    const openFormForEdit = useCallback((item) => {
+        dispatch({ type: 'openForm', item });
+    }, []);
+
+    const handleSearchChange = (e) => {
+        dispatch({ type: 'search', value: e.target.value });
     };
 
     return (
@@ -79,20 +96,20 @@ const GenericCrudView = ({ entityName, entityConfig }) => {
             <div className="view-header">
                 <input
                     type="text"
-                    placeholder={`Search in ${entityName}...`}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder={`Buscar en ${entityName}...`}
+                    value={state.searchTerm}
+                    onChange={handleSearchChange}
                     className="search-input"
                 />
                 <button onClick={openFormForCreate} className="add-button">
                     <Icon path={ICONS.add} />
-                    <span>Create New</span>
+                    <span>Crear Nuevo</span>
                 </button>
             </div>
 
             {loading && <p>Loading...</p>}
-            {error && <p className="error-message">Error fetching data: {error.message}</p>}
-            
+            {error && <p className="error-message">Error al obtener datos: {error.message}</p>}
+
             {!loading && !error && (
                 <DataTable
                     items={items || []}
@@ -102,12 +119,12 @@ const GenericCrudView = ({ entityName, entityConfig }) => {
                 />
             )}
 
-            {isFormOpen && (
+            {state.isFormOpen && (
                 <FormModal
-                    item={selectedItem}
+                    item={state.selectedItem}
                     fields={entityConfig.fields}
                     entityName={entityName}
-                    onClose={() => setIsFormOpen(false)}
+                    onClose={() => dispatch({ type: 'closeForm' })}
                     onSave={handleSave}
                 />
             )}

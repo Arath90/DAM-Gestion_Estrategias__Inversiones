@@ -1,0 +1,78 @@
+
+import React, { useReducer } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+import '../css/auth.css';
+
+const initialState = {
+  email: '',
+  password: '',
+  error: '',
+};
+
+function reducer(state, action) {
+  switch (action.type) {
+    case 'field':
+      return { ...state, [action.field]: action.value };
+    case 'error':
+      return { ...state, error: action.value };
+    case 'reset':
+      return { ...initialState };
+    default:
+      return state;
+  }
+}
+
+const Login = () => {
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const { login } = useAuth();
+  const navigate = useNavigate();
+
+  const handleChange = (e) => {
+    dispatch({ type: 'field', field: e.target.name, value: e.target.value });
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!state.email || !state.password) {
+      dispatch({ type: 'error', value: 'Todos los campos son obligatorios' });
+      return;
+    }
+    dispatch({ type: 'error', value: '' });
+    const success = login({ email: state.email, password: state.password });
+    if (success) {
+      dispatch({ type: 'reset' });
+      navigate('/');
+    } else {
+      dispatch({ type: 'error', value: 'Credenciales inválidas' });
+    }
+  };
+
+  const inputProps = [
+    { type: 'email', name: 'email', placeholder: 'Correo electrónico', value: state.email },
+    { type: 'password', name: 'password', placeholder: 'Contraseña', value: state.password },
+  ];
+
+  return (
+    <div className="auth-container">
+      <h2>Iniciar Sesión</h2>
+      <form onSubmit={handleSubmit} className="auth-form">
+        {inputProps.map((props) => (
+          <input
+            key={props.name}
+            {...props}
+            onChange={handleChange}
+            required
+          />
+        ))}
+        {state.error && <div className="error">{state.error}</div>}
+        <button type="submit">Entrar</button>
+        <div className="auth-link">
+          <Link to="/register">¿No tienes cuenta? Regístrate</Link>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+export default Login;

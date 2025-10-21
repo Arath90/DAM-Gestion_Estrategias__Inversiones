@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext();
 
@@ -25,6 +25,14 @@ function saveCurrentUser(user) {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(getCurrentUser());
+
+  // Sincroniza el estado user con localStorage en cada cambio
+  useEffect(() => {
+    const storedUser = getCurrentUser();
+    if (storedUser && (!user || storedUser.email !== user.email)) {
+      setUser(storedUser);
+    }
+  }, []);
 
   const login = ({ email, password }) => {
     const users = getUsers();
@@ -56,7 +64,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider value={{ user, login, register, logout, setUser }}>
       {children}
     </AuthContext.Provider>
   );

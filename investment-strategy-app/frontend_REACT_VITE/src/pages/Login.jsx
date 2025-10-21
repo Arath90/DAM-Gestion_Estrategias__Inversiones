@@ -25,7 +25,7 @@ function reducer(state, action) {
 
 const Login = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const { login } = useAuth();
+  const { login, user, logout, register, setUser } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -40,19 +40,25 @@ const Login = () => {
     }
     dispatch({ type: 'error', value: '' });
 
-    // Enviar datos del login al backend con Axios
+    // Enviar datos del login al backend con Axios usando GET y filtros
     try {
-      const response = await axios.post('http://localhost:4004/odata/v4/catalog/SecUsers', {
-        email: state.email,
-        pass: state.password,
+      const response = await axios.get('http://localhost:4004/odata/v4/catalog/SecUsers', {
+        params: {
+          email: state.email,
+          pass: state.password,
+          ProcessType: 'READ',
+        },
       });
       // Maneja la respuesta del backend aquí
-      // Si el login es exitoso, navega y resetea el form
-      if (response.data.success) {
+      const users = response.data?.value || response.data?.dataRes || [];
+      if (Array.isArray(users) && users.length > 0) {
+        // Guardar usuario en contexto de autenticación
+        setUser(users[0]);
+        localStorage.setItem('auth_user', JSON.stringify(users[0]));
         dispatch({ type: 'reset' });
         navigate('/');
       } else {
-        dispatch({ type: 'error', value: response.data.error || 'Credenciales inválidas' });
+        dispatch({ type: 'error', value: 'Credenciales inválidas' });
       }
     } catch (error) {
       dispatch({ type: 'error', value: 'Error de conexión o credenciales inválidas' });

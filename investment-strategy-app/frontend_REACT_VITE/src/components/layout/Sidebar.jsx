@@ -1,5 +1,6 @@
 // src/components/layout/Sidebar.jsx
 import React from 'react';
+import { useAuth } from '../../hooks/useAuth';
 import './Sidebar.css';
 
 const SidebarButton = ({ item, isActive, onClick, isSidebarOpen }) => (
@@ -25,6 +26,7 @@ const Sidebar = ({
 }) => {
   const sidebarClasses = `sidebar${isOpen ? ' sidebar-open' : ''}${isLocked ? ' sidebar-locked' : ''}`;
   const logoClasses = `sidebar-logo${isLocked ? ' sidebar-logo-locked' : ''}`;
+  const { logout, user } = useAuth();
 
   return (
     <aside
@@ -50,6 +52,18 @@ const Sidebar = ({
             isSidebarOpen={isOpen}
           />
         ))}
+        {user && (
+          <button
+            className="sidebar-btn logout-btn"
+            onClick={() => {
+              if (window.confirm('¿Seguro que quieres cerrar sesión?')) logout();
+            }}
+            style={{ marginTop: '2rem' }}
+          >
+            <span role="img" aria-label="logout">🔒</span>
+            {isOpen && <span className="sidebar-label">Cerrar sesión</span>}
+          </button>
+        )}
       </nav>
     </aside>
   );

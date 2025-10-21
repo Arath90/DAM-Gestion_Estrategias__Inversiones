@@ -32,13 +32,17 @@ function makeCrudHandlers(cdsEntity, Model, opts = {}) {
 
   return {
     async READ(ctx) {
-      const { db, id, top=0, skip=0, filter={} } = ctx;
+      const { db, id, top = 0, skip = 0, filter = {}, orderby = null } = ctx;
 
       if (db === 'hana') {
         let q = SELECT.from(cdsEntity.name);
         if (id) q = q.where({ ID: id });
         if (top) q = q.limit(top);
         if (skip) q = q.offset(skip);
+        if (orderby) {
+          const clauses = Object.entries(orderby).map(([field, dir]) => ({ ref: [field], sort: dir === -1 ? 'desc' : 'asc' }));
+          if (clauses.length) q = q.orderBy(clauses);
+        }
         const rows = await cds.run(q);
         if (!rows || (Array.isArray(rows) && rows.length === 0)) {
           const e = new Error('No encontrado'); e.status = 404; throw e;
@@ -55,6 +59,7 @@ function makeCrudHandlers(cdsEntity, Model, opts = {}) {
       }
 
       let q = Model.find(filter);
+      if (orderby) q = q.sort(orderby);
       if (skip) q = q.skip(skip);
       if (top) q = q.limit(top);
       const docs = await q;

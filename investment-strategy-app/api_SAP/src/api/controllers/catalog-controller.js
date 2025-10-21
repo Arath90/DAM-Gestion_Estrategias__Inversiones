@@ -45,7 +45,7 @@ const readQueryBounds = (req) => ({
   skip: Number(req._query?.$skip ?? 0),
 });
 
-const controlParams = new Set(['ProcessType','LoggedUser','$top','$skip','dbServer','db']);
+const controlParams = new Set(['ProcessType','LoggedUser','$top','$skip','$orderby','dbServer','db']);
 
 const parseLiteral = (raw='') => {
   const v = raw.trim();
@@ -59,6 +59,11 @@ const parseLiteral = (raw='') => {
   return v;
 };
 
+const normalizeFieldName = (field='') => {
+  if (field === 'ID') return '_id';
+  return field.replace(/_ID$/g, '_id');
+};
+
 const parseODataFilter = (expr='') => {
   const result = {};
   const parts = String(expr).split(/\s+and\s+/i).map(s => s.trim()).filter(Boolean);
@@ -67,14 +72,16 @@ const parseODataFilter = (expr='') => {
     let match = part.match(/^contains\s*\(\s*tolower\(\s*([\w.]+)\s*\)\s*,\s*'([^']*)'\s*\)\s*$/i);
     if (match) {
       const [, field, value] = match;
-      result[field] = { $regex: value, $options: 'i' };
+      const fname = normalizeFieldName(field);
+      result[fname] = { $regex: value, $options: 'i' };
       continue;
     }
     // contains(field,'value')
     match = part.match(/^contains\s*\(\s*([\w.]+)\s*,\s*'([^']*)'\s*\)\s*$/i);
     if (match) {
       const [, field, value] = match;
-      result[field] = { $regex: value };
+      const fname = normalizeFieldName(field);
+      result[fname] = { $regex: value };
       continue;
     }
     // field eq/ne 'value' or value without quotes
@@ -83,13 +90,35 @@ const parseODataFilter = (expr='') => {
       const [, field, op, rawValue] = match;
       const cleaned = rawValue.replace(/^'(.*)'$/, '$1');
       const parsedValue = parseLiteral(cleaned);
-      if (op.toLowerCase() === 'eq') result[field] = parsedValue;
-      else if (op.toLowerCase() === 'ne') result[field] = { $ne: parsedValue };
+      const fname = normalizeFieldName(field);
+      if (op.toLowerCase() === 'eq') result[fname] = parsedValue;
+      else if (op.toLowerCase() === 'ne') result[fname] = { $ne: parsedValue };
       continue;
     }
     // fallback: ignore clause we can't understand
   }
   return result;
+};
+
+const parseOrderBy = (raw='') => {
+  const clauses = {};
+  const parts = String(raw)
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  for (const part of parts) {
+    const [field, dir] = part.split(/\s+/);
+    if (!field) continue;
+    const direction = String(dir || 'asc').toLowerCase();
+    clauses[field] = direction === 'desc' ? -1 : 1;
+  }
+  return Object.keys(clauses).length ? clauses : null;
+};
+
+const readOrderBy = (req) => {
+  const raw = req?._query?.$orderby ?? req?.req?.query?.$orderby;
+  if (!raw) return null;
+  return parseOrderBy(raw);
 };
 
 const buildFilter = (q={}) => {
@@ -100,7 +129,8 @@ const buildFilter = (q={}) => {
       Object.assign(filter, parseODataFilter(value));
       continue;
     }
-    filter[key] = value;
+    const normalizedKey = normalizeFieldName(key);
+    filter[normalizedKey] = typeof value === 'string' ? parseLiteral(value) : value;
   }
   return filter;
 };
@@ -123,6 +153,7 @@ async function wrapAndRespond(req, method, api, process, fn) {
   const id = extractId(req);
   const { top, skip } = readQueryBounds(req);
   const filter = buildFilter(req?.req?.query || {});
+  const orderby = readOrderBy(req);
   const body = req?.data;
 
   bitacora.loggedUser  = LoggedUser;
@@ -137,7 +168,7 @@ async function wrapAndRespond(req, method, api, process, fn) {
       throw e;
     }
 
-    const result = await fn({ req, db, id, top, skip, filter, body, LoggedUser, ProcessType });
+    const result = await fn({ req, db, id, top, skip, filter, orderby, body, LoggedUser, ProcessType });
 
     const status = statusByMethod(method);
     setHttpStatus(req, status);

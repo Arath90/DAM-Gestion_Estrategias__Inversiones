@@ -1,4 +1,5 @@
 namespace inv;
+
 //src/api/models/schema.cds
 /* ===== Core ===== */
 @cds.persistence.skip //<-- Indica que no se debe crear tabla en la BD para este modelo en mongoDB (no relacional) sirve para definir entidades "virtuales"

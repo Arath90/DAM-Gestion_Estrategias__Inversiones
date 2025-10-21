@@ -239,7 +239,6 @@ entity SecUsers {
   key ID               : String;
       name             : String;
       user             : String;
-      SecUsers         : String;
       email            : String;
       pass             : String;
       createdAt        : DateTime;

@@ -1,13 +1,19 @@
 using inv from '../models/schema';
-//nombre de la ruta catalog---> catalog-service--->/odata/v4/catalog/
-// Cada entity ... as projection on inv.* crea un EntitySet con los verbos estándar:
-// GET /odata/v4/catalog/Instruments
-// GET /odata/v4/catalog/Instruments('ID')
-// POST /odata/v4/catalog/Instruments
-// PATCH/PUT/DELETE /odata/v4/catalog/Instruments('ID')
+
+/**
+ * CatalogService
+ *
+ * Define el conjunto de entidades expuestas por CAP sobre la ruta /odata/v4/catalog.
+ * Cada "projection on inv.<Entity>" genera un EntitySet OData con los verbos basicos:
+ *   - GET /odata/v4/catalog/Entity
+ *   - GET /odata/v4/catalog/Entity('ID')
+ *   - POST /odata/v4/catalog/Entity
+ *   - PATCH/PUT/DELETE /odata/v4/catalog/Entity('ID')
+ *
+ * La implementacion real vive en src/api/controllers/catalog-controller.js, donde delegamos
+ * el CRUD hacia MongoDB (o HANA) a traves de crud.service.js.
+ */
 @impl: 'src/api/controllers/catalog-controller.js'
-//CAP, al recibir una petición, llama a tu controller.
-//en el controller, registramos los handlers (this.on('READ' ... )) y delegamos la lógica CRUD real al servicio (crud.service.js).
 service CatalogService {
   entity Instruments               as projection on inv.Instruments;
   entity MLDatasets                as projection on inv.MLDatasets;

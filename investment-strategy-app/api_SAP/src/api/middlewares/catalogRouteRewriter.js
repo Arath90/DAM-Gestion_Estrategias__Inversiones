@@ -1,7 +1,20 @@
 'use strict';
-// src/api/middlewares/catalogRouteRewriter.js
+
+/**
+ * catalogRouteRewriter
+ *
+ * Express middleware que convierte rutas simplificadas en llamadas OData validas para CAP.
+ * Permite consumir la API con patrones como:
+ *   /odata/v4/catalog/getAll/<db&&user>/<Entity>
+ *   /odata/v4/catalog/getById/<db&&user>/<Entity>/<ID>
+ * y los reescribe como endpoints CAP estandar (GET /Entity, POST /Entity, etc.).
+ *
+ * Ademas normaliza parametros de base de datos (Mongo/HANA) y usuario logueado, insertandolos
+ * en req.query para que el controller pueda leerlos de forma consistente.
+ */
 const { URLSearchParams } = require('url');
 
+/** Decodifica una cadena sin lanzar si esta corrupta. */
 function safeDecode(value) {
   if (typeof value !== 'string') return value;
   try {
@@ -11,6 +24,7 @@ function safeDecode(value) {
   }
 }
 
+/** Convierte la bandera de base de datos recibida en URL a un identificador normalizado. */
 function normalizeDb(value) {
   if (!value) return null;
   const decoded = safeDecode(value).trim().toLowerCase();
@@ -20,6 +34,7 @@ function normalizeDb(value) {
   return decoded;
 }
 
+/** Construye un URLSearchParams a partir de la url original del request. */
 function buildSearchParams(originalUrl) {
   const params = new URLSearchParams();
   if (typeof originalUrl !== 'string') return params;
@@ -37,6 +52,10 @@ function buildSearchParams(originalUrl) {
   return params;
 }
 
+/**
+ * Registra el middleware sobre el path base /odata/v4/catalog.
+ * Se invoca antes que CAP para que Express reescriba la ruta y el metodo HTTP.
+ */
 module.exports = function registerCatalogRouteRewriter(app) {
   if (!app || typeof app.use !== 'function') return;
 
@@ -45,7 +64,6 @@ module.exports = function registerCatalogRouteRewriter(app) {
     if (!segments.length) return next();
 
     const operation = (segments[0] || '').toLowerCase();
-    // soportar más verbos además de get*
     const supported = new Set(['getall', 'getbyid', 'create', 'update', 'patch', 'delete']);
     if (!supported.has(operation)) return next();
 
@@ -71,60 +89,39 @@ module.exports = function registerCatalogRouteRewriter(app) {
     if (loggedUser) req.catalogLoggedUser = loggedUser;
 
     let rewrittenPath = '';
-    // determinar método HTTP a aplicar en base a la operación
-    let targetMethod = req.method; // por defecto mantener el método original si se prefiere
+    let targetMethod = req.method;
+
+    const appendId = (idSegment, verb) => {
+      if (!idSegment) {
+        res.status(400).json({ error: `ID segment is required for ${operation}.` });
+        return null;
+      }
+      const id = safeDecode(idSegment);
+      const sanitizedId = (id || '').replace(/'/g, "''");
+      rewrittenPath = `/${entitySegment}('${sanitizedId}')`;
+      targetMethod = verb;
+      return true;
+    };
+
     if (operation === 'getall') {
       rewrittenPath = `/${entitySegment}`;
       targetMethod = 'GET';
     } else if (operation === 'getbyid') {
-      const idSegment = remaining[0];
-      if (!idSegment) {
-        res.status(400).json({ error: 'ID segment is required for getById.' });
-        return;
-      }
-      const id = safeDecode(idSegment);
-      const sanitizedId = (id || '').replace(/'/g, "''");
-      rewrittenPath = `/${entitySegment}('${sanitizedId}')`;
-      targetMethod = 'GET';
+      if (!appendId(remaining[0], 'GET')) return;
     } else if (operation === 'create') {
       rewrittenPath = `/${entitySegment}`;
       targetMethod = 'POST';
     } else if (operation === 'update') {
-      const idSegment = remaining[0];
-      if (!idSegment) {
-        res.status(400).json({ error: 'ID segment is required for update.' });
-        return;
-      }
-      const id = safeDecode(idSegment);
-      const sanitizedId = (id || '').replace(/'/g, "''");
-      rewrittenPath = `/${entitySegment}('${sanitizedId}')`;
-      targetMethod = 'PUT';
+      if (!appendId(remaining[0], 'PUT')) return;
     } else if (operation === 'patch') {
-      const idSegment = remaining[0];
-      if (!idSegment) {
-        res.status(400).json({ error: 'ID segment is required for patch.' });
-        return;
-      }
-      const id = safeDecode(idSegment);
-      const sanitizedId = (id || '').replace(/'/g, "''");
-      rewrittenPath = `/${entitySegment}('${sanitizedId}')`;
-      targetMethod = 'PATCH';
+      if (!appendId(remaining[0], 'PATCH')) return;
     } else if (operation === 'delete') {
-      const idSegment = remaining[0];
-      if (!idSegment) {
-        res.status(400).json({ error: 'ID segment is required for delete.' });
-        return;
-      }
-      const id = safeDecode(idSegment);
-      const sanitizedId = (id || '').replace(/'/g, "''");
-      rewrittenPath = `/${entitySegment}('${sanitizedId}')`;
-      targetMethod = 'DELETE';
+      if (!appendId(remaining[0], 'DELETE')) return;
     }
 
     const queryString = searchParams.toString();
     req.catalogRewrittenPath = rewrittenPath;
     req.url = queryString ? `${rewrittenPath}?${queryString}` : rewrittenPath;
-    // actualizar el método para que Express/otros middlewares lo procesen correctamente
     req.method = targetMethod;
 
     next();

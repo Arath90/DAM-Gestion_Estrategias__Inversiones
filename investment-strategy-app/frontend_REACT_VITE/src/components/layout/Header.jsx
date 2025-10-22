@@ -8,18 +8,24 @@ const Header = ({ title }) => {
   // Depuración: ver el usuario en consola
   console.log('Usuario logeado:', user);
 
-  // Iniciales: si hay nombre, usar iniciales, si no, usar email, si no, 'IN'
+  // Mostrar loggedUser, nombre, email o 'Invitado'
+  const displayName =
+    user?.loggedUser ||
+    user?.name ||
+    user?.email ||
+    'Invitado';
+
+  // Iniciales: loggedUser > nombre > email > 'IN'
   let initials = 'IN';
   if (user) {
-    if (user.name && typeof user.name === 'string') {
+    if (user.loggedUser && typeof user.loggedUser === 'string') {
+      initials = user.loggedUser.slice(0, 2).toUpperCase();
+    } else if (user.name && typeof user.name === 'string') {
       initials = user.name.split(' ').map(w => w[0]).join('').toUpperCase();
     } else if (user.email && typeof user.email === 'string') {
       initials = user.email.slice(0, 2).toUpperCase();
     }
   }
-
-  // Mostrar nombre, email o 'Invitado'
-  const displayName = user?.name || user?.email || 'Invitado';
 
   return (
     <header className="dashboard-header">

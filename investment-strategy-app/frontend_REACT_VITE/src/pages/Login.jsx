@@ -8,6 +8,7 @@ const initialState = {
   email: '',
   password: '',
   error: '',
+  loading: false,
 };
 
 function reducer(state, action) {
@@ -15,7 +16,9 @@ function reducer(state, action) {
     case 'field':
       return { ...state, [action.field]: action.value };
     case 'error':
-      return { ...state, error: action.value };
+      return { ...state, error: action.value, loading: false };
+    case 'loading':
+      return { ...state, loading: true, error: '' };
     case 'reset':
       return { ...initialState };
     default:
@@ -25,7 +28,7 @@ function reducer(state, action) {
 
 const Login = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const { login, user, logout, register, setUser } = useAuth();
+  const { setUser } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -38,30 +41,37 @@ const Login = () => {
       dispatch({ type: 'error', value: 'Todos los campos son obligatorios' });
       return;
     }
-    dispatch({ type: 'error', value: '' });
 
-    // Enviar datos del login al backend con Axios usando GET y filtros
+    dispatch({ type: 'loading' });
+
     try {
-      const response = await axios.get('http://localhost:4004/odata/v4/catalog/SecUsers', {
-        params: {
-          email: state.email,
-          pass: state.password,
-          ProcessType: 'READ',
-        },
-      });
-      // Maneja la respuesta del backend aquí
-      const users = response.data?.value || response.data?.dataRes || [];
-      if (Array.isArray(users) && users.length > 0) {
-        // Guardar usuario en contexto de autenticación
-        setUser(users[0]);
-        localStorage.setItem('auth_user', JSON.stringify(users[0]));
+      const response = await axios.get(
+        `http://localhost:4004/odata/v4/catalog/SecUsers?ProcessType=READ&dbServer=mongo&LoggedUser=${state.email}`,
+        {
+          params: {
+            email: state.email,
+            pass: state.password,
+          },
+        }
+      );
+
+      const user = response.data?.value?.[0] || response.data?.dataRes?.[0];
+      if (user) {
+        // Guardar usuario y token en el contexto y localStorage
+        setUser(user);
+        localStorage.setItem('auth_user', JSON.stringify(user));
+        if (response.data?.token) {
+          localStorage.setItem('auth_token', response.data.token);
+        }
         dispatch({ type: 'reset' });
         navigate('/');
       } else {
         dispatch({ type: 'error', value: 'Credenciales inválidas' });
       }
     } catch (error) {
-      dispatch({ type: 'error', value: 'Error de conexión o credenciales inválidas' });
+      const errorMessage =
+        error.response?.data?.error?.message || 'Error de conexión o credenciales inválidas';
+      dispatch({ type: 'error', value: errorMessage });
     }
   };
 
@@ -83,7 +93,9 @@ const Login = () => {
           />
         ))}
         {state.error && <div className="error">{state.error}</div>}
-        <button type="submit">Entrar</button>
+        <button type="submit" disabled={state.loading}>
+          {state.loading ? 'Cargando...' : 'Entrar'}
+        </button>
         <div className="auth-link">
           <Link to="/register">¿No tienes cuenta? Regístrate</Link>
         </div>

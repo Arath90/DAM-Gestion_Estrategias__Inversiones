@@ -1,7 +1,7 @@
-
 import React, { useReducer } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import axios from 'axios';
 import '../css/auth.css';
 
 const initialState = {
@@ -28,24 +28,19 @@ function reducer(state, action) {
 
 const Login = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
-<<<<<<< Updated upstream
   const { setUser } = useAuth();
-=======
-  const { login } = useAuth();
->>>>>>> Stashed changes
   const navigate = useNavigate();
 
   const handleChange = (e) => {
     dispatch({ type: 'field', field: e.target.name, value: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!state.email || !state.password) {
       dispatch({ type: 'error', value: 'Todos los campos son obligatorios' });
       return;
     }
-<<<<<<< Updated upstream
 
     dispatch({ type: 'loading' });
 
@@ -77,15 +72,6 @@ const Login = () => {
       const errorMessage =
         error.response?.data?.error?.message || 'Error de conexión o credenciales inválidas';
       dispatch({ type: 'error', value: errorMessage });
-=======
-    dispatch({ type: 'error', value: '' });
-    const success = login({ email: state.email, password: state.password });
-    if (success) {
-      dispatch({ type: 'reset' });
-      navigate('/');
-    } else {
-      dispatch({ type: 'error', value: 'Credenciales inválidas' });
->>>>>>> Stashed changes
     }
   };
 

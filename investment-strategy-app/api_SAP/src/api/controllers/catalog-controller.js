@@ -134,7 +134,7 @@ const buildFilter = (q={}) => {
   }
   return filter;
 };
-
+//AQUI SE ASIGNA AL RES EL TIPO DE SALIDA EN LA GUI Y RESPONSE
 const statusByMethod = (m) => ({ CREATE:201, READ:200, UPDATE:200, DELETE:200 }[m] || 200);
 const setHttpStatus = (req, code) => {
   const res = req?._?.res || req.res;

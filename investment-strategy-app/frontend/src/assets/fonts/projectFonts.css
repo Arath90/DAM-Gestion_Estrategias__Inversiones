@@ -1,0 +1,49 @@
+
+/* Importar fuentes SFMono */
+@font-face {
+  font-family: 'SFMono';
+  src: url('./SFMonoRegular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'SFMono';
+  src: url('./SFMonoMedium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'SFMono';
+  src: url('./SFMonoSemibold.otf') format('opentype');
+  font-weight: 600;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'SFMono';
+  src: url('./SFMonoBold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'SFMono';
+  src: url('./SFMonoHeavy.otf') format('opentype');
+  font-weight: 800;
+  font-style: normal;
+}
+
+:root {
+  --font-primary: 'SFMono', monospace;
+  --font-secondary: 'SFMono', monospace;
+  --font-title: 'SFMono', monospace;
+}
+
+.font-primary {
+  font-family: var(--font-primary);
+}
+.font-secondary {
+  font-family: var(--font-secondary);
+}
+.font-title {
+  font-family: var(--font-title);
+  font-weight: bold;
+}

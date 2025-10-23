@@ -1,0 +1,18 @@
+@import './colors/projectColors.css';
+@import './fonts/projectFonts.css';
+@import './css/login.css';
+@import './css/register.css';
+@import './css/notification.css';
+
+
+/* Imágenes globales */
+.img-portada {
+	background-image: url('./images/portada.png');
+	background-size: cover;
+	background-position: center;
+}
+.img-portada-register {
+	background-image: url('./images/portada2.png');
+	background-size: cover;
+	background-position: center;
+}

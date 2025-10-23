@@ -1,0 +1,218 @@
+
+
+/* =========================
+   Layout & Base Styles
+========================= */
+.register-bg {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, var(--project-color1) 0%, var(--project-color2) 100%);
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  font-family: var(--font-primary);
+}
+
+/* =========================
+   Card & Form
+========================= */
+.register-card {
+  display: flex;
+  width: 720px;
+  height: 420px;
+  background: var(--project-color4);
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
+}
+
+.register-img {
+  flex: 1.4;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 0;
+  min-height: 100%;
+  background: url("../images/portada2.png") center/cover no-repeat;
+  border-right: 1px solid var(--project-color3);
+}
+
+.register-form {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 32px 40px;
+  background: var(--project-color4);
+}
+
+.register-title {
+  color: var(--project-color1);
+  font-weight: 700;
+  margin-bottom: 8px;
+  font-size: 1.8rem;
+  font-family: var(--font-title);
+}
+.register-title span {
+  color: var(--project-color2);
+}
+
+.register-subtitle {
+  color: var(--project-color2);
+  margin-bottom: 24px;
+}
+
+/* =========================
+   Inputs & Icons
+========================= */
+.register-input {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.register-input-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--project-color2);
+  font-size: 20px;
+}
+
+.register-input-field {
+  padding-left: 36px;
+  background: var(--project-color3);
+  color: var(--project-color1);
+  border-radius: 8px;
+  border: 1px solid var(--project-color2);
+  width: 100%;
+  min-width: 300px;
+  max-width: 380px;
+  font-size: 18px;
+  height: 38px;
+  font-family: var(--font-primary);
+}
+
+/* =========================
+   Button
+========================= */
+.register-btn {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 24px;
+  background: var(--project-color2);
+  color: var(--project-color4);
+  font-weight: 600;
+  width: 120px;
+  margin-top: 12px;
+  margin-left: 69%;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  height: 38px;
+  font-size: 1rem;
+  border: none;
+  font-family: var(--font-primary);
+  cursor: pointer;
+  align-self: flex-end;
+}
+.register-btn:hover {
+  background: var(--project-color1);
+}
+
+/* =========================
+   Link
+========================= */
+.register-link {
+  text-align: right;
+  margin-top: 8px;
+  color: var(--project-color1);
+  font-family: var(--font-primary);
+}
+
+.login-link {
+  text-align: right;
+  margin-top: 8px;
+  color: var(--project-color2);
+  font-family: var(--font-primary);
+}
+
+
+
+/* =========================
+   Responsive Media Queries
+========================= */
+@media (max-width: 900px) {
+  .register-card {
+    width: 98vw;
+    min-width: 0;
+    max-width: 98vw;
+    height: auto;
+    flex-direction: column;
+    border-radius: 16px;
+  }
+  .register-img {
+    min-width: 340px;
+    min-height: 100%;
+    width: 100%;
+    height: 100%;
+    border-right: 1px solid var(--project-color3);
+  }
+  .register-img {
+    min-width: 100%;
+    min-height: 180px;
+    border-right: none;
+    border-bottom: 1px solid var(--project-color3);
+    border-radius: 16px 16px 0 0;
+  }
+  .register-form {
+    min-width: 0;
+    max-width: 100vw;
+    padding: 32px 16px;
+    border-radius: 0 0 16px 16px;
+  }
+}
+
+@media (max-width: 600px) {
+  .register-bg {
+    padding: 0;
+    min-height: 100vh;
+    width: 100vw;
+    align-items: flex-start;
+  }
+  .register-card {
+    width: 100vw;
+    min-width: 0;
+    max-width: 100vw;
+    height: auto;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .register-img {
+    min-width: 100vw;
+    min-height: 120px;
+    border-radius: 0;
+  }
+  .register-form {
+    min-width: 0;
+    max-width: 100vw;
+    padding: 24px 8px;
+    border-radius: 0;
+  }
+  .register-title {
+    font-size: 1.4rem;
+  }
+  .register-input-field {
+    font-size: 0.95rem;
+    height: 38px;
+  }
+}
+ 

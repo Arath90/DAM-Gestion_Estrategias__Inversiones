@@ -1,0 +1,30 @@
+.notification-toast {
+  min-width: 280px;
+  max-width: 400px;
+  background: linear-gradient(90deg, var(--project-color1) 0%, var(--project-color2) 100%);
+  color: var(--alert-color1);
+  font-family: var(--font-primary, Arial, sans-serif);
+  font-size: 1rem;
+  font-weight: 500;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: fixed;
+  top: 32px;
+  right: 32px;
+  z-index: 9999;
+  animation: toast-in 0.3s ease;
+}
+
+.notification-toast ui5-icon {
+  color: var(--project-color4);
+  font-size: 1.5rem;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}

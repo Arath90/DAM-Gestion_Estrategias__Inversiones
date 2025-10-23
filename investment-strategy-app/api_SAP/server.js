@@ -4,6 +4,7 @@ const cds     = require('@sap/cds');
 const cors    = require('cors');
 
 const registerCatalogRouteRewriter = require('./src/api/middlewares/catalogRouteRewriter');
+const registerPublicCandlesRoute = require('./src/api/routes/candles-public.route');
 
 // 1) .env y Mongo ANTES de cds.server
 require('@dotenvx/dotenvx').config();
@@ -27,6 +28,7 @@ module.exports = async (o = {}) => {
 });
     app.use(cors());
     registerCatalogRouteRewriter(app);
+    registerPublicCandlesRoute(app);
 
     o.app = app;                       // expón express a CAP
     const srv = await cds.server(o);   // arranca CAP

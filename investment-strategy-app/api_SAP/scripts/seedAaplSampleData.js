@@ -15,7 +15,6 @@ require('@dotenvx/dotenvx').config({ path: path.resolve(__dirname, '..', '.env')
 const cfg = require('../src/config/dotenvXConfig');
 
 const Instrument = require('../src/api/models/mongodb/Instrument');
-const Candle = require('../src/api/models/mongodb/Candle');
 const Order = require('../src/api/models/mongodb/Order');
 const Execution = require('../src/api/models/mongodb/Execution');
 const Position = require('../src/api/models/mongodb/Position');
@@ -33,40 +32,6 @@ const ensureObjectId = (value) => {
 
 const now = () => new Date();
 
-const minuteBars = () => {
-  const base = new Date('2025-09-29T13:30:00Z');
-  const samples = [
-    { open: 189.12, high: 189.37, low: 188.92, close: 189.20, volume: 1287400, trade_count: 1524 },
-    { open: 189.20, high: 189.55, low: 189.10, close: 189.44, volume: 1129800, trade_count: 1401 },
-    { open: 189.44, high: 189.73, low: 189.28, close: 189.60, volume: 956700, trade_count: 1219 },
-    { open: 189.60, high: 189.88, low: 189.42, close: 189.72, volume: 1043200, trade_count: 1344 },
-    { open: 189.72, high: 189.91, low: 189.40, close: 189.55, volume: 883200, trade_count: 1187 },
-    { open: 189.55, high: 189.68, low: 189.21, close: 189.36, volume: 792150, trade_count: 1022 },
-    { open: 189.36, high: 189.44, low: 189.02, close: 189.18, volume: 864650, trade_count: 1104 },
-    { open: 189.18, high: 189.33, low: 188.94, close: 189.05, volume: 915210, trade_count: 1160 },
-    { open: 189.05, high: 189.45, low: 188.98, close: 189.41, volume: 998760, trade_count: 1235 },
-    { open: 189.41, high: 189.90, low: 189.32, close: 189.82, volume: 1345760, trade_count: 1568 },
-    { open: 189.82, high: 190.04, low: 189.61, close: 189.96, volume: 1483200, trade_count: 1705 },
-    { open: 189.96, high: 190.22, low: 189.84, close: 190.10, volume: 1526400, trade_count: 1784 },
-    { open: 190.10, high: 190.34, low: 189.95, close: 190.28, volume: 1632300, trade_count: 1891 },
-    { open: 190.28, high: 190.47, low: 190.10, close: 190.35, volume: 1508700, trade_count: 1710 },
-    { open: 190.35, high: 190.60, low: 190.24, close: 190.41, volume: 1423400, trade_count: 1632 },
-  ];
-
-  return samples.map((sample, idx) => ({
-    bar_size: '1min',
-    ts: new Date(base.getTime() + idx * 60_000),
-    open: sample.open,
-    high: sample.high,
-    low: sample.low,
-    close: sample.close,
-    volume: sample.volume,
-    trade_count: sample.trade_count,
-    wap: Number(((sample.high + sample.low + sample.close) / 3).toFixed(4)),
-    createdAt: now(),
-    updatedAt: now(),
-  }));
-};
 
 const sampleSignals = (instrumentId) => ([
   {
@@ -225,19 +190,7 @@ async function run() {
     { upsert: true }
   );
 
-  console.log('Seeding candles...');
-  const candleOps = minuteBars().map((doc) => ({
-    updateOne: {
-      filter: {
-        instrument_id: instrumentObjectId,
-        bar_size: doc.bar_size,
-        ts: doc.ts,
-      },
-      update: { $set: { ...doc, instrument_id: instrumentObjectId } },
-      upsert: true,
-    },
-  }));
-  await Candle.bulkWrite(candleOps, { ordered: false });
+  console.log('Skipping candles seed (now retrieved from external provider)...');
 
   console.log('Seeding signals...');
   const signals = sampleSignals(instrumentObjectId);

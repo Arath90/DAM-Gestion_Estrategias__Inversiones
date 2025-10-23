@@ -140,18 +140,18 @@ entity Backtests {
 
 @cds.persistence.skip
 entity Candles {
-  key ID            : String;       // Identificador de la vela.
-      instrument_ID : String;       // Instrumento relacionado.
+  key ID            : String;       // Identificador logico de la vela (generado en runtime).
+      instrument_ID : String;       // Instrumento relacionado (ObjectId como String).
       bar_size      : String;       // Resolucion (1min, 1h...).
-      ts            : DateTime;     // Timestamp de apertura de la vela.
+      ts            : DateTime;     // Timestamp de apertura.
       open          : Decimal(18, 4); // Precio de apertura.
       high          : Decimal(18, 4); // Maximo.
       low           : Decimal(18, 4); // Minimo.
       close         : Decimal(18, 4); // Cierre.
-      volume        : Decimal(18, 0); // Volumen negociado (entero).
-      wap           : Decimal(18, 4); // Weighted average price.
-      trade_count   : Integer;      // Numero de operaciones en la barra.
-      createdAt     : DateTime;     // Auditoria.
+      volume        : Decimal(18, 0); // Volumen negociado (entero) si el proveedor lo expone.
+      wap           : Decimal(18, 4); // Weighted average price cuando aplica.
+      trade_count   : Integer;      // Numero de operaciones (puede venir vacio segun el proveedor).
+      createdAt     : DateTime;     // Mantener campos legacy para compatibilidad; normalmente iran vacios.
       updatedAt     : DateTime;
 }
 

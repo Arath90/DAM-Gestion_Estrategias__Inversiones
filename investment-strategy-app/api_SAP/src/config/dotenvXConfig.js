@@ -16,4 +16,12 @@ module.exports = {
     process.env.DATABASE ||
     process.env.MONGODB_DB ||  
     'Inversiones',
+
+  // Configuracion del proveedor externo de velas
+  CANDLES_API_URL: process.env.CANDLES_API_URL || '',
+  CANDLES_API_KEY: process.env.CANDLES_API_KEY || '',
+  CANDLES_API_KEY_PARAM: process.env.CANDLES_API_KEY_PARAM || 'apikey',
+  CANDLES_API_KEY_HEADER: process.env.CANDLES_API_KEY_HEADER || '',
+  CANDLES_API_EXTRA_HEADERS: process.env.CANDLES_API_EXTRA_HEADERS || '', // formato: "Header: valor;Otro: valor"
+  CANDLES_API_DEFAULT_QUERY: process.env.CANDLES_API_DEFAULT_QUERY || '',
 };

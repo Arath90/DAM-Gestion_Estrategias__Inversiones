@@ -1,6 +1,8 @@
 const cds = require('@sap/cds');
+const mongoose = require('mongoose');
 const { BITACORA, DATA, AddMSG, OK, FAIL } = require('../../middlewares/respPWA.handler');
 const { makeCrudHandlers } = require('../services/crud.service');
+const { fetchCandlesForInstrument } = require('../services/candlesExternal.service');
 
 // === Mongoose models expuestos a traves del servicio OData ===
 const Instrument = require('../models/mongodb/Instrument');
@@ -12,7 +14,6 @@ const RiskLimit = require('../models/mongodb/RiskLimit');
 const Position = require('../models/mongodb/Position');
 const Signal = require('../models/mongodb/Signal');
 const Backtest = require('../models/mongodb/Backtest');
-const Candle = require('../models/mongodb/Candle');
 const MLModel = require('../models/mongodb/MLModel');
 const NewsArticle = require('../models/mongodb/NewsArticle');
 const OptionChainSnapshot = require('../models/mongodb/OptionChainSnapshot');
@@ -70,6 +71,9 @@ function readQueryBounds(req) {
 }
 
 const CONTROL_PARAMS = new Set(['ProcessType', 'LoggedUser', '$top', '$skip', '$orderby', 'dbServer', 'db']);
+
+const DEFAULT_CANDLES_INTERVAL = process.env.CANDLES_DEFAULT_INTERVAL || '1min';
+const DEFAULT_CANDLES_LIMIT = Number(process.env.CANDLES_DEFAULT_LIMIT || 60);
 
 /** Intenta transformar valores literales a booleanos/numero/null cuando provienen de filtros. */
 function parseLiteral(raw = '') {
@@ -168,6 +172,112 @@ function buildFilter(query = {}) {
   }
 
   return filter;
+}
+
+/**
+ * Obtiene velas desde el proveedor externo para el instrumento solicitado.
+ */
+async function handleCandlesRead({ filter = {}, req, top, skip, orderby }) {
+  const candidateInstrumentId =
+    filter.instrument_id ||
+    filter.instrument_ID ||
+    req?.req?.query?.instrument_ID ||
+    req?.req?.query?.instrument_id ||
+    extractId(req);
+
+  const candidateSymbol =
+    filter.symbol ||
+    filter.ticker ||
+    req?.req?.query?.symbol ||
+    req?.req?.query?.ticker;
+
+  const candidateConid =
+    filter.ib_conid ||
+    filter.conid ||
+    req?.req?.query?.ib_conid ||
+    req?.req?.query?.conid;
+
+  let instrument = null;
+
+  if (candidateInstrumentId) {
+    if (mongoose.isValidObjectId(candidateInstrumentId)) {
+      instrument = await Instrument.findById(candidateInstrumentId).lean();
+    } else if (!Number.isNaN(Number(candidateInstrumentId))) {
+      instrument = await Instrument.findOne({ ib_conid: Number(candidateInstrumentId) }).lean();
+    }
+    if (!instrument) {
+      instrument = await Instrument.findOne({ symbol: candidateInstrumentId }).lean();
+    }
+  }
+
+  if (!instrument && candidateSymbol) {
+    instrument = await Instrument.findOne({ symbol: candidateSymbol }).lean();
+  }
+
+  if (!instrument && candidateConid) {
+    const conidValue = Number(candidateConid);
+    instrument = await Instrument.findOne({ ib_conid: Number.isNaN(conidValue) ? candidateConid : conidValue }).lean();
+  }
+
+  if (!instrument) {
+    if (candidateSymbol) {
+      instrument = { _id: candidateSymbol, symbol: candidateSymbol };
+    } else {
+      const err = new Error('Instrumento no encontrado o sin identificador valido.');
+      err.status = 404;
+      throw err;
+    }
+  }
+
+  if (!instrument.symbol) {
+    const err = new Error('El instrumento no tiene simbolo configurado, no se pueden consultar velas.');
+    err.status = 400;
+    throw err;
+  }
+
+  const interval = filter.bar_size || req?.req?.query?.bar_size || DEFAULT_CANDLES_INTERVAL;
+  const topNum = Number(top);
+  const skipNum = Number(skip);
+  const limit = Number.isFinite(topNum) && topNum > 0 ? topNum : DEFAULT_CANDLES_LIMIT;
+  const offset = Number.isFinite(skipNum) && skipNum > 0 ? skipNum : 0;
+  const fromOverride = req?.req?.query?.from || req?.req?.query?.fromDate;
+  const toOverride = req?.req?.query?.to || req?.req?.query?.toDate;
+
+  const instrumentIdStr = instrument._id?.toString ? instrument._id.toString() : String(instrument._id);
+
+  const candles = await fetchCandlesForInstrument({
+    instrumentId: instrumentIdStr,
+    symbol: instrument.symbol,
+    interval,
+    limit,
+    offset,
+    from: fromOverride,
+    to: toOverride,
+  });
+
+  const sorted = Array.isArray(candles) ? candles.slice() : [];
+  if (orderby && orderby.ts === -1) {
+    sorted.sort((a, b) => new Date(b.ts) - new Date(a.ts));
+  }
+
+  return sorted.map(candle => {
+    const ts = candle.ts instanceof Date ? candle.ts : new Date(candle.ts);
+    return {
+      ID: `${instrumentIdStr}-${ts.getTime()}`,
+      instrument_ID: instrumentIdStr,
+      bar_size: candle.bar_size || interval,
+      ts: ts.toISOString(),
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+      volume: candle.volume,
+      trade_count: candle.trade_count,
+      wap: candle.wap,
+      createdAt: candle.createdAt || null,
+      updatedAt: candle.updatedAt || null,
+    };
+  });
 }
 
 const statusByMethod = method => ({ CREATE: 201, READ: 200, UPDATE: 200, DELETE: 200 }[method] || 200);
@@ -359,14 +469,34 @@ class CatalogController extends cds.ApplicationService {
       },
     });
 
-    registerEntity(Candles, Candle, {
-      uniqueCheck: async r => {
-        const { instrument_id, bar_size, ts } = r.data || {};
-        if (!instrument_id || !bar_size || !ts) return;
-        const found = await Candle.findOne({ instrument_id, bar_size, ts });
-        if (found) r.reject(409, 'Candle duplicada');
-      },
-    });
+    if (Candles) {
+      // Las velas ahora se consultan en un proveedor externo y son de solo lectura.
+      const rejectCandlesWrite = async () => {
+        const err = new Error('Candles es de solo lectura (datos externos).');
+        err.status = 405;
+        throw err;
+      };
+
+      this.on('READ', Candles, req =>
+        wrapAndRespond(
+          req,
+          'READ',
+          `READ ${Candles.name}`,
+          `Lectura de ${Candles.name} (proveedor externo)`,
+          ctx => handleCandlesRead(ctx)
+        ));
+
+      ['CREATE', 'UPDATE', 'DELETE'].forEach(method => {
+        this.on(method, Candles, req =>
+          wrapAndRespond(
+            req,
+            method,
+            `${method} ${Candles.name}`,
+            `Operacion no disponible en ${Candles.name}`,
+            rejectCandlesWrite
+          ));
+      });
+    }
 
     registerEntity(MLModels, MLModel);
 

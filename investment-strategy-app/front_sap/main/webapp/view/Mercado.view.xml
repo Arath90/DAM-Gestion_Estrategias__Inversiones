@@ -1,0 +1,22 @@
+﻿<mvc:View controllerName="main.controller.Mercado"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.f"
+    xmlns:m="sap.m">
+    <DynamicPage toggleHeaderOnTitleClick="false">
+        <title>
+            <DynamicPageTitle><heading><m:Title text="Mercado" level="H2" /></heading></DynamicPageTitle>
+        </title>
+        <content>
+            <m:VBox class="sapUiLargeMargin" width="100%">
+                <m:Text text="Monitorea curvas de mercado, indicadores y velas en tiempo real." />
+                <m:MessageStrip
+                    text="Esta vista se conectara a los mismos servicios de mercado que la version React para mostrar graficos e indicadores."
+                    type="Information"
+                    showIcon="true"
+                    class="sapUiSmallMarginTop" />
+            </m:VBox>
+        </content>
+    </DynamicPage>
+</mvc:View>
+
+

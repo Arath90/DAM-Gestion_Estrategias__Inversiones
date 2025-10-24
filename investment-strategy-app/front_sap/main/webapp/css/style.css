@@ -1,0 +1,16 @@
+/* Estilos adicionales para replicar la experiencia del frontend React */
+.instrument-panel .sapMTB {
+  background: transparent;
+}
+
+.instrument-panel .sapMVBox {
+  width: 100%;
+}
+
+.instrument-panel .sapMPanelContent {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.instrument-panel .sapMText {
+  word-break: break-word;
+}

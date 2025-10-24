@@ -1,0 +1,246 @@
+{
+    "_version": "1.60.0",
+    "sap.app": {
+        "id": "main",
+        "type": "application",
+        "i18n": {
+            "bundleUrl": "i18n/i18n.properties",
+            "supportedLocales": [
+                "",
+                "es",
+                "es_419",
+                "en"
+            ],
+            "fallbackLocale": ""
+        },
+        "applicationVersion": {
+            "version": "0.0.1"
+        },
+        "title": "{{appTitle}}",
+        "description": "{{appDescription}}",
+        "resources": "resources.json",
+        "sourceTemplate": {
+            "id": "@sap-ux/fiori-freestyle-writer:basic",
+            "version": "0.21.10"
+        }
+    },
+    "sap.ui": {
+        "technology": "UI5",
+        "icons": {
+            "icon": "",
+            "favIcon": "",
+            "phone": "",
+            "phone@2": "",
+            "tablet": "",
+            "tablet@2": ""
+        },
+        "deviceTypes": {
+            "desktop": true,
+            "tablet": true,
+            "phone": true
+        }
+    },
+    "sap.ui5": {
+        "componentPreload": "off",
+        "flexEnabled": true,
+        "dependencies": {
+            "minUI5Version": "1.136.2",
+            "libs": {
+                "sap.m": {},
+                "sap.ui.core": {},
+                "sap.tnt": {},
+                "sap.ui.layout": {},
+                "sap.f": {}
+            }
+        },
+        "contentDensities": {
+            "compact": true,
+            "cozy": true
+        },
+        "models": {
+            "i18n": {
+                "type": "sap.ui.model.resource.ResourceModel",
+                "settings": {
+                    "bundleName": "main.i18n.i18n"
+                }
+            }
+        },
+        "resources": {
+            "css": [
+                {
+                    "uri": "css/style.css"
+                }
+            ]
+        },
+        "routing": {
+            "config": {
+                "routerClass": "sap.m.routing.Router",
+                "viewType": "XML",
+                "async": true,
+                "viewPath": "main.view",
+                "controlAggregation": "pages",
+                "controlId": "app",
+                "clearControlAggregation": false
+            },
+            "routes": [
+                {
+                    "name": "login",
+                    "pattern": "",
+                    "target": [
+                        "Login"
+                    ]
+                },
+                {
+                    "name": "loginAlias",
+                    "pattern": "login",
+                    "target": [
+                        "Login"
+                    ]
+                },
+                {
+                    "name": "inicio",
+                    "pattern": "inicio",
+                    "target": [
+                        "Inicio"
+                    ]
+                },
+                {
+                    "name": "instrumentos",
+                    "pattern": "instrumentos",
+                    "target": [
+                        "Instrumentos"
+                    ]
+                },
+                {
+                    "name": "mercado",
+                    "pattern": "mercado",
+                    "target": [
+                        "Mercado"
+                    ]
+                },
+                {
+                    "name": "estrategias",
+                    "pattern": "estrategias",
+                    "target": [
+                        "Estrategias"
+                    ]
+                },
+                {
+                    "name": "rendimiento",
+                    "pattern": "rendimiento",
+                    "target": [
+                        "Rendimiento"
+                    ]
+                },
+                {
+                    "name": "ordenes",
+                    "pattern": "ordenes",
+                    "target": [
+                        "Ordenes"
+                    ]
+                },
+                {
+                    "name": "riesgos",
+                    "pattern": "riesgos",
+                    "target": [
+                        "Riesgos"
+                    ]
+                },
+                {
+                    "name": "configuracion",
+                    "pattern": "configuracion",
+                    "target": [
+                        "Configuracion"
+                    ]
+                },
+                {
+                    "name": "notFound",
+                    "pattern": "{*path}",
+                    "target": [
+                        "NotFound"
+                    ]
+                }
+            ],
+            "targets": {
+                "Inicio": {
+                    "viewType": "XML",
+                    "transition": "slide",
+                    "clearControlAggregation": false,
+                    "viewId": "Inicio",
+                    "viewName": "Inicio"
+                },
+                "Login": {
+                    "viewType": "XML",
+                    "transition": "slide",
+                    "clearControlAggregation": false,
+                    "viewId": "Login",
+                    "viewName": "Login",
+                    "controlId": "authApp",
+                    "controlAggregation": "pages"
+                },
+                "Instrumentos": {
+                    "viewType": "XML",
+                    "transition": "slide",
+                    "clearControlAggregation": false,
+                    "viewId": "Instrumentos",
+                    "viewName": "Instrumentos"
+                },
+                "Mercado": {
+                    "viewType": "XML",
+                    "transition": "slide",
+                    "clearControlAggregation": false,
+                    "viewId": "Mercado",
+                    "viewName": "Mercado"
+                },
+                "Estrategias": {
+                    "viewType": "XML",
+                    "transition": "slide",
+                    "clearControlAggregation": false,
+                    "viewId": "Estrategias",
+                    "viewName": "Estrategias"
+                },
+                "Rendimiento": {
+                    "viewType": "XML",
+                    "transition": "slide",
+                    "clearControlAggregation": false,
+                    "viewId": "Rendimiento",
+                    "viewName": "Rendimiento"
+                },
+                "Ordenes": {
+                    "viewType": "XML",
+                    "transition": "slide",
+                    "clearControlAggregation": false,
+                    "viewId": "Ordenes",
+                    "viewName": "Ordenes"
+                },
+                "Riesgos": {
+                    "viewType": "XML",
+                    "transition": "slide",
+                    "clearControlAggregation": false,
+                    "viewId": "Riesgos",
+                    "viewName": "Riesgos"
+                },
+                "Configuracion": {
+                    "viewType": "XML",
+                    "transition": "slide",
+                    "clearControlAggregation": false,
+                    "viewId": "Configuracion",
+                    "viewName": "Configuracion"
+                },
+                "NotFound": {
+                    "viewType": "XML",
+                    "transition": "slide",
+                    "clearControlAggregation": false,
+                    "viewId": "NotFound",
+                    "viewName": "NotFound"
+                }
+            }
+        },
+        "rootView": {
+            "viewName": "main.view.App",
+            "type": "XML",
+            "async": true,
+            "id": "App"
+        }
+    }
+}

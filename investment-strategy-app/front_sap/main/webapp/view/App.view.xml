@@ -1,0 +1,46 @@
+<mvc:View controllerName="main.controller.App"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns:tnt="sap.tnt"
+    xmlns="sap.m">
+    <VBox fitContainer="true">
+        <tnt:ToolPage id="toolPage" visible="{vm>/authenticated}">
+            <tnt:header>
+                <tnt:ToolHeader height="3.25rem">
+                    <Button icon="sap-icon://menu2"
+                        type="Transparent"
+                        press="onToggleSide" />
+                    <Title level="H3" text="Estrategias de Inversion" />
+                    <ToolbarSpacer />
+                    <Avatar displaySize="S"
+                        displayShape="Circle"
+                        initials="{vm>/user/initials}"
+                        src="{vm>/user/avatar}" />
+                    <Text text="{vm>/user/displayName}" class="sapUiTinyMarginEnd" />
+                    <Button text="Cerrar sesion"
+                        type="Transparent"
+                        press="onLogout" />
+                </tnt:ToolHeader>
+            </tnt:header>
+            <tnt:sideContent>
+                <tnt:SideNavigation id="sideNav"
+                    expanded="{= !${vm>/sideCollapsed}}"
+                    itemSelect="onNavSelect">
+                    <tnt:NavigationList selectedKey="{vm>/selectedKey}">
+                        <tnt:NavigationListItem text="Inicio" icon="sap-icon://home" key="inicio" />
+                        <tnt:NavigationListItem text="Instrumentos" icon="sap-icon://tools-opportunity" key="instrumentos" />
+                        <tnt:NavigationListItem text="Mercado" icon="sap-icon://trend-up" key="mercado" />
+                        <tnt:NavigationListItem text="Estrategias" icon="sap-icon://bo-strategy-management" key="estrategias" />
+                        <tnt:NavigationListItem text="Rendimiento" icon="sap-icon://line-chart" key="rendimiento" />
+                        <tnt:NavigationListItem text="Ordenes" icon="sap-icon://sales-order" key="ordenes" />
+                        <tnt:NavigationListItem text="Riesgos" icon="sap-icon://shield" key="riesgos" />
+                        <tnt:NavigationListItem text="Configuracion" icon="sap-icon://settings" key="configuracion" />
+                    </tnt:NavigationList>
+                </tnt:SideNavigation>
+            </tnt:sideContent>
+            <tnt:mainContents>
+                <App id="app" />
+            </tnt:mainContents>
+        </tnt:ToolPage>
+        <App id="authApp" visible="{= !${vm>/authenticated}}" />
+    </VBox>
+</mvc:View>

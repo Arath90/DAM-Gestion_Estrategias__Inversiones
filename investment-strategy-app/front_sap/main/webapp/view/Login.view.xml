@@ -1,0 +1,50 @@
+<mvc:View controllerName="main.controller.Login"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.m">
+    <Page id="loginPage" title="Iniciar sesion" showHeader="false" class="sapUiResponsiveContentPadding">
+        <content>
+            <VBox width="100%" justifyContent="Center" alignItems="Center" renderType="Bare">
+                <Panel width="420px" class="sapUiMediumMargin">
+                    <headerToolbar>
+                        <Toolbar>
+                            <Title level="H3" text="Acceso al panel" />
+                            <ToolbarSpacer />
+                        </Toolbar>
+                    </headerToolbar>
+                    <content>
+                        <VBox class="sapUiSmallMargin sapUiResponsiveContentPadding" width="100%" renderType="Bare">
+                            <MessageStrip text="{login>/error}"
+                                visible="{= !!${login>/error}}"
+                                type="Error"
+                                showIcon="true"
+                                class="sapUiSmallMarginBottom" />
+
+                            <Label text="Correo electronico" labelFor="loginEmail" />
+                            <Input id="loginEmail"
+                                type="Email"
+                                value="{login>/email}"
+                                placeholder="usuario@dominio.com"
+                                liveChange="onFieldChange"
+                                submit="onSubmit" />
+
+                            <Label text="Contrasena" labelFor="loginPassword" class="sapUiSmallMarginTop" />
+                            <Input id="loginPassword"
+                                type="Password"
+                                value="{login>/password}"
+                                placeholder="Contrasena"
+                                liveChange="onFieldChange"
+                                submit="onSubmit" />
+
+                            <Button text="{= ${login>/busy} ? 'Verificando...' : 'Ingresar'}"
+                                type="Emphasized"
+                                class="sapUiSmallMarginTop"
+                                press="onLogin"
+                                enabled="{= !${login>/busy}}"
+                                width="100%" />
+                        </VBox>
+                    </content>
+                </Panel>
+            </VBox>
+        </content>
+    </Page>
+</mvc:View>

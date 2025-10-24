@@ -1,0 +1,17 @@
+﻿<mvc:View controllerName="main.controller.Riesgos"
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns="sap.f"
+    xmlns:m="sap.m">
+    <DynamicPage toggleHeaderOnTitleClick="false">
+        <title>
+            <DynamicPageTitle><heading><m:Title text="Riesgos" level="H2" /></heading></DynamicPageTitle>
+        </title>
+        <content>
+            <m:VBox class="sapUiLargeMargin">
+                <m:Text text="Define limites y monitorea indicadores de riesgo en tiempo real." />
+            </m:VBox>
+        </content>
+    </DynamicPage>
+</mvc:View>
+
+

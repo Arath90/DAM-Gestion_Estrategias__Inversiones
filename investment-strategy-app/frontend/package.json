@@ -12,6 +12,7 @@
     "@ui5/webcomponents-icons": "^2.15.1",
     "@ui5/webcomponents-react": "^2.15.3",
     "axios": "^1.12.2",
+    "lightweight-charts": "^4.2.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.4",

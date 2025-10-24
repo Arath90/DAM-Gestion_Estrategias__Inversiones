@@ -117,3 +117,4 @@ export const NewsArticlesAPI = createCrudApiService('NewsArticles');
 export const OptionChainSnapshotsAPI = createCrudApiService('OptionChainSnapshots');
 export const OptionChainSnapshotItemsAPI = createCrudApiService('OptionChainSnapshotItems');
 export const OptionQuotesAPI = createCrudApiService('OptionQuotes');
+export const SecUsersAPI = createCrudApiService('SecUsers');

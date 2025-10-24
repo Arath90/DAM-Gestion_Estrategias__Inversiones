@@ -1,18 +1,16 @@
-import React, { useReducer } from 'react';
-import { useState } from 'react';
+import React, { useReducer, useState } from 'react';
 import Notification from '../components/Notification';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import axios from 'axios';
 import {
   Input,
   Button,
   Title,
   Link as Ui5Link,
-  Label
 } from '@ui5/webcomponents-react';
 import '../assets/globalAssets.css';
 
+// Mismo patrón que Login: usamos reducer para mantener el form prolijo.
 const initialState = {
   name: '',
   user: '',
@@ -37,7 +35,7 @@ function reducer(state, action) {
 const Register = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [showNotification, setShowNotification] = useState(false);
-  const { register } = useAuth();
+  const { register } = useAuth(); // hook reutiliza el mismo backend auth.
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -48,11 +46,9 @@ const Register = () => {
     }
   };
 
-  const validateEmail = (email) => {
-    return /^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email);
-  };
+  const validateEmail = (email) => /^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!state.name || !state.user || !state.email || !state.password) {
       dispatch({ type: 'error', value: 'Todos los campos son obligatorios' });
@@ -60,37 +56,27 @@ const Register = () => {
       return;
     }
     if (!validateEmail(state.email)) {
-      dispatch({ type: 'error', value: 'El correo no es válido' });
+      dispatch({ type: 'error', value: 'El correo no es valido' });
       setShowNotification(true);
       return;
     }
     if (state.password.length < 5) {
-      dispatch({ type: 'error', value: 'La contraseña debe tener al menos 5 caracteres' });
+      dispatch({ type: 'error', value: 'La contrasena debe tener al menos 5 caracteres' });
       setShowNotification(true);
       return;
     }
     dispatch({ type: 'error', value: '' });
 
-    const add = {
+    const result = await register({
       name: state.name,
       user: state.user,
       email: state.email,
-      pass: state.password
-    };
-
-    const result = register({
-      name: state.name,
-      email: state.email,
-      password: state.password
+      password: state.password,
     });
 
     if (result.success) {
-      axios.post(
-        `http://localhost:4004/odata/v4/catalog/SecUsers?ProcessType=AddOne&dbServer=mongo&LoggedUser=${state.user}`,
-        add
-      );
       dispatch({ type: 'reset' });
-      navigate('/');
+      navigate('/dashboard'); // ya inicia sesión automáticamente.
     } else {
       dispatch({ type: 'error', value: result.error });
       setShowNotification(true);
@@ -106,17 +92,14 @@ const Register = () => {
       />
       <div className="register-bg">
         <div className="register-card">
-          {/* Sección izquierda con imagen */}
           <div className="register-img img-portada-register"></div>
-
-          {/* Sección derecha con formulario */}
           <div className="register-form">
             <Title level="H3" className="register-title">
               Crear <span>Cuenta</span>
             </Title>
 
             <div className="register-subtitle">
-              Regístrate para acceder a la plataforma.
+              Registrate para acceder a la plataforma.
             </div>
 
             <form onSubmit={handleSubmit} className="register-form-fields">
@@ -160,7 +143,7 @@ const Register = () => {
                   id="email"
                   name="email"
                   type="Email"
-                  placeholder="Correo electrónico"
+                  placeholder="Correo electronico"
                   value={state.email}
                   onInput={handleChange}
                   required
@@ -176,7 +159,7 @@ const Register = () => {
                   id="password"
                   name="password"
                   type="Password"
-                  placeholder="Contraseña"
+                  placeholder="Contrasena"
                   value={state.password}
                   onInput={handleChange}
                   required
@@ -188,7 +171,11 @@ const Register = () => {
                 Registrarse
               </Button>
 
-              <div className="register-link">¿Ya tienes cuenta? <Ui5Link href="/login" className="login-link">Inicia sesión</Ui5Link>
+              <div className="register-link">
+                Ya tienes cuenta?{' '}
+                <Ui5Link href="/login" className="login-link">
+                  Inicia sesion
+                </Ui5Link>
               </div>
             </form>
           </div>

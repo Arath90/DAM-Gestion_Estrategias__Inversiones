@@ -35,6 +35,8 @@ const isStrict = ['true', '1', 'yes', 'on'].includes(String(process.env.STRICT_H
 function readUser(req) {
   return (
     req?.req?.query?.LoggedUser ||
+    req?.req?.sessionUser?.email || // inyectado por sessionAuth (Express layer)
+    req?.sessionUser?.email ||      // fallback directo si viene sin el wrapper
     req?.req?.headers?.['x-logged-user'] ||
     req?.data?.LoggedUser ||
     req?.data?.loggedUser ||

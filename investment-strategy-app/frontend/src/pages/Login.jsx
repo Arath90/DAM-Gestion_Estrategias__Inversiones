@@ -1,7 +1,6 @@
 import React, { useReducer, useState } from 'react';
 import Notification from '../components/Notification';
 import { useAuth } from '../hooks/useAuth';
-import axios from 'axios';
 import {
   Input,
   Button,
@@ -11,6 +10,7 @@ import {
 } from '@ui5/webcomponents-react';
 import { useNavigate } from 'react-router-dom';
 
+// Reducer ultra simple para manejar loading + mensajes de error sin prop drilling.
 const initialState = {
   email: '',
   password: '',
@@ -33,47 +33,10 @@ function reducer(state, action) {
   }
 }
 
-const API_BASE =
-  (import.meta?.env?.VITE_API_URL && String(import.meta.env.VITE_API_URL).trim()) ||
-  'http://localhost:4004/odata/v4/catalog';
-
-const buildUrl = (path) => `${API_BASE.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
-
-const collectDataRes = (node) => {
-  if (!node || typeof node !== 'object') return [];
-  const bucket = [];
-  const dataRes = node.dataRes;
-  if (Array.isArray(dataRes)) bucket.push(...dataRes);
-  else if (dataRes && typeof dataRes === 'object') bucket.push(dataRes);
-  if (Array.isArray(node.data)) {
-    for (const entry of node.data) bucket.push(...collectDataRes(entry));
-  }
-  return bucket;
-};
-
-const normalizePayload = (payload) => {
-  if (Array.isArray(payload?.value)) {
-    const collected = payload.value.flatMap(collectDataRes);
-    return collected.length ? collected : payload.value;
-  }
-  const collected = collectDataRes(payload);
-  if (collected.length) return collected;
-  return Array.isArray(payload) ? payload : payload ? [payload] : [];
-};
-
-const serializeParams = (params = {}) => {
-  const searchParams = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined || value === null) return;
-    searchParams.append(key, value);
-  });
-  return searchParams.toString().replace(/\+/g, '%20');
-};
-
 const Login = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [showNotification, setShowNotification] = useState(false);
-  const { setUser } = useAuth();
+  const { login } = useAuth(); // Traemos la función que habla con el backend.
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -104,52 +67,19 @@ const Login = () => {
       return;
     }
 
-    dispatch({ type: 'loading' });
+    dispatch({ type: 'loading' }); // Mostramos spinner mientras el backend responde.
 
-    try {
-      const sanitize = (value = '') => String(value).replace(/'/g, "''");
-      const params = {
-        ProcessType: 'READ',
-        dbServer: 'MongoDB',
-        LoggedUser: state.email,
-        $filter: `email eq '${sanitize(state.email)}' and pass eq '${sanitize(state.password)}'`,
-        $top: 1,
-      };
-
-      const { data } = await axios.get(buildUrl('SecUsers'), {
-        params,
-        paramsSerializer: { serialize: serializeParams },
-      });
-
-      const records = normalizePayload(data);
-      const userRecord =
-        Array.isArray(records) && records.length ? records[0] : null;
-
-      if (userRecord) {
-        const sessionUser = {
-          ID: userRecord.ID,
-          name: userRecord.name || userRecord.user || '',
-          user: userRecord.user || '',
-          email: userRecord.email || state.email,
-        };
-        setUser(sessionUser);
-        localStorage.setItem('auth_user', JSON.stringify(sessionUser));
-        dispatch({ type: 'reset' });
-        navigate('/dashboard');
-        return;
-      }
-    } catch (error) {
-      console.error('Login error', error);
-      dispatch({
-        type: 'error',
-        value:
-          'No se pudo conectar al servidor. Puedes probar con datos locales.',
-      });
-      setShowNotification(true);
+    const result = await login({ email: state.email, password: state.password }); // Se va a /api/auth/login.
+    if (result.success) {
+      dispatch({ type: 'reset' });
+      navigate('/dashboard'); // Flujo completo: login OK -> redirigir al home privado.
       return;
     }
 
-    dispatch({ type: 'error', value: 'Credenciales invalidas' });
+    dispatch({
+      type: 'error',
+      value: result.error || 'Credenciales invalidas',
+    });
     setShowNotification(true);
   };
 

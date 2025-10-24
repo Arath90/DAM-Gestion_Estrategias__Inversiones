@@ -4,6 +4,8 @@ const cds     = require('@sap/cds');
 const cors    = require('cors');
 
 const registerCatalogRouteRewriter = require('./src/api/middlewares/catalogRouteRewriter');
+const registerSessionAuth = require('./src/api/middlewares/sessionAuth');
+const registerAuthRoutes = require('./src/api/routes/auth.route');
 const registerPublicCandlesRoute = require('./src/api/routes/candles-public.route');
 
 // 1) .env y Mongo ANTES de cds.server
@@ -26,9 +28,21 @@ module.exports = async (o = {}) => {
   }
   next(err);
 });
-    app.use(cors());
-    registerCatalogRouteRewriter(app);
-    registerPublicCandlesRoute(app);
+    const allowedOrigins = process.env.CORS_ORIGIN
+      ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()).filter(Boolean)
+      : true;
+
+    app.use(cors({
+      origin: allowedOrigins,
+      credentials: true,
+      allowedHeaders: ['Content-Type', 'X-Session-Token', 'X-Session', 'X-Requested-With'],
+      exposedHeaders: ['X-Session-Token'],
+    }));
+
+    registerAuthRoutes(app);            // /api/auth -> login/register/logout (sin protección)
+    registerSessionAuth(app);           // middleware global que protege /odata/* con token
+    registerCatalogRouteRewriter(app);  // traduce rutas friendly a OData
+    registerPublicCandlesRoute(app);    // endpoint público histórico que queda abierto
 
     o.app = app;                       // expón express a CAP
     const srv = await cds.server(o);   // arranca CAP

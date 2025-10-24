@@ -81,12 +81,16 @@ module.exports = function registerCatalogRouteRewriter(app) {
 
     const searchParams = buildSearchParams(req.originalUrl || '');
     if (normalizedDb && !searchParams.has('db')) searchParams.set('db', normalizedDb);
+    // Si el middleware de sesión detectó usuario, lo forzamos como LoggedUser para CAP.
+    const sessionEmail = req.sessionUser?.email || req.catalogLoggedUser;
+    if (sessionEmail && !searchParams.has('LoggedUser')) searchParams.set('LoggedUser', sessionEmail);
     if (loggedUser && !searchParams.has('loggedUser')) searchParams.set('loggedUser', loggedUser);
 
     req.query = Object.fromEntries(searchParams.entries());
     if (normalizedDb) req.catalogDbTarget = normalizedDb;
     else if (req.query && req.query.db) req.catalogDbTarget = req.query.db;
-    if (loggedUser) req.catalogLoggedUser = loggedUser;
+    if (sessionEmail) req.catalogLoggedUser = sessionEmail;
+    else if (loggedUser) req.catalogLoggedUser = loggedUser;
 
     let rewrittenPath = '';
     let targetMethod = req.method;

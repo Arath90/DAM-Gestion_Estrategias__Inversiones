@@ -13,6 +13,7 @@ import {
   Label,
   BusyIndicator
 } from '@ui5/webcomponents-react';
+import { useNavigate } from 'react-router-dom';
 
 const initialState = {
   email: '',
@@ -42,6 +43,7 @@ const Login = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [showNotification, setShowNotification] = useState(false);
   const { setUser } = useAuth();
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     dispatch({ type: 'field', field: e.target.name, value: e.target.value });
@@ -63,8 +65,8 @@ const Login = () => {
       setShowNotification(true);
       return;
     }
-    if (state.password.length < 6) {
-      dispatch({ type: 'error', value: 'La contraseña debe tener al menos 6 caracteres' });
+    if (state.password.length < 5) {
+      dispatch({ type: 'error', value: 'La contraseña debe tener al menos 5 caracteres' });
       setShowNotification(true);
       return;
     }
@@ -91,6 +93,7 @@ const Login = () => {
           localStorage.setItem('auth_token', response.data.token);
         }
         dispatch({ type: 'reset' });
+        navigate('/dashboard'); // Redirige al dashboard tras login exitoso
       } else {
         dispatch({ type: 'error', value: 'Credenciales inválidas' });
         setShowNotification(true);

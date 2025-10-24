@@ -64,8 +64,8 @@ const Register = () => {
       setShowNotification(true);
       return;
     }
-    if (state.password.length < 6) {
-      dispatch({ type: 'error', value: 'La contraseña debe tener al menos 6 caracteres' });
+    if (state.password.length < 5) {
+      dispatch({ type: 'error', value: 'La contraseña debe tener al menos 5 caracteres' });
       setShowNotification(true);
       return;
     }

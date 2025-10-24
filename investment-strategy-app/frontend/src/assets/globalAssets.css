@@ -3,7 +3,15 @@
 @import './css/login.css';
 @import './css/register.css';
 @import './css/notification.css';
-
+@import './css/dashboard.css';
+@import './css/Inicio.css';
+@import './css/Instrumentos.css';
+@import './css/Mercado.css';
+@import './css/Estrategias.css';
+@import './css/Rendimiento.css';
+@import './css/Ordenes.css';
+@import './css/Riesgos.css';
+@import './css/Configuracion.css';
 
 /* Imágenes globales */
 .img-portada {
@@ -14,5 +22,12 @@
 .img-portada-register {
 	background-image: url('./images/portada2.png');
 	background-size: cover;
+	background-position: center;
+}
+
+.img-logo {
+	background-image: url('./images/logo.png');
+	background-size: contain;
+	background-repeat: no-repeat;
 	background-position: center;
 }

@@ -1,0 +1,6 @@
+.page-ordenes {
+  padding: 32px;
+  background: var(--project-color2);
+  color: var(--project-color1);
+  font-family: var(--project-font);
+}

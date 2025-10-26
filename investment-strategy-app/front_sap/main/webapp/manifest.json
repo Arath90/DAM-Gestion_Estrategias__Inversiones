@@ -70,6 +70,11 @@
                 {
                     "uri": "css/style.css"
                 }
+            ],
+            "js": [
+                {
+                    "uri": "thirdparty/lightweight-charts.js"
+                }
             ]
         },
         "routing": {

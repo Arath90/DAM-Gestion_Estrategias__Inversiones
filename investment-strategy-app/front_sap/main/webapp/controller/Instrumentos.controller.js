@@ -3,8 +3,12 @@ sap.ui.define([
     "sap/ui/model/json/JSONModel",
     "sap/m/MessageToast",
     "sap/m/MessageBox",
+    "sap/m/Dialog",
+    "sap/m/List",
+    "sap/m/StandardListItem",
+    "sap/m/Button",
     "main/util/catalog"
-], function (Controller, JSONModel, MessageToast, MessageBox, catalog) {
+], function (Controller, JSONModel, MessageToast, MessageBox, Dialog, List, StandardListItem, Button, catalog) {
     "use strict";
 
     var FIELD_CONFIG = [
@@ -16,8 +20,61 @@ sap.ui.define([
         { name: "trading_class", label: "Clase" },
         { name: "ib_conid", label: "CONID" },
         { name: "underlying_conid", label: "Subyacente CONID" },
-        { name: "last_trade_date", label: "Ultimo trade" },
-        { name: "created_at", label: "Creado en origen" }
+    { name: "last_trade_date", label: "Ultimo trade" },
+    { name: "created_at", label: "Creado en origen" }
+];
+
+    var GLOSSARY_ITEMS = [
+        {
+            key: "symbol",
+            title: "Simbolo",
+            description: "Ticker o symbol tal como se negocia el instrumento en el mercado."
+        },
+        {
+            key: "sec_type",
+            title: "Tipo",
+            description: "Tipo de contrato, por ejemplo STK (accion), FUT (futuro), OPT (opcion) o CASH (divisa)."
+        },
+        {
+            key: "exchange",
+            title: "Exchange",
+            description: "Bolsa o venue donde cotiza el instrumento (NYSE, NASDAQ, CME, IDEALPRO, etc.)."
+        },
+        {
+            key: "currency",
+            title: "Moneda",
+            description: "Divisa de cotizacion expresada con codigo ISO (USD, MXN, EUR, etc.)."
+        },
+        {
+            key: "multiplier",
+            title: "Multiplicador",
+            description: "Factor multiplicador aplicado al contrato para calcular valor nocional."
+        },
+        {
+            key: "trading_class",
+            title: "Clase",
+            description: "Trading class o familia asignada por el broker para agrupar contratos relacionados."
+        },
+        {
+            key: "ib_conid",
+            title: "CONID",
+            description: "Identificador unico del instrumento en Interactive Brokers u otra fuente."
+        },
+        {
+            key: "underlying_conid",
+            title: "Subyacente CONID",
+            description: "CONID del instrumento subyacente asociado a contratos derivados."
+        },
+        {
+            key: "last_trade_date",
+            title: "Ultimo trade (ISO)",
+            description: "Fecha y hora del ultimo trade disponible en formato ISO 8601 (YYYY-MM-DDTHH:mm)."
+        },
+        {
+            key: "created_at",
+            title: "Creado en origen (ISO)",
+            description: "Fecha de creacion provista por el sistema de origen en formato ISO 8601."
+        }
     ];
 
     function blankForm() {
@@ -110,6 +167,43 @@ sap.ui.define([
         return mPayload;
     }
 
+    function extractErrorInfo(oError, sFallback) {
+        var sMessage = sFallback || "Ocurrió un error inesperado.";
+        var sDetails = "";
+        if (oError) {
+            if (oError.message) {
+                sMessage = oError.message;
+            }
+            if (Array.isArray(oError.detailMessages) && oError.detailMessages.length) {
+                sDetails = oError.detailMessages.join("\n");
+            } else if (oError.details) {
+                sDetails = oError.details;
+            } else if (oError.responseText && oError.responseText !== sMessage) {
+                sDetails = oError.responseText;
+            }
+            if (!sDetails && oError.payload && oError.payload.error && oError.payload.error.target) {
+                sDetails = oError.payload.error.target;
+            }
+        }
+        if (sDetails === sMessage) {
+            sDetails = "";
+        }
+        return {
+            message: sMessage,
+            details: sDetails
+        };
+    }
+
+    function showErrorDialog(oController, oError, sFallback) {
+        var oInfo = extractErrorInfo(oError, sFallback);
+        MessageBox.error(oInfo.message, {
+            details: oInfo.details || undefined,
+            emphasizedAction: MessageBox.Action.CLOSE,
+            dependentOn: oController.getView()
+        });
+        return oInfo;
+    }
+
     return Controller.extend("main.controller.Instrumentos", {
         onInit: function () {
             var oModel = new JSONModel({
@@ -127,6 +221,41 @@ sap.ui.define([
             this.getView().setModel(oModel, "instrumentos");
 
             this.getOwnerComponent().getRouter().getRoute("instrumentos").attachPatternMatched(this._onRouteMatched, this);
+        },
+
+        onOpenGlossary: function () {
+            if (!this._oGlossaryDialog) {
+                var oList = new List({
+                    inset: false,
+                    items: GLOSSARY_ITEMS.map(function (item) {
+                        return new StandardListItem({
+                            title: item.title,
+                            description: item.description,
+                            icon: "sap-icon://hint",
+                            type: "Inactive"
+                        });
+                    })
+                });
+                oList.addStyleClass("instrumentGlossaryList");
+
+                this._oGlossaryDialog = new Dialog({
+                    title: "Glosario de campos",
+                    resizable: true,
+                    draggable: true,
+                    contentWidth: "420px",
+                    contentHeight: "60vh",
+                    content: [oList],
+                    endButton: new Button({
+                        text: "Cerrar",
+                        press: function () {
+                            this._oGlossaryDialog.close();
+                        }.bind(this)
+                    })
+                });
+                this.getView().addDependent(this._oGlossaryDialog);
+            }
+
+            this._oGlossaryDialog.open();
         },
 
         _isAuthenticated: function () {
@@ -181,8 +310,9 @@ sap.ui.define([
                 })
                 .catch(function (err) {
                     oModel.setProperty("/listBusy", false);
+                    var oInfo = extractErrorInfo(err, "No se pudo cargar la lista.");
                     oModel.setProperty("/status", {
-                        text: (err && err.message) || "No se pudo cargar la lista.",
+                        text: oInfo.message,
                         type: "Error"
                     });
                 });
@@ -227,11 +357,12 @@ sap.ui.define([
                 })
                 .catch(function (err) {
                     oModel.setProperty("/createBusy", false);
+                    var oInfo = showErrorDialog(this, err, "No se pudo crear el instrumento.");
                     oModel.setProperty("/status", {
-                        text: (err && err.message) || "No se pudo crear el instrumento.",
+                        text: oInfo.message,
                         type: "Error"
                     });
-                });
+                }.bind(this));
         },
 
         onPanelExpand: function (oEvent) {
@@ -271,11 +402,12 @@ sap.ui.define([
                     });
                 })
                 .catch(function (err) {
+                    var oInfo = showErrorDialog(this, err, "No se pudo actualizar el instrumento.");
                     oModel.setProperty("/status", {
-                        text: (err && err.message) || "No se pudo actualizar el instrumento.",
+                        text: oInfo.message,
                         type: "Error"
                     });
-                })
+                }.bind(this))
                 .then(fnCleanup, fnCleanup);
         },
 
@@ -311,13 +443,24 @@ sap.ui.define([
                             });
                         })
                         .catch(function (err) {
+                            var oInfo = showErrorDialog(this, err, "No se pudo eliminar el instrumento.");
                             oModel.setProperty("/status", {
-                                text: (err && err.message) || "No se pudo eliminar el instrumento.",
+                                text: oInfo.message,
                                 type: "Error"
                             });
-                        });
-                }
+                        }.bind(this));
+                }.bind(this)
             });
+        },
+
+        onExit: function () {
+            if (this._oEventBus) {
+                this._oEventBus.unsubscribe("auth", "loginSuccess", this._onLoginSuccess, this);
+            }
+            if (this._oGlossaryDialog) {
+                this._oGlossaryDialog.destroy();
+                this._oGlossaryDialog = null;
+            }
         }
     });
 });

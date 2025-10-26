@@ -14,3 +14,125 @@
 .instrument-panel .sapMText {
   word-break: break-word;
 }
+
+.appDynamicPage .sapFDynamicPageContentWrapper {
+  overflow-y: visible;
+  background: #f4f6f8;
+}
+
+.appDynamicPage .sapFDynamicPageContent {
+  padding: 0;
+}
+
+.appContentContainer {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
+  box-sizing: border-box;
+}
+
+.appContentContainer > .sapMPanel,
+.appContentContainer > .sapMVBox,
+.appContentContainer .sapMVBox {
+  width: 100%;
+}
+
+.instrument-panel .sapMPanelHdr {
+  padding-right: 1rem;
+}
+
+.instrumentGlossaryList .sapMSLIDescription {
+  white-space: normal;
+}
+
+.marketIntroText {
+  color: #475569;
+}
+
+.marketConfigPanel .sapMPanelContent {
+  padding: 1.5rem 1.75rem;
+}
+
+.marketConfigBox {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.marketInstrumentRow {
+  gap: 1.5rem;
+}
+
+.marketFieldGroup {
+  min-width: 14rem;
+  max-width: 18rem;
+}
+
+.marketCustomInput .sapMInputBase {
+  margin-right: 0.5rem;
+}
+
+.marketSwitchRow {
+  gap: 1.25rem;
+}
+
+.marketSwitchRow .sapMCb {
+  min-width: 8rem;
+}
+
+.marketChartPanel .sapMPanelContent {
+  padding: 1rem;
+}
+
+.marketChartContainer {
+  position: relative;
+}
+
+.marketChartShell {
+  position: relative;
+  gap: 0.5rem;
+}
+
+.marketChartCanvas {
+  width: 100%;
+  min-height: 360px;
+}
+
+.marketChartCanvasRsi {
+  min-height: 160px;
+}
+
+.marketChartOverlay {
+  position: absolute;
+  inset: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  background: rgba(15, 23, 42, 0.7);
+  color: #f8fafc;
+  text-align: center;
+  padding: 1rem;
+  z-index: 5;
+}
+
+.marketChartOverlayError {
+  background: rgba(220, 38, 38, 0.75);
+}
+
+.marketSummaryPanel .sapMPanelContent {
+  padding: 1.25rem 1.75rem;
+}
+
+.marketSummaryBox {
+  gap: 1.5rem;
+}
+
+.marketGlossaryDialog .sapMDialogScrollCont {
+  padding: 1rem;
+}
+
+.marketGlossaryDialog .sapMSLIDescription {
+  white-space: normal;
+}

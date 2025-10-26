@@ -93,14 +93,61 @@ sap.ui.define([
             headers: mHeaders
         };
 
-        if (mOptions && mOptions.body === null) {
-            mFetchOptions.body = JSON.stringify(mOptions.body);
+        if (mOptions && Object.prototype.hasOwnProperty.call(mOptions, "body") && mOptions.body !== undefined) {
+            mFetchOptions.body = mOptions.body === null ? null : JSON.stringify(mOptions.body);
         }
 
         return fetch(buildUrl(sPath, oParams), mFetchOptions).then(function (oResponse) {
             if (!oResponse.ok) {
                 return oResponse.text().then(function (text) {
-                    throw new Error(text || oResponse.statusText);
+                    var oError = new Error(oResponse.statusText || "Request failed");
+                    oError.status = oResponse.status;
+                    oError.responseText = text;
+                    if (text) {
+                        try {
+                            var oParsed = JSON.parse(text);
+                            oError.payload = oParsed;
+                            if (oParsed && oParsed.error) {
+                                var vMessage = oParsed.error.message;
+                                if (vMessage && typeof vMessage === "object") {
+                                    vMessage = vMessage.value || vMessage.message || JSON.stringify(vMessage);
+                                }
+                                if (vMessage) {
+                                    oError.message = vMessage;
+                                }
+                                if (Array.isArray(oParsed.error.details) && oParsed.error.details.length) {
+                                    oError.detailMessages = oParsed.error.details
+                                        .map(function (entry) {
+                                            if (!entry) {
+                                                return null;
+                                            }
+                                            var vDetailMessage = entry.message;
+                                            if (vDetailMessage && typeof vDetailMessage === "object") {
+                                                vDetailMessage =
+                                                    vDetailMessage.value ||
+                                                    vDetailMessage.message ||
+                                                    JSON.stringify(vDetailMessage);
+                                            }
+                                            return vDetailMessage;
+                                        })
+                                        .filter(Boolean);
+                                }
+                            } else if (oParsed && oParsed.message) {
+                                var vRootMessage = oParsed.message;
+                                if (typeof vRootMessage === "object") {
+                                    vRootMessage =
+                                        vRootMessage.value || vRootMessage.message || JSON.stringify(vRootMessage);
+                                }
+                                oError.message = vRootMessage;
+                            }
+                        } catch (err) {
+                            // ignore JSON parse issues, keep raw text
+                        }
+                    }
+                    if (!oError.detailMessages && text) {
+                        oError.detailMessages = [text];
+                    }
+                    throw oError;
                 });
             }
             if (oResponse.status === 204) {

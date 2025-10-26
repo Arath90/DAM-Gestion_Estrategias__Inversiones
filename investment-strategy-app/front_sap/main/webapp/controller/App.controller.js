@@ -32,8 +32,8 @@ sap.ui.define([
             if (!sKey) {
                 return;
             }
-            var oModel = this.getView().getModel("vm");
-            if (oModel.getProperty("/selectedKey") === sKey) {
+            var sCurrentHash = this._oRouter && this._oRouter.getHashChanger().getHash();
+            if (sCurrentHash === sKey) {
                 return;
             }
             this._oRouter.navTo(sKey);

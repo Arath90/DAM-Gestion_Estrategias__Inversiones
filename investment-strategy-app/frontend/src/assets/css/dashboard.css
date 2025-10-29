@@ -17,9 +17,9 @@
   width: 100%;
   background: linear-gradient(
     90deg,
-    var(--project-color1) 0%,
-    var(--project-color2) 100%
-  );
+    var(--project-color2) 0%,
+    var(--project-color1) 100%
+  ); /* Fondo principal barra superior */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   height: 64px;
   display: flex;
@@ -36,7 +36,7 @@
 }
 .shellbar-user {
   font-size: 1.1rem;
-  color: var(--project-color3);
+  color: var(--project-color4);
   font-weight: 500;
   background: rgba(255, 255, 255, 0.08);
   padding: 8px 18px;
@@ -81,9 +81,9 @@
   min-width: 220px;
   background: linear-gradient(
     135deg,
-    var(--project-color1) 0%,
-    var(--project-color2) 100%
-  );
+    var(--project-color2) 0%,
+    var(--project-color1) 100%
+  ); /* Fondo principal sidebar */
   transition: width 1.2s cubic-bezier(0.77, 0, 0.175, 1);
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.08);
   z-index: 2;
@@ -122,7 +122,6 @@
   display: flex;
   align-items: center;
   padding: 12px 24px;
-  color: var(--project-color4);
   font-size: 1rem;
   border-radius: 8px;
   margin-bottom: 8px;
@@ -131,19 +130,21 @@
 }
 .side-nav .menu-item:hover,
 .side-nav .menu-item.active {
-  background: var(--project-color3);
-  color: var(--project-color1);
+  background: var(--project-color2);
 }
-.side-nav .menu-item .icon {
+
+:root.dark .side-nav .menu-item:hover,
+:root.dark .side-nav .menu-item.active {
+  background: var(--project-color5);
+}
+
+.side-nav .menu-item .icon ui5-icon {
   margin-right: 12px;
   font-size: 1.2rem;
-  color: var(--project-color4);
+  fill: var(--project-color4);
   transition: color 0.2s;
 }
-.side-nav .menu-item:hover .icon,
-.side-nav .menu-item.active .icon {
-  color: var(--project-color1);
-}
+
 .side-nav.collapsed {
   width: 56px;
   min-width: 56px;
@@ -151,7 +152,7 @@
 .main-content {
   flex: 1;
   padding: 32px;
-  background: var(--project-color4);
+  background: var(--project-color4); /* Fondo de contenido */
   color: var(--project-color1);
   overflow-y: auto;
   height: 100%;

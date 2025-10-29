@@ -1,8 +1,8 @@
 .notification-toast {
   min-width: 280px;
   max-width: 400px;
-  background: linear-gradient(90deg, var(--project-color1) 0%, var(--project-color2) 100%);
-  color: var(--alert-color1);
+  background: linear-gradient(90deg, var(--project-color1) 0%, var(--project-color2) 100%); /* Fondo notificación */
+  color: var(--alert-color1); /* Texto de alerta */
   font-family: var(--font-primary, Arial, sans-serif);
   font-size: 1rem;
   font-weight: 500;

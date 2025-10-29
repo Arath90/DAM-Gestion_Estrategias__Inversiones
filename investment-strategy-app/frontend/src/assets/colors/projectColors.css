@@ -1,15 +1,12 @@
-.color1 { --project-color1: #1D2538; }
-.color2 { --project-color2: #475B74; }
-.color3 { --project-color3: #7C8DA5; }
-.color4 { --project-color4: #E0E1DC; }
-.color5 { --project-color5: #3d423c; }
-.alert-color1 { --project-color1: #FF4C4C; }
+
+/* 🎨 Paleta de colores - Modo Claro */
 
 :root {
-  --project-color1: #1D2538;
-  --project-color2: #475B74;
-  --project-color3: #7C8DA5;
-  --project-color4: #E0E1DC;
-  --project-color5: #3D423C;
-  --alert-color1: #FF4C4C;
+  --project-color1: #1d2538;   /* Texto principal, títulos, botones activos, íconos destacados */
+  --project-color2: #475b74;   /* Fondo principal de la página de instrumentos */
+  --project-color3: #a5b2c4;   /* Botones principales, hover, acentos y bordes destacados */
+  --project-color4: #e0e1dc;   /* Texto secundario, detalles, campos de formulario y contraste en botones */
+  --project-color5: #3d423c;   /* Fondo de botones activos, estados activos, y efectos de interacción */
+  --alert-color1: #ff4c4c;     /* Colores de alerta, errores y botones de acción peligrosa */
+  --icon-color: #1d2538;       /* Color de íconos generales */
 }

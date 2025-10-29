@@ -1,6 +1,6 @@
 .page-riesgos {
   padding: 32px;
-  background: var(--project-color2);
-  color: var(--project-color1);
-  font-family: var(--project-font);
+  background: var(--project-color2); /* Fondo de página: contenedor secundario */
+  color: var(--project-color1);      /* Texto principal */
+  font-family: var(--font-primary);
 }

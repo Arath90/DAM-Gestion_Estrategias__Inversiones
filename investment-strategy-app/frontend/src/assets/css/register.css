@@ -1,5 +1,3 @@
-
-
 /* =========================
    Layout & Base Styles
 ========================= */
@@ -56,18 +54,18 @@
 }
 
 .register-title {
-  color: var(--project-color1);
+  color: var(--project-color1); /* Texto principal */
   font-weight: 700;
   margin-bottom: 8px;
   font-size: 1.8rem;
   font-family: var(--font-title);
 }
 .register-title span {
-  color: var(--project-color2);
+  color: var(--project-color2); /* Elemento destacado */
 }
 
 .register-subtitle {
-  color: var(--project-color2);
+  color: var(--project-color3); /* Texto secundario */
   margin-bottom: 24px;
 }
 
@@ -84,16 +82,16 @@
   left: 8px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--project-color2);
+  color: var(--project-color3); /* Icono input */
   font-size: 20px;
 }
 
 .register-input-field {
   padding-left: 36px;
-  background: var(--project-color3);
-  color: var(--project-color1);
+  background: var(--project-color4); /* Fondo input */
+  color: var(--project-color1);      /* Texto input */
   border-radius: 8px;
-  border: 1px solid var(--project-color2);
+  border: 1px solid var(--project-color3);
   width: 100%;
   min-width: 300px;
   max-width: 380px;
@@ -215,4 +213,4 @@
     height: 38px;
   }
 }
- 
+

@@ -1,3 +1,5 @@
+
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -11,8 +13,13 @@ import Rendimiento from './pages/Rendimiento';
 import Ordenes from './pages/Ordenes';
 import Riesgos from './pages/Riesgos';
 import Configuracion from './pages/Configuracion';
+import { initTheme } from './utils/theme';
 
 function App() {
+  useEffect(() => {
+    initTheme();
+  }, []);
+
   return (
     <BrowserRouter>
       <Routes>

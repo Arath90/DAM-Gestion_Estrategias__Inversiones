@@ -1,0 +1,15 @@
+:root.dark main,
+:root.dark .main-content {
+  background: var(--fondo-general);
+}
+/* 🎨 Paleta de colores - Modo oscuro */
+
+:root.dark {
+  --project-color1: #1d2538;   /* Texto principal, títulos, botones activos, íconos destacados */
+  --project-color2: #182130;   /* Fondo principal de la página de instrumentos */
+  --project-color3: #7c8da5;   /* Botones principales, hover, acentos y bordes destacados */
+  --project-color4: #b0bec5;   /* Texto secundario, detalles, campos de formulario y contraste en botones */
+  --project-color5: #263238;   /* Fondo de botones activos, estados activos, y efectos de interacción */
+  --alert-color1: #ff5252;     /* Colores de alerta, errores y botones de acción peligrosa */
+  --fondo-general: #121417;    /* Fondo general de la aplicación en modo oscuro */
+}

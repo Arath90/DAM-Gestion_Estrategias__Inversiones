@@ -4,3 +4,16 @@
   color: var(--project-color1);
   font-family: var(--project-font);
 }
+
+.page-configuracion h2 {
+  margin: 0;
+  font-size: 28px;
+  color: var(--project-color4);
+}
+
+.page-configuracion p {
+  margin: 4px 0 24px;
+  color: rgba(255, 255, 255, 0.75);
+  max-width: 640px;
+}
+

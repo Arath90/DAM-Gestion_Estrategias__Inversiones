@@ -1,8 +1,8 @@
 .page-mercado {
   padding: 32px;
-  background: var(--project-color2);
-  color: var(--project-color1);
-  font-family: var(--project-font);
+  background: var(--project-color2); /* Fondo de página: contenedor secundario */
+  color: var(--project-color1);      /* Texto principal */
+  font-family: var(--font-primary);
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -19,12 +19,12 @@
 .market-header h2 {
   margin: 0;
   font-size: 1.8rem;
-  color: #e2e8f0;
+  color: var(--project-color3);
 }
 
 .market-header p {
   margin: 4px 0 0;
-  color: #94a3b8;
+  color: var(--project-color4);
   max-width: 540px;
 }
 

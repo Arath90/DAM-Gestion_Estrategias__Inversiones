@@ -10,7 +10,12 @@
 .instrument-panel .sapMPanelContent {
   background: rgba(0, 0, 0, 0.02);
 }
-
+.sapUiLargeMargin .InicioScrollContainer{ 
+  display:flexbox ;
+  width: 25%;
+  height: 100%;
+  overflow: auto; /* or overflow: scroll; */
+}
 .instrument-panel .sapMText {
   word-break: break-word;
 }
@@ -136,3 +141,4 @@
 .marketGlossaryDialog .sapMSLIDescription {
   white-space: normal;
 }
+

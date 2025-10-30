@@ -108,7 +108,7 @@ const Register = () => {
                   <ui5-icon name="employee" style={{ verticalAlign: 'middle' }}></ui5-icon>
                 </span>
                 <Input
-                  id="name"
+                  id="register-name"
                   name="name"
                   type="Text"
                   placeholder="Nombre"
@@ -124,7 +124,7 @@ const Register = () => {
                   <ui5-icon name="user-settings" style={{ verticalAlign: 'middle' }}></ui5-icon>
                 </span>
                 <Input
-                  id="user"
+                  id="register-user"
                   name="user"
                   type="Text"
                   placeholder="Usuario"
@@ -140,7 +140,7 @@ const Register = () => {
                   <ui5-icon name="email" style={{ verticalAlign: 'middle' }}></ui5-icon>
                 </span>
                 <Input
-                  id="email"
+                  id="register-email"
                   name="email"
                   type="Email"
                   placeholder="Correo electronico"
@@ -156,7 +156,7 @@ const Register = () => {
                   <ui5-icon name="locked" style={{ verticalAlign: 'middle' }}></ui5-icon>
                 </span>
                 <Input
-                  id="password"
+                  id="register-password"
                   name="password"
                   type="Password"
                   placeholder="Contrasena"

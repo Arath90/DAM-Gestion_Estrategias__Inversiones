@@ -112,7 +112,7 @@ const Login = () => {
                   ></ui5-icon>
                 </span>
                 <Input
-                  id="email"
+                  id="login-email"
                   name="email"
                   type="Email"
                   placeholder="Email"
@@ -130,7 +130,7 @@ const Login = () => {
                   ></ui5-icon>
                 </span>
                 <Input
-                  id="password"
+                  id="login-password"
                   name="password"
                   type="Password"
                   placeholder="Password"

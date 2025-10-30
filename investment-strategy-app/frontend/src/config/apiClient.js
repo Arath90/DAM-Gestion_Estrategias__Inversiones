@@ -61,6 +61,16 @@ api.interceptors.response.use(
       err?.response?.statusText ||
       err.message;
     console.error('API error:', msg, '->', err?.config?.url);
+
+    // Si es 401, limpiar sesión y redirigir al login
+    if (err?.response?.status === 401 && typeof window !== 'undefined') {
+      try {
+        window.localStorage.removeItem('auth_user');
+      } catch (e) {}
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
     return Promise.reject(err);
   }
 );

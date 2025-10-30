@@ -245,3 +245,23 @@ entity SecUsers {
       createdAt : DateTime;  // Auditoria.
       updatedAt : DateTime;
 }
+
+entity Strategies @cds.persistence.skip {
+  key ID               : String;
+      strategy_code    : String;
+      dataset_id       : String;
+      period_start     : DateTime;
+      period_end       : DateTime;
+      name             : String;
+      type             : String;
+      status           : String;
+      owner            : String;
+      frequency        : String;
+      capitalAllocated : Decimal(15,2);
+      tags             : array of String;
+      description      : LargeString;
+      params_json      : LargeString;
+      metrics_json     : LargeString;
+      createdAt        : DateTime;
+      updatedAt        : DateTime;
+}

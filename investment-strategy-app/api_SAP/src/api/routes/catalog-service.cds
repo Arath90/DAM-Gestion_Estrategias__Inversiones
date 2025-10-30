@@ -31,4 +31,5 @@ service CatalogService {
   entity OptionChainSnapshotItems  as projection on inv.OptionChainSnapshotItems;
   entity OptionQuotes              as projection on inv.OptionQuotes;
   entity SecUsers                  as projection on inv.SecUsers;
+  entity Strategies                as projection on inv.Strategies;
 }

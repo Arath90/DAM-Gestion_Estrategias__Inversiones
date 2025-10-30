@@ -1,8 +1,7 @@
+
 # Investment Strategy App
 
-## Overview
-
-The Investment Strategy App is a full-stack application designed to manage investment strategies using MongoDB as the database. The application consists of two main parts: an API backend built with Node.js, Express, and MongoDB, and a frontend built with React and Vite.
+Este sistema es una plataforma integral para la gestión, monitoreo y análisis de estrategias de inversión financiera. Permite a los usuarios crear, modificar y visualizar instrumentos, posiciones, señales y otros elementos clave del portafolio, integrando datos de mercado y facilitando la toma de decisiones informadas tanto para usuarios individuales como para equipos de inversión.
 
 ## Project Structure
 

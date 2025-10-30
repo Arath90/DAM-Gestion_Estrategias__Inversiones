@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate, useLocation } from 'react-router-dom';
+import Datasets from './Datasets';
 import { ShellBar, SideNavigation, SideNavigationItem, Button } from '@ui5/webcomponents-react';
 import Inicio from './Inicio';
 import Instrumentos from './Instrumentos';
@@ -16,6 +17,7 @@ const menuOptions = [
   { key: 'instrumentos', text: 'Instrumentos', icon: 'tools-opportunity' },
   { key: 'mercado', text: 'Mercado', icon: 'trend-up' },
   { key: 'estrategias', text: 'Estrategias', icon: 'bo-strategy-management' },
+  { key: 'datasets', text: 'Datasets', icon: 'database' },
   { key: 'rendimiento', text: 'Rendimiento', icon: 'line-chart' },
   { key: 'ordenes', text: 'Órdenes', icon: 'sales-order' },
   { key: 'riesgos', text: 'Riesgos', icon: 'shield' },

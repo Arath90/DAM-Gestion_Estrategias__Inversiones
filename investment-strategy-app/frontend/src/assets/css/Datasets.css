@@ -1,0 +1,213 @@
+.page-datasets {
+  padding: 32px;
+  background: var(--project-color2);
+  color: var(--project-color1);
+  font-family: var(--project-font);
+}
+
+.datasets-header h2 {
+  margin: 0;
+  font-size: 28px;
+  color: var(--project-color3);
+}
+
+.datasets-header p {
+  margin: 4px 0 24px;
+  color: var(--project-color4);
+  max-width: 640px;
+}
+
+/* Acciones / filtros */
+.datasets-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.datasets-actions .left { display: flex; gap: 10px; flex-wrap: wrap; }
+.datasets-actions .right { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.input {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(0,0,0,0.35);
+  color: var(--project-color3);
+  min-width: 220px;
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-danger {
+  border: none;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.btn-primary {
+  background: var(--project-color3);
+  color: var(--project-color1);
+}
+.btn-primary:hover { filter: brightness(0.95); }
+.btn-secondary {
+  background: rgba(255,255,255,0.08);
+  color: var(--project-color3);
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.btn-secondary:hover { background: rgba(255,255,255,0.12); }
+.btn-danger {
+  background: rgba(255, 82, 82, 0.9);
+  color: #fff;
+}
+.btn-danger:disabled { opacity: 0.6; cursor: default; }
+
+/* Estados */
+.datasets-status {
+  margin: 12px 0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.25);
+  color: var(--project-color4);
+}
+.datasets-status.error {
+  background: rgba(255,82,82,0.2);
+  border: 1px solid rgba(255,82,82,0.6);
+}
+.datasets-status.success {
+  background: rgba(29,209,161,0.2);
+  border: 1px solid rgba(29,209,161,0.6);
+}
+
+/* Lista */
+.datasets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Card */
+.dataset-row {
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  background: rgba(0,0,0,0.2);
+  overflow: hidden;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.dataset-row.expanded {
+  border-color: var(--project-color3);
+  transform: translateY(-1px);
+}
+.dataset-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+}
+.dataset-toggle {
+  flex: 1;
+  text-align: left;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+.dataset-toggle .title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--project-color4);
+}
+.dataset-toggle .meta {
+  font-size: 14px;
+  color: rgba(255,255,255,0.72);
+}
+.dataset-toggle .chevron { font-weight: 700; }
+
+/* Dropdown */
+.dataset-dropdown {
+  padding: 0 18px 18px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.15);
+}
+
+.dataset-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+  color: var(--project-color4);
+}
+.dataset-details > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+.dataset-details strong {
+  color: rgba(255,255,255,0.85);
+}
+
+/* Formulario */
+.dataset-form {
+  margin-top: 12px;
+  padding: 18px;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px;
+  background: rgba(0,0,0,0.15);
+  color: var(--project-color4);
+}
+.dataset-form h4 {
+  margin: 0 0 12px;
+  font-size: 20px;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px 16px;
+  margin-bottom: 18px;
+}
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+.form-field span { font-weight: 600; }
+.form-field input,
+.form-field input,
+.form-field select,
+.form-field textarea {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--project-color3);
+}
+
+
+.form-field select:focus,
+.form-field input:focus {
+  transition: border-color 0.2s;
+  border-color: var(--project-color3);
+}
+
+.form-field select:active {
+  transition: background 0.5s, color 0.2s, border-color 0.2s;
+  background: var(--project-color2);
+  color: var(--project-color2);
+  border-color: var(--project-color3);
+  outline: none;
+}
+
+.form-field select::-ms-expand {
+  display: block;
+  filter: none;
+}

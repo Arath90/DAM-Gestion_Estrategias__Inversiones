@@ -1,6 +1,14 @@
-.page-rendimiento {
-  padding: 32px;
-  background: var(--project-color2); /* Fondo de página: contenedor secundario */
-  color: var(--project-color1);      /* Texto principal */
-  font-family: var(--font-primary);
+
+/* Rendimiento Fiori: solo detalles visuales para mantener colores y bordes en componentes UI5 */
+.kpi-value {
+  color: var(--project-color3);
 }
+.kpi-label {
+  color: var(--project-color4);
+}
+.chart {
+  border-radius: 12px;
+  background: rgba(0,0,0,0.2);
+}
+.pnl-pos { color: #36d399; font-weight: 700; }
+.pnl-neg { color: #ff6b6b; font-weight: 700; }

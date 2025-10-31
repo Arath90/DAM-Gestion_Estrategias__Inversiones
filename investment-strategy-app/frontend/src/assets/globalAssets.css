@@ -1,4 +1,5 @@
 @import './colors/projectColors.css';
+@import './colors/projectColors-dark.css';
 @import './fonts/projectFonts.css';
 @import './css/login.css';
 @import './css/register.css';

@@ -1,176 +1,97 @@
-/* Centrado del logo en el menú lateral */
-.side-logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 80px;
-  margin-bottom: 16px;
-  width: 100%;
-}
-.side-nav.collapsed .side-logo {
-  height: 56px;
-  margin-bottom: 8px;
-  width: 100%;
-}
 
-.dashboard-shellbar {
-  width: 100%;
-  background: linear-gradient(
-    90deg,
-    var(--project-color2) 0%,
-    var(--project-color1) 100%
-  ); /* Fondo principal barra superior */
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  height: 64px;
-  display: flex;
-  align-items: center;
-  position: relative;
-  justify-content: space-between;
-}
-.shellbar-title {
-  padding: 8px 16px;
-  font-size: 1.6rem;
-  font-weight: bold;
-  color: var(--project-color4);
-  letter-spacing: 1px;
-}
-.shellbar-user {
-  font-size: 1.1rem;
-  color: var(--project-color4);
-  font-weight: 500;
-  background: rgba(255, 255, 255, 0.08);
-  padding: 8px 18px;
-  margin-right: 16px;
-  border-radius: 18px;
-  max-width: 160px;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-align: right;
-  flex-shrink: 1;
-  flex-grow: 0;
-}
-
-.dashboard-container {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  width: 100vw;
-  background: var(--project-color4);
-  overflow: hidden;
-  margin: 0;
-  padding: 0;
+/* ========== Dashboard Layout & Fondo ========== */
+.dashboard-root {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  box-sizing: border-box;
-  z-index: 999;
+  width: 100vw;
+  height: 100vh;
+  min-width: 100vw;
+  min-height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+  overflow: hidden;
+  background: var(--project-color2);
+  z-index: 100;
   font-family: var(--font-primary);
 }
+
+.dashboard-shellbar {
+  z-index: 1;
+  background: var(--project-color2) !important;
+  min-width: 100vw;
+  max-width: 100vw;
+  min-height: 44px;
+  max-height: 64px;
+  font-family: var(--font-primary);
+  --sapShell_InteractiveTextColor: var(--project-color1);
+}
+
+.dashboard-title {
+  color: var(--project-color1) !important;
+  font-weight: 700;
+  font-size: 22px;
+  font-family: var(--font-primary);
+}
+
 .dashboard-content {
-  display: flex;
   flex: 1;
-  overflow: hidden;
-  height: 100%;
-}
-.side-nav {
-  width: 220px;
-  min-width: 220px;
-  background: linear-gradient(
-    135deg,
-    var(--project-color2) 0%,
-    var(--project-color1) 100%
-  ); /* Fondo principal sidebar */
-  transition: width 1.2s cubic-bezier(0.77, 0, 0.175, 1);
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.08);
-  z-index: 2;
   display: flex;
-  flex-direction: column;
-  padding-top: 24px;
-  border-right: 2px solid var(--project-color3);
+  min-height: 0;
+  height: calc(100vh - 44px);
+  min-width: 100vw;
+  max-width: 100vw;
+  max-height: calc(100vh - 44px);
 }
-.side-nav .dashboard-logo {
-  height: 80px;
-  width: 80px;
-  margin: 0 auto;
-  display: block;
-}
-.side-nav.collapsed .dashboard-logo {
-  height: 32px;
-  width: 32px;
-  margin: 0 auto;
-  display: block;
-}
-.menu-item.collapsed .menu-text {
-  display: none;
-}
-.menu-item .menu-text {
-  margin-left: 8px;
-  font-size: 1rem;
-  color: var(--project-color4);
-  transition: opacity 0.2s;
-}
-.side-nav .menu-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.side-nav .menu-item {
-  display: flex;
-  align-items: center;
-  padding: 12px 24px;
-  font-size: 1rem;
-  border-radius: 8px;
-  margin-bottom: 8px;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s;
-}
-.side-nav .menu-item:hover,
-.side-nav .menu-item.active {
+
+.dashboard-sidenav {
   background: var(--project-color2);
+  color: var(--project-color1);
+  border-right: 1px solid var(--project-color3);
+  position: sticky;
+  top: 44px;
+  min-width: 220px;
+  max-width: 220px;
+  min-height: calc(100vh - 44px);
+  height: calc(100vh - 44px);
+  transition: min-width 0.3s ease;
+  --sapList_TextColor: var(--project-color1);
+  --sapList_SelectionTextColor: var(--project-color3);
 }
-
-:root.dark .side-nav .menu-item:hover,
-:root.dark .side-nav .menu-item.active {
-  background: var(--project-color5);
-}
-
-.side-nav .menu-item .icon ui5-icon {
-  margin-right: 12px;
-  font-size: 1.2rem;
-  fill: var(--project-color4);
-  transition: color 0.2s;
-}
-
-.side-nav.collapsed {
-  width: 56px;
+.dashboard-sidenav.collapsed {
   min-width: 56px;
 }
-.main-content {
+
+.dashboard-panel {
   flex: 1;
-  padding: 15px;
-  background: var(--project-color4); /* Fondo de contenido */
+  min-width: 0;
+  max-width: 100vw;
+  min-height: 0;
+  max-height: calc(100vh - 92px);
+  background-color: var(--project-color4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* ========== Modo oscuro (la clase .dark debe ir en <html>) ========== */
+:root.dark .dashboard-root,
+:root.dark .dashboard-shellbar {
+  background: var(--project-color2) !important;
+  --sapShell_InteractiveTextColor: var(--project-color1);
+}
+:root.dark .dashboard-title {
+  color: var(--project-color1) !important;
+}
+:root.dark .dashboard-content {
+  height: calc(100vh - 44px);
+  max-height: calc(100vh - 44px);
+}
+:root.dark .dashboard-sidenav {
+  background: var(--project-color2);
   color: var(--project-color1);
-  overflow-y: auto;
-  height: 96%;
-  transition: margin-left 1.2s cubic-bezier(0.77, 0, 0.175, 1);
+  border-right: 1px solid var(--project-color3);
+  --sapList_TextColor: var(--project-color1);
+  --sapList_SelectionTextColor: var(--project-color3);
 }
-.dashboard-container.collapsed .main-content {
-  margin-left: 10px;
-  transition: margin-left 1s cubic-bezier(0.77, 0, 0.175, 1);
-}
-@media (max-width: 800px) {
-  .side-nav {
-    position: absolute;
-    height: 100%;
-    left: 0;
-    top: 56px;
-    z-index: 10;
-  }
-  .dashboard-content {
-    flex-direction: column;
-  }
+:root.dark .dashboard-panel {
+  background-color: var(--project-color4);
 }

@@ -1,18 +1,21 @@
-.page-inicio {
+.inicio-container {
   padding: 32px;
+  width: auto;
+  height: auto;
   background: var(--project-color2);
   color: var(--project-color1);
   font-family: var(--project-font);
 }
 
-.page-inicio h2 {
+.inicio-title {
   margin: 0;
   font-size: 28px;
-  color: var(--project-color3);;
+  color: var(--project-color3);
 }
 
-.page-inicio p {
+.inicio-desc {
   margin: 4px 0 24px;
   color: var(--project-color4);
   max-width: 640px;
 }
+

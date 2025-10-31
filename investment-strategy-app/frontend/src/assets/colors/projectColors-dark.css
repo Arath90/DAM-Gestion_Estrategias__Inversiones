@@ -11,5 +11,11 @@
   --project-color4: #b0bec5;   /* Texto secundario, detalles, campos de formulario y contraste en botones */
   --project-color5: #263238;   /* Fondo de botones activos, estados activos, y efectos de interacción */
   --alert-color1: #ff5252;     /* Colores de alerta, errores y botones de acción peligrosa */
-  --fondo-general: #121417;    /* Fondo general de la aplicación en modo oscuro */
+  --sapContent_IconColor: var(--project-color1);
+  --sapShell_InteractiveTextColor: var(--project-color1);
+  --sapList_TextColor: var(--project-color1);
+  --sapList_SelectionTextColor: var(--project-color3);
+  --_ui5_side_navigation_icon_color: var(--project-color1);
+  --_ui5_side_navigation_icon_selected_color: var(--project-color3);
+  --_ui5_shellbar_icon_color: var(--project-color1);
 }

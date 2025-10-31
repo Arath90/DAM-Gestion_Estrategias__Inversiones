@@ -1,12 +1,16 @@
-import React from 'react';
-import '../assets/css/Inicio.css';
-import '../assets/globalAssets.css';
+import React from "react";
+import { FlexBox, Title, Text } from "@ui5/webcomponents-react";
+import "../assets/css/Inicio.css";
 
 const Inicio = () => (
-  <div className="page-inicio">
-    <h2>Inicio</h2>
-    <p>Bienvenido al panel principal de estrategias de inversión.</p>
-  </div>
+  <FlexBox direction="Column" alignItems="Start" className="inicio-container">
+    <Title level="H2" className="inicio-title">
+      Inicio
+    </Title>
+    <Text className="inicio-desc">
+      Bienvenido al panel principal de estrategias de inversión.
+    </Text>
+  </FlexBox>
 );
 
 export default Inicio;

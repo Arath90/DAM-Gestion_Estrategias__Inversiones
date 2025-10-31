@@ -1,27 +1,29 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../hooks/useAuth';
-import { useNavigate, useLocation } from 'react-router-dom';
-import Datasets from './Datasets';
-import { ShellBar, SideNavigation, SideNavigationItem, Button } from '@ui5/webcomponents-react';
-import Inicio from './Inicio';
-import Instrumentos from './Instrumentos';
-import Mercado from './Mercado';
-import Estrategias from './Estrategias';
-import Rendimiento from './Rendimiento';
-import Ordenes from './Ordenes';
-import Riesgos from './Riesgos';
-import Configuracion from './Configuracion';
+import React, { useState, useEffect } from "react";
+import { useAuth } from "../hooks/useAuth";
+import { useNavigate, useLocation } from "react-router-dom";
+import {
+  ShellBar,
+  ShellBarItem,
+  SideNavigation,
+  SideNavigationItem,
+  Avatar,
+  Panel,
+  Title,
+  Text,
+  FlexBox,
+  Button,
+} from "@ui5/webcomponents-react";
 
 const menuOptions = [
-  { key: 'inicio', text: 'Inicio', icon: 'home' },
-  { key: 'instrumentos', text: 'Instrumentos', icon: 'tools-opportunity' },
-  { key: 'mercado', text: 'Mercado', icon: 'trend-up' },
-  { key: 'estrategias', text: 'Estrategias', icon: 'bo-strategy-management' },
-  { key: 'datasets', text: 'Datasets', icon: 'database' },
-  { key: 'rendimiento', text: 'Rendimiento', icon: 'line-chart' },
-  { key: 'ordenes', text: 'Órdenes', icon: 'sales-order' },
-  { key: 'riesgos', text: 'Riesgos', icon: 'shield' },
-  { key: 'configuracion', text: 'Configuración', icon: 'settings' }
+  { key: "inicio", text: "Inicio", icon: "home" },
+  { key: "instrumentos", text: "Instrumentos", icon: "tools-opportunity" },
+  { key: "mercado", text: "Mercado", icon: "trend-up" },
+  { key: "estrategias", text: "Estrategias", icon: "bo-strategy-management" },
+  { key: "datasets", text: "Datasets", icon: "database" },
+  { key: "rendimiento", text: "Rendimiento", icon: "line-chart" },
+  { key: "ordenes", text: "Órdenes", icon: "sales-order" },
+  { key: "riesgos", text: "Riesgos", icon: "shield" },
+  { key: "configuracion", text: "Configuración", icon: "settings" },
 ];
 
 const Dashboard = ({ panelContent }) => {
@@ -32,7 +34,7 @@ const Dashboard = ({ panelContent }) => {
 
   useEffect(() => {
     if (!user) {
-      navigate('/login', { replace: true });
+      navigate("/login", { replace: true });
     }
   }, [user, navigate]);
 
@@ -43,57 +45,74 @@ const Dashboard = ({ panelContent }) => {
 
   if (!user) {
     return (
-      <div className="dashboard-container">
-        <div className="dashboard-shellbar">
-          <div className="shellbar-title">Estrategias de Inversión</div>
-          <div className="shellbar-user" title="No autenticado">Acceso restringido</div>
-        </div>
-        <div className="main-content">
-          <h2>Acceso restringido</h2>
-          <p>Por favor inicia sesión para acceder al sistema.</p>
-        </div>
-      </div>
+      <FlexBox
+        direction="Column"
+        style={{
+          minHeight: "100vh",
+          background: "var(--sapBackgroundColor)",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <ShellBar
+          primaryTitle="Estrategias de Inversión"
+          profile={<Avatar icon="employee" />}
+        >
+          <ShellBarItem icon="locked" text="Acceso restringido" />
+        </ShellBar>
+        <Panel
+          style={{ marginTop: 32, minWidth: 340, maxWidth: 480 }}
+          headerText="Acceso restringido"
+        >
+          <Title level="H2">Acceso restringido</Title>
+          <Text>Por favor inicia sesión para acceder al sistema.</Text>
+        </Panel>
+      </FlexBox>
     );
   }
 
-  const displayName = user.name || user.email || 'Usuario';
+  const displayName = user.name || user.email || "Usuario";
   // Determinar la ruta activa
-  const activeKey = location.pathname.replace('/dashboard/', '') || 'inicio';
+  const activeKey = location.pathname.replace("/dashboard/", "") || "inicio";
 
   return (
-    <div className={`dashboard-container${collapsed ? ' collapsed' : ''}`}>  
-      <div className="dashboard-shellbar">
-        <div className="shellbar-title">Estrategias de Inversión</div>
-        <div className="shellbar-user" title={displayName}>
-          {displayName.length > 22 ? displayName.slice(0, 22) + '...' : displayName}
-        </div>
-      </div>
-      <div className="dashboard-content">
-        <nav className={`side-nav${collapsed ? ' collapsed' : ''}`}>  
-          <div className="side-logo" onClick={handleMenuToggle} style={{cursor: 'pointer'}}>
-            <div className="dashboard-logo img-logo" aria-label="Logo" />
-          </div>
-          <ul className="menu-list">
-            {menuOptions.map(opt => (
-              <li
-                key={opt.key}
-                className={`menu-item${activeKey === opt.key ? ' active' : ''}${collapsed ? ' collapsed' : ''}`}
-                onClick={() => handleMenuClick(opt.key)}
-              >
-                <span className="icon">
-                  <ui5-icon name={opt.icon}></ui5-icon>
-                </span>
-                {!collapsed && <span className="menu-text">{opt.text}</span>}
-              </li>
-            ))}
-          </ul>
-        </nav>
-        <main className="main-content">
-          {panelContent}
-        </main>
-      </div>
-    </div>
+    <FlexBox direction="Column" className="dashboard-root">
+      <ShellBar
+        profile={<Avatar>{displayName[0]}</Avatar>}
+        className="dashboard-shellbar"
+      >
+        <span slot="startButton" className="dashboard-title">
+          Estrategias de Inversión
+        </span>
+        <ShellBarItem
+          icon="menu"
+          text={collapsed ? "Expandir menú" : "Colapsar menú"}
+          onClick={handleMenuToggle}
+        />
+        <ShellBarItem icon="log" text="Cerrar sesión" onClick={logout} />
+      </ShellBar>
+      <FlexBox className="dashboard-content">
+        <SideNavigation
+          collapsed={collapsed}
+          className={`dashboard-sidenav${collapsed ? " collapsed" : ""}`}
+          onSelectionChange={(e) => handleMenuClick(e.detail.item.dataset.key)}
+          selectedItem={activeKey}
+        >
+          {menuOptions.map((opt) => (
+            <SideNavigationItem
+              key={opt.key}
+              icon={opt.icon}
+              text={opt.text}
+              data-key={opt.key}
+              selected={activeKey === opt.key}
+              className="dashboard-sidenav-item"
+            />
+          ))}
+        </SideNavigation>
+        <Panel className="dashboard-panel">{panelContent}</Panel>
+      </FlexBox>
+    </FlexBox>
   );
-}
+};
 
 export default Dashboard;

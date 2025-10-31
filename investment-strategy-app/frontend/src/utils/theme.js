@@ -14,10 +14,8 @@ export function applyTheme(theme) {
   // Usar clase .dark para modo oscuro, nada para claro
   if (theme === 'dark') {
     document.documentElement.classList.add('dark');
-    import('../assets/colors/projectColors-dark.css');
   } else {
     document.documentElement.classList.remove('dark');
-    import('../assets/colors/projectColors.css');
   }
 }
 

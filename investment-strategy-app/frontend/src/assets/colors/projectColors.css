@@ -1,12 +1,17 @@
-
 /* 🎨 Paleta de colores - Modo Claro */
 
 :root {
-  --project-color1: #1d2538;   /* Texto principal, títulos, botones activos, íconos destacados */
-  --project-color2: #475b74;   /* Fondo principal de la página de instrumentos */
-  --project-color3: #a5b2c4;   /* Botones principales, hover, acentos y bordes destacados */
-  --project-color4: #e0e1dc;   /* Texto secundario, detalles, campos de formulario y contraste en botones */
-  --project-color5: #3d423c;   /* Fondo de botones activos, estados activos, y efectos de interacción */
-  --alert-color1: #ff4c4c;     /* Colores de alerta, errores y botones de acción peligrosa */
-  --icon-color: #1d2538;       /* Color de íconos generales */
+  --project-color1: #1d2538; /* Texto principal, títulos, botones activos, íconos destacados */
+  --project-color2: #475b74; /* Fondo principal de la página de instrumentos */
+  --project-color3: #a5b2c4; /* Botones principales, hover, acentos y bordes destacados */
+  --project-color4: #e0e1dc; /* Texto secundario, detalles, campos de formulario y contraste en botones */
+  --project-color5: #3d423c; /* Fondo de botones activos, estados activos, y efectos de interacción */
+  --alert-color1: #ff4c4c; /* Colores de alerta, errores y botones de acción peligrosa */
+  --sapContent_IconColor: var(--project-color1);   /* Íconos generales */
+  --sapShell_InteractiveTextColor: var(--project-color1);  /* Íconos interactivos (ShellBar, botones) */
+  --sapList_TextColor: var(--project-color1);  /* Texto/íconos en listas y navegación lateral */
+  --sapList_SelectionTextColor: var(--project-color3);  /* Texto/íconos seleccionados en listas y navegación lateral */
+  --_ui5_side_navigation_icon_color: var(--project-color1);
+  --_ui5_side_navigation_icon_selected_color: var(--project-color3);
+  --_ui5_shellbar_icon_color: var(--project-color1);
 }

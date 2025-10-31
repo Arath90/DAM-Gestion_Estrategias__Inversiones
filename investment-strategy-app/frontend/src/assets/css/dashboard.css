@@ -1,3 +1,18 @@
+/* ========== Animación de transición de página (fade) ========== */
+.fade-page-enter {
+  opacity: 0;
+}
+.fade-page-enter-active {
+  opacity: 1;
+  transition: opacity 0.5s cubic-bezier(0.4,0,0.2,1);
+}
+.fade-page-exit {
+  opacity: 1;
+}
+.fade-page-exit-active {
+  opacity: 0;
+  transition: opacity 0.5s cubic-bezier(0.4,0,0.2,1);
+}
 /* ========== Dashboard Layout & Fondo ========== */
 /* Fondo principal del dashboard */
 .dashboard-root {

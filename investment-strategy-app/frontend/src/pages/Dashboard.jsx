@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { CSSTransition, SwitchTransition } from "react-transition-group";
 import { initTheme, applyTheme, getStoredTheme } from "../utils/theme";
 import { useAuth } from "../hooks/useAuth";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -28,6 +29,23 @@ const menuOptions = [
   { key: "configuracion", text: "Configuración", icon: "settings" },
 ];
 
+
+
+import { useRef } from "react";
+const PageFadeTransition = ({ children, ...props }) => {
+  const nodeRef = useRef(null);
+  return (
+    <CSSTransition
+      {...props}
+      nodeRef={nodeRef}
+      timeout={400}
+      classNames="fade-page"
+      unmountOnExit
+    >
+      <div ref={nodeRef}>{children}</div>
+    </CSSTransition>
+  );
+};
 
 const Dashboard = ({ panelContent }) => {
   const [collapsed, setCollapsed] = useState(false);
@@ -118,7 +136,13 @@ const Dashboard = ({ panelContent }) => {
             />
           ))}
         </SideNavigation>
-        <Panel className="dashboard-panel">{panelContent}</Panel>
+        <Panel className="dashboard-panel">
+          <SwitchTransition mode="out-in">
+            <PageFadeTransition key={activeKey}>
+              {panelContent}
+            </PageFadeTransition>
+          </SwitchTransition>
+        </Panel>
       </FlexBox>
     </FlexBox>
   );

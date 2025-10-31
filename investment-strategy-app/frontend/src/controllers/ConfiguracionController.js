@@ -20,6 +20,8 @@ export function useConfiguracionController() {
     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
     setStoredTheme(newTheme);
     applyTheme(newTheme);
+    // Lanzar evento personalizado para notificar cambio de tema
+    window.dispatchEvent(new Event('theme-changed'));
   }, [currentTheme]);
 
   return {

@@ -1,5 +1,5 @@
-
 /* ========== Dashboard Layout & Fondo ========== */
+/* Fondo principal del dashboard */
 .dashboard-root {
   position: fixed;
   top: 0;
@@ -11,29 +11,32 @@
   max-width: 100vw;
   max-height: 100vh;
   overflow: hidden;
-  background: var(--project-color2);
+  background: var(--project-color4); /* Fondo principal */
   z-index: 100;
   font-family: var(--font-primary);
 }
 
+/* Barra superior */
 .dashboard-shellbar {
   z-index: 1;
-  background: var(--project-color2) !important;
+  background: var(--project-color5) !important; /* Fondo navbar */
   min-width: 100vw;
   max-width: 100vw;
   min-height: 44px;
   max-height: 64px;
   font-family: var(--font-primary);
-  --sapShell_InteractiveTextColor: var(--project-color1);
+  border-bottom: 1px solid var(--project-color3);
 }
 
+/* Título en la barra superior */
 .dashboard-title {
-  color: var(--project-color1) !important;
+  color: var(--project-colorTitle) !important;
   font-weight: 700;
   font-size: 22px;
   font-family: var(--font-primary);
 }
 
+/* Área principal (sidenav + panel) */
 .dashboard-content {
   flex: 1;
   display: flex;
@@ -42,56 +45,37 @@
   min-width: 100vw;
   max-width: 100vw;
   max-height: calc(100vh - 44px);
+  background: var(--project-color4);
 }
 
+/* Menú lateral */
 .dashboard-sidenav {
-  background: var(--project-color2);
-  color: var(--project-color1);
+  background: var(--project-color5);
   border-right: 1px solid var(--project-color3);
+  border-bottom: 1px solid var(--project-color3);
   position: sticky;
   top: 44px;
   min-width: 220px;
   max-width: 220px;
   min-height: calc(100vh - 44px);
   height: calc(100vh - 44px);
-  transition: min-width 0.3s ease;
-  --sapList_TextColor: var(--project-color1);
-  --sapList_SelectionTextColor: var(--project-color3);
+  transition: min-width 0.7s cubic-bezier(0.4, 0, 0.2, 1), width 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+  
 }
 .dashboard-sidenav.collapsed {
   min-width: 56px;
 }
 
+
+/* Panel principal de contenido */
 .dashboard-panel {
   flex: 1;
   min-width: 0;
   max-width: 100vw;
   min-height: 0;
-  max-height: calc(100vh - 92px);
-  background-color: var(--project-color4);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  max-height: calc(100vh);
+  background-color: var(--project-color5);
+  box-shadow: 0 2px 8px var(--shadow-color);
+  border-radius: 0 0 0 0;
 }
 
-/* ========== Modo oscuro (la clase .dark debe ir en <html>) ========== */
-:root.dark .dashboard-root,
-:root.dark .dashboard-shellbar {
-  background: var(--project-color2) !important;
-  --sapShell_InteractiveTextColor: var(--project-color1);
-}
-:root.dark .dashboard-title {
-  color: var(--project-color1) !important;
-}
-:root.dark .dashboard-content {
-  height: calc(100vh - 44px);
-  max-height: calc(100vh - 44px);
-}
-:root.dark .dashboard-sidenav {
-  background: var(--project-color2);
-  color: var(--project-color1);
-  border-right: 1px solid var(--project-color3);
-  --sapList_TextColor: var(--project-color1);
-  --sapList_SelectionTextColor: var(--project-color3);
-}
-:root.dark .dashboard-panel {
-  background-color: var(--project-color4);
-}

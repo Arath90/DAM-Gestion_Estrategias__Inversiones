@@ -9,7 +9,6 @@ import Inicio from './pages/Inicio';
 import Instrumentos from './pages/Instrumentos';
 import Mercado from './pages/Mercado';
 import Estrategias from './pages/Estrategias';
-
 import Datasets from './pages/Datasets';
 import Rendimiento from './pages/Rendimiento';
 import Ordenes from './pages/Ordenes';

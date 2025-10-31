@@ -1,21 +1,27 @@
+
+/* Contenedor principal de la página de inicio */
 .inicio-container {
   padding: 32px;
-  width: auto;
-  height: auto;
-  background: var(--project-color2);
+  background: var(--project-color4);
   color: var(--project-color1);
   font-family: var(--project-font);
 }
 
+
+/* Título principal */
 .inicio-title {
   margin: 0;
   font-size: 28px;
-  color: var(--project-color3);
+  color: var(--project-colorTitle);
 }
 
+
+/* Descripción de la página de inicio */
 .inicio-desc {
   margin: 4px 0 24px;
-  color: var(--project-color4);
+  color: var(--project-color2);
   max-width: 640px;
+  font-family: var(--project-font);
+  font-size: medium;
 }
 

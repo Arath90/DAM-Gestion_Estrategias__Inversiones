@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { initTheme, applyTheme, getStoredTheme } from "../utils/theme";
 import { useAuth } from "../hooks/useAuth";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -11,8 +12,9 @@ import {
   Title,
   Text,
   FlexBox,
-  Button,
+  Icon
 } from "@ui5/webcomponents-react";
+
 
 const menuOptions = [
   { key: "inicio", text: "Inicio", icon: "home" },
@@ -26,22 +28,31 @@ const menuOptions = [
   { key: "configuracion", text: "Configuración", icon: "settings" },
 ];
 
+
 const Dashboard = ({ panelContent }) => {
   const [collapsed, setCollapsed] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [theme, setTheme] = useState(getStoredTheme());
 
+  useEffect(() => { initTheme(); }, []);
   useEffect(() => {
-    if (!user) {
-      navigate("/login", { replace: true });
-    }
+    const onStorage = (e) => {
+      if (e.key === "theme_mode") {
+        setTheme(e.newValue);
+        applyTheme(e.newValue);
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+  useEffect(() => {
+    if (!user) navigate("/login", { replace: true });
   }, [user, navigate]);
 
   const handleMenuToggle = () => setCollapsed((prev) => !prev);
-  const handleMenuClick = (key) => {
-    navigate(`/dashboard/${key}`);
-  };
+  const handleMenuClick = (key) => navigate(`/dashboard/${key}`);
 
   if (!user) {
     return (
@@ -58,12 +69,11 @@ const Dashboard = ({ panelContent }) => {
           primaryTitle="Estrategias de Inversión"
           profile={<Avatar icon="employee" />}
         >
-          <ShellBarItem icon="locked" text="Acceso restringido" />
+          <ShellBarItem text="Acceso restringido">
+            <Icon slot="icon" name="locked" className="bloqueado" />
+          </ShellBarItem>
         </ShellBar>
-        <Panel
-          style={{ marginTop: 32, minWidth: 340, maxWidth: 480 }}
-          headerText="Acceso restringido"
-        >
+        <Panel style={{ minWidth: 340, maxWidth: 480 }} headerText="Acceso restringido">
           <Title level="H2">Acceso restringido</Title>
           <Text>Por favor inicia sesión para acceder al sistema.</Text>
         </Panel>
@@ -72,7 +82,6 @@ const Dashboard = ({ panelContent }) => {
   }
 
   const displayName = user.name || user.email || "Usuario";
-  // Determinar la ruta activa
   const activeKey = location.pathname.replace("/dashboard/", "") || "inicio";
 
   return (
@@ -85,11 +94,10 @@ const Dashboard = ({ panelContent }) => {
           Estrategias de Inversión
         </span>
         <ShellBarItem
-          icon="menu"
           text={collapsed ? "Expandir menú" : "Colapsar menú"}
           onClick={handleMenuToggle}
         />
-        <ShellBarItem icon="log" text="Cerrar sesión" onClick={logout} />
+        <ShellBarItem text="Cerrar sesión" onClick={logout} />
       </ShellBar>
       <FlexBox className="dashboard-content">
         <SideNavigation
@@ -97,15 +105,16 @@ const Dashboard = ({ panelContent }) => {
           className={`dashboard-sidenav${collapsed ? " collapsed" : ""}`}
           onSelectionChange={(e) => handleMenuClick(e.detail.item.dataset.key)}
           selectedItem={activeKey}
+          onMouseEnter={() => setCollapsed(false)}
+          onMouseLeave={() => setCollapsed(true)}
         >
           {menuOptions.map((opt) => (
             <SideNavigationItem
               key={opt.key}
-              icon={opt.icon}
               text={opt.text}
               data-key={opt.key}
-              selected={activeKey === opt.key}
               className="dashboard-sidenav-item"
+              icon={opt.icon}
             />
           ))}
         </SideNavigation>

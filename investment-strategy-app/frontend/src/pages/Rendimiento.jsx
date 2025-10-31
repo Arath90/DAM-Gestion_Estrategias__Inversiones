@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useState } from 'react';
 import '../assets/globalAssets.css';
 import { Card, CardHeader, FlexBox, Select, Option, Input, Button, Title, Toolbar, ToolbarSpacer, Text } from '@ui5/webcomponents-react';
@@ -30,7 +29,7 @@ const Rendimiento = () => {
   return (
     <FlexBox direction="Column" style={{ minHeight: '100vh', padding: 32, background: 'var(--project-color2)', color: 'var(--project-color1)', fontFamily: 'var(--font-primary)' }}>
       <Card style={{ marginBottom: 10, background: 'var(--project-color2)' }}>
-        <CardHeader titleText="Rendimiento" style={{ color: 'var(--project-color3)' }} />
+        <CardHeader titleText="Rendimiento (En desarrollo)" style={{ color: 'var(--project-color3)' }} />
         <Text style={{ color: 'var(--project-color1)', margin: '4px 0 0 0', maxWidth: 640 }}>
           Visualiza KPIs, curvas de equity, drawdown y operaciones.
         </Text>

@@ -1,6 +1,14 @@
+/*
+ * Hoja de estilo para Mercado.jsx.
+ * Se documenta cada bloque para que sea sencillo ajustar el layout
+ * al incorporar nuevos indicadores o paneles.
+ *
+ * TODO: mover colores hardcodeados a variables CSS globales para unificar temas.
+ */
+
 .page-mercado {
   padding: 32px;
-  background: var(--project-color2); /* Fondo de página: contenedor secundario */
+  background: var(--project-color2); /* Fondo de pagina: contenedor secundario */
   color: var(--project-color1);      /* Texto principal */
   font-family: var(--font-primary);
   display: flex;
@@ -125,6 +133,56 @@
   font-size: 0.85rem;
 }
 
+.signal-config {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #0f172a;
+  border-radius: 12px;
+  padding: 12px 16px;
+  border: 1px solid #1e2a44;
+  color: #cbd5f5;
+  font-size: 0.85rem;
+}
+
+.signal-config .trade-mode {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.signal-config .trade-mode label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #1f2a44;
+  background: #111d34;
+}
+
+.signal-config .config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.signal-config .config-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.signal-config input {
+  background: #14213d;
+  color: #e2e8f0;
+  border: 1px solid #1f2a44;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.9rem;
+}
+
 .market-chart-wrapper {
   display: flex;
   flex-direction: column;
@@ -146,9 +204,27 @@
   background: #101b33;
 }
 
+.market-chart.macd-chart {
+  min-height: 220px;
+  background: #111d34;
+}
+
 .market-chart canvas {
   width: 100% !important;
   height: 100% !important;
+}
+
+.chart-title {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  color: #cbd5f5;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  pointer-events: none;
+  z-index: 6;
 }
 
 .chart-overlay {
@@ -170,6 +246,10 @@
   color: #f87171;
 }
 
+.chart-overlay.info {
+  color: #38bdf8;
+}
+
 .market-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -180,6 +260,106 @@
   padding: 16px 20px;
   color: #cbd5f5;
   font-size: 0.9rem;
+}
+
+.notification-tray {
+  background: #101b33;
+  border: 1px solid #1f2a44;
+  border-radius: 16px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: #cbd5f5;
+}
+
+.notification-tray header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.notification-tray h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--project-color3);
+}
+
+.notification-tray .empty-state {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.notification-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notification-item {
+  background: #0f172a;
+  border: 1px solid #1f2a44;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notification-item-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.notification-item-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+.notification-item-body strong {
+  color: #e2e8f0;
+}
+
+.notification-item-reasons {
+  font-size: 0.85rem;
+  color: #cbd5f5;
+}
+
+.notification-item-meta {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  display: flex;
+  gap: 12px;
+}
+
+.notification-item .badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.notification-item.buy .badge {
+  background: rgba(32, 201, 151, 0.15);
+  color: #20c997;
+  border: 1px solid rgba(32, 201, 151, 0.4);
+}
+
+.notification-item.sell .badge {
+  background: rgba(255, 107, 107, 0.15);
+  color: #ff6b6b;
+  border: 1px solid rgba(255, 107, 107, 0.4);
 }
 
 @media (max-width: 768px) {
@@ -198,5 +378,11 @@
 
   .market-chart {
     min-height: 280px;
+  }
+
+  .notification-item-body {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
   }
 }

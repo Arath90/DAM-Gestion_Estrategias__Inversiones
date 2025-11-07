@@ -1,27 +1,139 @@
-
-/* Contenedor principal de la página de inicio */
-.inicio-container {
-  padding: 32px;
-  background: var(--project-color4);
-  color: var(--project-color1);
-  font-family: var(--project-font);
+/* ===== Layout principal ===== */
+.inicio-root {
+  background: var(--project-color4); /* Fondo principal */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-family: var(--font-primary);
 }
 
+/* ===== Tarjeta principal ===== */
+.inicio-card {
+  margin: 2.5rem auto;
+  max-width: 700px;
+  width: 100%;
+  border-radius: 18px;
+  box-shadow: 0 4px 24px var(--shadow-color); /* Sombra de tarjetas y botones */
+  padding: 0;
+  background: var(--project-color5); /* Fondo de tarjetas, formularios y navbar */
+  font-family: var(--font-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
 
-/* Título principal */
+/* ===== Encabezado principal ===== */
+.inicio-header {
+  gap: 12px;
+  padding: 2.5rem 2rem 0 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: var(--font-primary);
+}
 .inicio-title {
+  color: var(--project-colorTitle); /* Encabezados y títulos */
   margin: 0;
-  font-size: 28px;
-  color: var(--project-colorTitle);
+  font-weight: 800;
+  text-align: center;
+  font-family: var(--font-primary);
+}
+.inicio-saludo {
+  color: var(--project-color2); /* Texto secundario */
+  font-weight: 500;
+  font-size: 18px;
+  margin-bottom: 0;
+  text-align: center;
+  font-family: var(--font-primary);
 }
 
-
-/* Descripción de la página de inicio */
+/* ===== Contenido central ===== */
+.inicio-content {
+  padding: 1.5rem 2rem 0 2rem;
+  text-align: center;
+  font-family: var(--font-primary);
+}
+.inicio-subtitle {
+  color: var(--project-colorTitle); /* Encabezados y títulos */
+  margin-bottom: 8px;
+  font-family: var(--font-primary);
+}
 .inicio-desc {
-  margin: 4px 0 24px;
-  color: var(--project-color2);
-  max-width: 640px;
-  font-family: var(--project-font);
-  font-size: medium;
+  color: var(--project-color2); /* Texto secundario */
+  margin-bottom: 32px;
+  display: block;
+  font-size: 16px;
+  font-family: var(--font-primary);
 }
+.inicio-quickaccess {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  justify-content: center;
+  margin-bottom: 32px;
+}
+.inicio-btn {
+  background: var(--accent-color1); /* Botón primario, enlaces activos, borde expandido */
+  color: var(--font-primary);
+  min-width: 180px;
+  min-height: 56px;
+  font-size: 18px;
+  border-radius: 10px;
+  font-weight: 700;
+  box-shadow: 0 2px 8px var(--shadow-color); /* Sombra de tarjetas y botones */
+  transition: background 0.2s, transform 0.1s;
+  cursor: pointer;
+  font-family: var(--font-primary);
+  border: none;
+  letter-spacing: 0.5px;
+}
+.inicio-btn:hover {
+  background: var(--accent-color1-hover); /* Hover de botón primario */
+}
+
+/* ===== Noticias y tips ===== */
+.inicio-news-wrapper {
+  padding: 0 2rem 2rem 2rem;
+}
+.inicio-news-card {
+  background: var(--project-color5); /* Fondo de tarjetas, formularios y navbar */
+  box-shadow: none;
+  margin-bottom: 0;
+  border-radius: 12px;
+  font-family: var(--font-primary);
+  padding: 0.5rem 0 0.5rem 0;
+}
+.inicio-news-header {
+  gap: 8px;
+  padding: 1rem 1rem 0 1rem;
+  font-family: var(--font-primary);
+}
+.inicio-news-title {
+  color: var(--project-colorTitle); /* Encabezados y títulos */
+  margin: 0;
+  font-weight: 700;
+  font-family: var(--font-primary);
+}
+.inicio-news-icon {
+  color: var(--accent-color2); /* Botón secundario o acción complementaria */
+}
+.inicio-news-list-wrapper {
+  padding: 0 1rem 1rem 1rem;
+  font-family: var(--font-primary);
+}
+.inicio-news-ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.inicio-news-li {
+  color: var(--project-color2); /* Texto secundario */
+  padding: 0.5rem 0;
+  font-size: 15px;
+  font-family: var(--font-primary);
+}
+
+
 

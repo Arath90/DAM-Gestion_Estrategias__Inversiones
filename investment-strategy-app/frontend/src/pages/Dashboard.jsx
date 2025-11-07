@@ -22,10 +22,10 @@ const menuOptions = [
   { key: "instrumentos", text: "Instrumentos", icon: "tools-opportunity" },
   { key: "mercado", text: "Mercado", icon: "trend-up" },
   { key: "estrategias", text: "Estrategias", icon: "bo-strategy-management" },
-  { key: "datasets", text: "Datasets", icon: "database" },
-  { key: "rendimiento", text: "Rendimiento", icon: "line-chart" },
-  { key: "ordenes", text: "Órdenes", icon: "sales-order" },
-  { key: "riesgos", text: "Riesgos", icon: "shield" },
+  { key: "datasets", text: "Datasets", icon: "database", disabled: true },
+  { key: "rendimiento", text: "Rendimiento", icon: "line-chart", disabled: true },
+  { key: "ordenes", text: "Órdenes", icon: "sales-order", disabled: true },
+  { key: "riesgos", text: "Riesgos", icon: "shield", disabled: true },
   { key: "configuracion", text: "Configuración", icon: "settings" },
 ];
 
@@ -70,7 +70,11 @@ const Dashboard = ({ panelContent }) => {
   }, [user, navigate]);
 
   const handleMenuToggle = () => setCollapsed((prev) => !prev);
-  const handleMenuClick = (key) => navigate(`/dashboard/${key}`);
+  const handleMenuClick = (key) => {
+    const opt = menuOptions.find((o) => o.key === key);
+    if (opt && opt.disabled) return;
+    navigate(`/dashboard/${key}`);
+  };
 
   if (!user) {
     return (
@@ -131,8 +135,9 @@ const Dashboard = ({ panelContent }) => {
               key={opt.key}
               text={opt.text}
               data-key={opt.key}
-              className="dashboard-sidenav-item"
+              className={`dashboard-sidenav-item${opt.disabled ? ' disabled' : ''}`}
               icon={opt.icon}
+              disabled={opt.disabled}
             />
           ))}
         </SideNavigation>

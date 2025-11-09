@@ -1,5 +1,6 @@
 using inv from '../models/schema';
 
+
 /**
  * CatalogService
  *
@@ -15,6 +16,23 @@ using inv from '../models/schema';
  */
 @impl: 'src/api/controllers/catalog-controller.js'
 service CatalogService {
+
+  action DetectDivergences(
+    symbol: String,
+    tf: String,
+    period: Integer,
+    swing: Integer,
+    minDistance: Integer,
+    rsiHigh: Integer,
+    rsiLow: Integer,
+    useZones: Boolean
+  ) returns array of {
+    type    : String;
+    idx1    : Integer;
+    idx2    : Integer;
+    strength: Decimal(9,6);
+  };
+
   entity Instruments               as projection on inv.Instruments;
   entity MLDatasets                as projection on inv.MLDatasets;
   entity Executions                as projection on inv.Executions;
@@ -33,3 +51,5 @@ service CatalogService {
   entity SecUsers                  as projection on inv.SecUsers;
   entity Strategies                as projection on inv.Strategies;
 }
+
+

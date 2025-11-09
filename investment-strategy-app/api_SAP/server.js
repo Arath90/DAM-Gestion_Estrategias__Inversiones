@@ -7,7 +7,7 @@ const registerCatalogRouteRewriter = require('./src/api/middlewares/catalogRoute
 const registerSessionAuth = require('./src/api/middlewares/sessionAuth');
 const registerAuthRoutes = require('./src/api/routes/auth.route');
 const registerPublicCandlesRoute = require('./src/api/routes/candles-public.route');
-
+const indicatorsRoute = require('./src/api/routes/indicators.route');
 // 1) .env y Mongo ANTES de cds.server
 require('@dotenvx/dotenvx').config();
 require('./src/config/connectToMongoDB');
@@ -15,6 +15,7 @@ require('./src/config/connectToMongoDB');
 module.exports = async (o = {}) => {
   try {
     const app = express();
+    app.use('/api', indicatorsRoute);
     app.use(express.json({ limit: '500kb' }));
     app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && 'body' in err) {

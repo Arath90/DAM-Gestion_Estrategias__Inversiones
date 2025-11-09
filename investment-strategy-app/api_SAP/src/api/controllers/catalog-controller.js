@@ -8,9 +8,8 @@ const {
   FAIL,
 } = require("../../middlewares/respPWA.handler");
 const { makeCrudHandlers } = require("../services/crud.service");
-const {
-  fetchCandlesForInstrument,
-} = require("../services/candlesExternal.service");
+const { analyzeRSIAndDivergences } = require('../services/indicators.service');
+const { fetchCandlesForInstrument } = require('../services/candlesExternal.service');
 
 // === Mongoose models expuestos a traves del servicio OData ===
 const Instrument = require("../models/mongodb/Instrument");
@@ -674,6 +673,30 @@ class CatalogController extends cds.ApplicationService {
         if (found) r.reject(409, "Strategy.code ya existe");
       }
     });
+
+    // Acción DetectDivergences (actualizada con validaciones y valores por defecto)
+    this.on('DetectDivergences', async req => {
+      const { symbol, tf, period, swing, minDistance, rsiHigh, rsiLow, useZones } = req.data;
+      if (!symbol) return req.error(400, 'symbol requerido');
+
+      const candles = await fetchCandlesForInstrument({ symbol, tf, limit: 1000 });
+      const { signals } = await analyzeRSIAndDivergences(candles, {
+        period: +period || 14,
+        swingLen: +swing || 5,
+        minDistance: +minDistance || 5,
+        rsiHigh: +rsiHigh || 70,
+        rsiLow: +rsiLow || 30,
+        useZones: !!useZones
+      });
+
+      return signals.map(s => ({
+        type: s.type,
+        idx1: s.idx1,
+        idx2: s.idx2,
+        strength: s.strength
+      }));
+    });
+
     return super.init();
   }
 }

@@ -17,12 +17,13 @@ import '../assets/globalAssets.css';
  */
 
 const INTERVALS = [
-  { label: '1h', value: '1hour' },
-  { label: '2h', value: '2hour' },
-  { label: '4h', value: '4hour' },
-  { label: '6h', value: '6hour' },
-  { label: '8h', value: '8hour' },
-  { label: '12h', value: '12hour' },
+  { label: '1D', fullLabel: '1 Día', value: '1day', group: 'largo' },
+  { label: '12H', fullLabel: '12 Horas', value: '12hour', group: 'largo' },
+  { label: '8H', fullLabel: '8 Horas', value: '8hour', group: 'medio' },
+  { label: '6H', fullLabel: '6 Horas', value: '6hour', group: 'medio' },
+  { label: '4H', fullLabel: '4 Horas', value: '4hour', group: 'medio' },
+  { label: '2H', fullLabel: '2 Horas', value: '2hour', group: 'corto' },
+  { label: '1H', fullLabel: '1 Hora', value: '1hour', group: 'corto' },
 ];
 
 const TRADE_MODES = {
@@ -44,6 +45,7 @@ const buildToastMessage = (signal, mode) => {
 };
 
 const Mercado = () => {
+  // 1. Estados y datos
   const [symbol, setSymbol] = useState(DEFAULT_SYMBOLS[0]?.value || 'I:NDX');
   const [interval, setInterval] = useState(INTERVALS[0].value);
   const [customTicker, setCustomTicker] = useState('');
@@ -63,7 +65,7 @@ const Mercado = () => {
   const [popup, setPopup] = useState({ open: false, message: '' });
 
   const intervalLabel = useMemo(
-    () => INTERVALS.find((it) => it.value === interval)?.label || interval,
+    () => INTERVALS.find((it) => it.value === interval)?.fullLabel || interval,
     [interval],
   );
 
@@ -79,6 +81,33 @@ const Mercado = () => {
     }),
     [settings, macdThreshold, signalLevels],
   );
+
+  // Calcular el límite de velas necesario para cubrir 1 año según el intervalo
+  // NOTA: Usamos límites más conservadores para evitar rate limiting
+  const getLimitForInterval = (interval) => {
+    switch (interval) {
+      case '1day': return 365; // 365 días = 1 año
+      case '12hour': return 730; // 730 períodos de 12h = 1 año
+      case '8hour': return 1095; // 1095 períodos de 8h = 1 año
+      case '6hour': return 1460; // 1460 períodos de 6h = 1 año
+      case '4hour': return 2190; // 2190 períodos de 4h = 1 año
+      case '2hour': return 2000; // Limitado a 2000 para evitar rate limit
+      case '1hour': return 2000; // Limitado a 2000 para evitar rate limit (~83 días)
+      default: return 365;
+    }
+  };
+
+  const limit = useMemo(() => {
+    const calculatedLimit = getLimitForInterval(interval);
+    console.log(`[Mercado] Intervalo: ${interval}, Límite de velas: ${calculatedLimit}`);
+    return calculatedLimit;
+  }, [interval]);
+
+  const [range, setRange] = useState(() => {
+    const now = Math.floor(Date.now() / 1000);
+    const oneYearAgo = now - 365 * 24 * 60 * 60;
+    return { from: oneYearAgo, to: now };
+  });
 
   const {
     candles,
@@ -96,12 +125,41 @@ const Mercado = () => {
   } = useMarketData({
     symbol,
     interval,
-    limit: 360,
+    limit, // Ahora el límite es dinámico según el intervalo para cubrir 1 año
     signalConfig,
   });
 
+  // Función para cargar más velas hacia atrás
+  const loadMoreCandles = () => {
+    setRange((prev) => ({
+      from: prev.from - limit * getSecondsPerCandle(interval),
+      to: prev.to,
+    }));
+  };
+
+  function getSecondsPerCandle(interval) {
+    switch (interval) {
+      case '1hour': return 3600;
+      case '2hour': return 7200;
+      case '4hour': return 14400;
+      case '6hour': return 21600;
+      case '8hour': return 28800;
+      case '12hour': return 43200;
+      case '1day': return 86400;
+      default: return 3600;
+    }
+  }
+
+  // Filtrar las velas para mostrar solo el último año hasta la fecha actual
+  const now = Math.floor(Date.now() / 1000);
+  const oneYearAgo = now - 365 * 24 * 60 * 60;
+  const candles1y = useMemo(() => {
+    return candles.filter(c => c.time >= oneYearAgo && c.time <= now);
+  }, [candles, now]);
+
+  // 2. Hook de gráficos
   const { chartContainerRef, rsiContainerRef, macdContainerRef } = useMarketCharts({
-    candles,
+    candles: candles1y,
     ema20,
     ema50,
     sma200,
@@ -115,13 +173,37 @@ const Mercado = () => {
 
   const lastSignalRef = useRef(0);
 
+  // Efecto para conectar el scroll/zoom del gráfico con la carga automática de velas
   useEffect(() => {
-    /**
-     * Cada vez que `useMarketData` detecta nuevas senales, las difundimos:
-     *  - registramos el evento en la bandeja local,
-     *  - disparamos el toast emergente,
-     *  - si el modo es auto, persistimos la senal en el backend (Signal.js).
-     */
+    if (!chartContainerRef || !chartContainerRef.current) return;
+    let chartInstance = chartContainerRef.current?.chartRef?.current || chartContainerRef.current._chartRef?.current || chartContainerRef.current._chart || null;
+    if (!chartInstance) {
+      const timer = setTimeout(() => {
+        chartInstance = chartContainerRef.current?.chartRef?.current || chartContainerRef.current._chartRef?.current || chartContainerRef.current._chart || null;
+        if (chartInstance) attachListener(chartInstance);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+    attachListener(chartInstance);
+
+    function attachListener(chart) {
+      chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+        if (!candles.length) return;
+        const minIndex = range?.from ?? 0;
+        if (minIndex < 10) {
+          loadMoreCandles();
+        }
+      });
+    }
+    // Cleanup
+    return () => {
+      if (chartInstance) {
+        chartInstance.timeScale().unsubscribeVisibleLogicalRangeChange();
+      }
+    };
+  }, [chartContainerRef, candles, interval]);
+
+  useEffect(() => {
     if (!tradeSignals.length) return;
 
     const lastKnown = lastSignalRef.current;
@@ -156,20 +238,23 @@ const Mercado = () => {
     });
 
     if (tradeMode === TRADE_MODES.auto) {
-      void persistTradeSignals(batch, {
+      // Persistir señales con manejo de errores mejorado
+      persistTradeSignals(batch, {
         symbol,
         interval: intervalLabel,
         mode: tradeMode,
       })
-        .then(({ errors }) => {
+        .then(({ persisted, errors }) => {
+          console.log(`✓ ${persisted.length} señales guardadas`);
           if (errors.length) {
-            console.warn('[signals] errores al persistir', errors);
+            console.warn('[signals] errores al persistir:', errors);
+            setError(`Algunas señales no se pudieron guardar: ${errors.length} fallos`);
           }
         })
         .catch((err) => {
           console.error('[signals] persistencia fallida:', err?.message);
+          setError('Error al guardar señales de trading');
         });
-      // TODO: validar existencia previa de instrument_id en cache y mostrar feedback en la UI.
     }
   }, [tradeSignals, tradeMode, symbol, intervalLabel]);
 
@@ -239,46 +324,104 @@ const Mercado = () => {
       </header>
 
       <section className="market-controls">
-        <div className="intervals">
-          <span>Intervalos:</span>
-          {INTERVALS.map((itv) => (
-            <button
-              key={itv.value}
-              type="button"
-              className={interval === itv.value ? 'active' : ''}
-              onClick={() => setInterval(itv.value)}
-            >
-              {itv.label}
-            </button>
-          ))}
+        <div className="intervals-section">
+          <label className="section-label">
+            <span className="label-icon">⏱️</span>
+            Intervalo de Tiempo
+          </label>
+          <div className="intervals-grid">
+            <div className="interval-group">
+              <span className="group-label">Largo Plazo</span>
+              <div className="interval-buttons">
+                {INTERVALS.filter(itv => itv.group === 'largo').map((itv) => (
+                  <button
+                    key={itv.value}
+                    type="button"
+                    className={interval === itv.value ? 'active' : ''}
+                    onClick={() => setInterval(itv.value)}
+                    title={itv.fullLabel}
+                  >
+                    {itv.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="interval-group">
+              <span className="group-label">Mediano Plazo</span>
+              <div className="interval-buttons">
+                {INTERVALS.filter(itv => itv.group === 'medio').map((itv) => (
+                  <button
+                    key={itv.value}
+                    type="button"
+                    className={interval === itv.value ? 'active' : ''}
+                    onClick={() => setInterval(itv.value)}
+                    title={itv.fullLabel}
+                  >
+                    {itv.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="interval-group">
+              <span className="group-label">Corto Plazo</span>
+              <div className="interval-buttons">
+                {INTERVALS.filter(itv => itv.group === 'corto').map((itv) => (
+                  <button
+                    key={itv.value}
+                    type="button"
+                    className={interval === itv.value ? 'active' : ''}
+                    onClick={() => setInterval(itv.value)}
+                    title={itv.fullLabel}
+                  >
+                    {itv.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="switches">
-          {[
-            ['ema20', 'EMA20'],
-            ['ema50', 'EMA50'],
-            ['sma200', 'SMA200'],
-            ['volume', 'Volumen'],
-            ['rsi', 'RSI'],
-            ['macd', 'MACD'],
-            ['signals', 'Senales'],
-          ].map(([key, label]) => (
-            <label key={key}>
-              <input
-                type="checkbox"
-                checked={settings[key]}
-                onChange={(event) =>
-                  setSettings((prev) => ({ ...prev, [key]: event.target.checked }))
-                }
-              />
-              {label}
-            </label>
-          ))}
+        <div className="indicators-section">
+          <label className="section-label">
+            <span className="label-icon">📊</span>
+            Indicadores Técnicos
+          </label>
+          <div className="switches">
+            {[
+              ['ema20', 'EMA 20', '📈'],
+              ['ema50', 'EMA 50', '📈'],
+              ['sma200', 'SMA 200', '📉'],
+              ['volume', 'Volumen', '📊'],
+              ['rsi', 'RSI', '⚡'],
+              ['macd', 'MACD', '〰️'],
+              ['signals', 'Señales', '🎯'],
+            ].map(([key, label, icon]) => (
+              <label key={key} className="indicator-toggle">
+                <input
+                  type="checkbox"
+                  checked={settings[key]}
+                  onChange={(event) =>
+                    setSettings((prev) => ({ ...prev, [key]: event.target.checked }))
+                  }
+                />
+                <span className="toggle-content">
+                  <span className="toggle-icon">{icon}</span>
+                  <span className="toggle-label">{label}</span>
+                </span>
+              </label>
+            ))}
+          </div>
         </div>
+
+        <div className="controls-divider"></div>
 
         <div className="signal-config">
+          <label className="section-label">
+            <span className="label-icon">⚙️</span>
+            Configuración de Señales
+          </label>
           <div className="trade-mode">
-            <span>Modo:</span>
+            <span className="mode-label">Modo de Trading:</span>
             <label>
               <input
                 type="radio"
@@ -375,6 +518,19 @@ const Mercado = () => {
         </div>
         <div>
           <strong>Velas cargadas:</strong> {candles.length}
+          {candles.length > 0 && (() => {
+            const firstTime = new Date(candles[0].time * 1000);
+            const lastTime = new Date(candles[candles.length - 1].time * 1000);
+            const daysCovered = Math.round((lastTime - firstTime) / (1000 * 60 * 60 * 24));
+            const formatDate = (date) => {
+              return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+            };
+            return (
+              <span style={{ marginLeft: '8px', color: '#888', fontSize: '0.9em' }}>
+                ({daysCovered} días: {formatDate(firstTime)} - {formatDate(lastTime)})
+              </span>
+            );
+          })()}
         </div>
         <div>
           <strong>Volumen ultimo:</strong> {volumeLabel}

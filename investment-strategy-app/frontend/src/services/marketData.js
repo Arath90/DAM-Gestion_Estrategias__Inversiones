@@ -38,8 +38,45 @@ const normalizeCandles = (payload) => {
     .sort((a, b) => a.time - b.time);
 };
 
+// Cache para evitar requests duplicadas
+const requestCache = new Map();
+const CACHE_TTL = 60000; // 60 segundos - más tiempo para evitar rate limiting
+
+// Promesa pendiente para evitar múltiples requests simultáneos
+const pendingRequests = new Map();
+
+// Timestamp del último error 429 para implementar backoff exponencial
+let lastRateLimitTime = 0;
+let rateLimitBackoffMs = 5000; // Empezar con 5 segundos
+
 export async function fetchCandles({ symbol, interval = '1hour', limit = 120, offset = 0 }) {
   if (!symbol) throw new Error('symbol requerido');
+  
+  const cacheKey = `${symbol}-${interval}-${limit}-${offset}`;
+  
+  // 1. Verificar si hay una petición en progreso
+  if (pendingRequests.has(cacheKey)) {
+    console.log(`[marketData] Reutilizando petición en curso: ${cacheKey}`);
+    return pendingRequests.get(cacheKey);
+  }
+  
+  // 2. Verificar cache (siempre usar cache si existe, incluso si está expirado)
+  const cached = requestCache.get(cacheKey);
+  
+  // 3. Si hay rate limit activo y tenemos cache, usarlo sin hacer request
+  const timeSinceLastRateLimit = Date.now() - lastRateLimitTime;
+  if (timeSinceLastRateLimit < rateLimitBackoffMs && cached) {
+    console.warn(`[marketData] Rate limit activo (${Math.ceil((rateLimitBackoffMs - timeSinceLastRateLimit) / 1000)}s restantes), usando cache`);
+    return cached.data;
+  }
+  
+  // 4. Si el cache es reciente, usarlo
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    console.log(`[marketData] Usando datos en cache: ${cacheKey}`);
+    return cached.data;
+  }
+  
+  // 5. Hacer la petición solo si no hay rate limit activo
   const params = {
     symbol,
     interval,
@@ -47,15 +84,60 @@ export async function fetchCandles({ symbol, interval = '1hour', limit = 120, of
     offset,
   };
 
-  const { data } = await axios.get(buildUrl('/api/candles/prev'), {
+  const requestPromise = axios.get(buildUrl('/api/candles/prev'), {
     params,
     paramsSerializer: { serialize: serializeParams },
-  });
-  return {
-    symbol: data?.symbol || symbol,
-    interval: data?.interval || interval,
-    candles: normalizeCandles(data?.data || data),
-  };
+    timeout: 30000, // 30 segundos de timeout
+  })
+    .then(({ data }) => {
+      // Reset del backoff al tener éxito
+      rateLimitBackoffMs = 5000;
+      
+      const result = {
+        symbol: data?.symbol || symbol,
+        interval: data?.interval || interval,
+        candles: normalizeCandles(data?.data || data),
+      };
+      
+      // Guardar en cache con timestamp largo
+      requestCache.set(cacheKey, {
+        data: result,
+        timestamp: Date.now(),
+      });
+      
+      console.log(`[marketData] ${result.candles.length} velas obtenidas para ${symbol} (${interval})`);
+      return result;
+    })
+    .catch((error) => {
+      if (error.response?.status === 429) {
+        // Implementar backoff exponencial
+        lastRateLimitTime = Date.now();
+        rateLimitBackoffMs = Math.min(rateLimitBackoffMs * 2, 60000); // Máximo 60 segundos
+        
+        console.warn(`[marketData] Rate limit alcanzado. Backoff de ${rateLimitBackoffMs / 1000}s activado`);
+        
+        // Si hay datos en cache, aunque sean viejos, úsalos
+        if (cached) {
+          console.log(`[marketData] Usando datos en cache por rate limit`);
+          return cached.data;
+        }
+        
+        // Si no hay cache, lanzar error amigable
+        const err = new Error(`Límite de peticiones alcanzado. Espera ${rateLimitBackoffMs / 1000} segundos.`);
+        err.isRateLimit = true;
+        throw err;
+      }
+      throw error;
+    })
+    .finally(() => {
+      // Limpiar la petición pendiente
+      pendingRequests.delete(cacheKey);
+    });
+  
+  // Guardar la promesa pendiente
+  pendingRequests.set(cacheKey, requestPromise);
+  
+  return requestPromise;
 }
 
 export const DEFAULT_SYMBOLS = [

@@ -4,7 +4,7 @@ import api from '../config/apiClient';
  * Servicio centralizado para persistir las senales de trading generadas en el frontend.
  *
  * Proposito pedagico:
- *  - Ilustrar como se traduce una señal visual en un registro auditable dentro de Signal.js.
+ *  - Ilustrar como se traduce una seï¿½al visual en un registro auditable dentro de Signal.js.
  *  - Mostrar el patron de cache local para evitar consultas redundantes al catalogo.
  *  - Servir como punto unico para futuras integraciones (orders, logs, webhooks).
  *

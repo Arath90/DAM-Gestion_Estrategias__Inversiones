@@ -252,3 +252,37 @@ button.primary {
   transition: transform 0.2s;
 }
 button.primary:disabled { opacity: 0.6; cursor: default; }
+
+.selector-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+/* === Select con estilo a juego === */
+.selector-indicador {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  
+  background: var(--project-color2);
+  color: var(--project-color3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 8px 36px 8px 12px;
+
+  transition: all 0.25s ease;
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.2);
+}
+
+/* Hover y focus para destacar */
+.selector-indicador:hover,
+.selector-indicador:focus {
+  border-color: var(--project-color3);
+  box-shadow: 0 0 8px rgba(0, 255, 180, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+}

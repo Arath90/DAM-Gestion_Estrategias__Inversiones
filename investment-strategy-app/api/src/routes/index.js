@@ -26,6 +26,7 @@ import { Router } from 'express';
 import config from '../config/config.js'; 
 // Import Routes
 import instrumentRoutes from './instrument.routes.js';
+import candleRoutes from './candle.routes.js';
 import mlDatasetRoutes from './mlDataset.routes.js';
 import dailyPnlRoutes from './dailyPnl.routes.js';
 import executions from './execution.routes.js';
@@ -40,6 +41,7 @@ const routerAPI = (app) => {
 // * TODOS LOS PRODUCTOS
   app.use(api, router); 
   // Routes 
+  router.use('/candles', candleRoutes); // Candles
   router.use('/instruments', instrumentRoutes);//Instruments
   router.use('/ml-datasets', mlDatasetRoutes);//mlDataset
   router.use('/daily-pnl', dailyPnlRoutes);

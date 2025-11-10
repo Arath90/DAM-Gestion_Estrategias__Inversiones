@@ -90,47 +90,150 @@
   border: 1px solid #1e2a44;
 }
 
-.intervals {
+/* Sección de intervalos mejorada */
+.intervals-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-label {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  color: #cbd5f5;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #e2e8f0;
+  margin-bottom: 4px;
 }
 
-.intervals button {
-  background: #0f172a;
-  border: 1px solid #1f2a44;
-  color: #e2e8f0;
-  border-radius: 999px;
-  padding: 6px 14px;
+.label-icon {
+  font-size: 1.2rem;
+}
+
+.intervals-grid {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.interval-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 140px;
+}
+
+.group-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+  padding-left: 4px;
+}
+
+.interval-buttons {
+  display: flex;
+  gap: 6px;
+  background: #0a1120;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid #1e293b;
+}
+
+.interval-buttons button {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  border-radius: 8px;
+  padding: 8px 14px;
   cursor: pointer;
   font-size: 0.9rem;
-  transition: background 0.15s ease, color 0.15s ease;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  flex: 1;
+  min-width: 50px;
 }
 
-.intervals button.active {
+.interval-buttons button:hover {
+  background: rgba(148, 163, 184, 0.1);
+  color: #cbd5e1;
+}
+
+.interval-buttons button.active {
   background: linear-gradient(135deg, #f97316, #facc15);
   color: #0f172a;
-  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
+  transform: translateY(-1px);
+}
+
+/* Sección de indicadores */
+.indicators-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .switches {
   display: flex;
-  gap: 14px;
+  gap: 10px;
   flex-wrap: wrap;
-  color: #cbd5f5;
 }
 
-.switches label {
+.indicator-toggle {
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+}
+
+.indicator-toggle input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.toggle-content {
   display: flex;
-  gap: 6px;
   align-items: center;
-  background: #111d34;
-  border-radius: 999px;
-  padding: 6px 12px;
-  border: 1px solid #1f2a44;
-  font-size: 0.85rem;
+  gap: 6px;
+  background: #0a1120;
+  border: 2px solid #1e293b;
+  border-radius: 12px;
+  padding: 10px 16px;
+  transition: all 0.2s ease;
+}
+
+.toggle-icon {
+  font-size: 1.1rem;
+  transition: transform 0.2s ease;
+}
+
+.toggle-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #94a3b8;
+  transition: color 0.2s ease;
+}
+
+.indicator-toggle:hover .toggle-content {
+  border-color: #334155;
+  background: #0f1729;
+}
+
+.indicator-toggle input[type="checkbox"]:checked ~ .toggle-content {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.15), rgba(250, 204, 21, 0.15));
+  border-color: var(--project-color2);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+}
+
+.indicator-toggle input[type="checkbox"]:checked ~ .toggle-content .toggle-label {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.indicator-toggle input[type="checkbox"]:checked ~ .toggle-content .toggle-icon {
+  transform: scale(1.15);
 }
 
 .signal-config {

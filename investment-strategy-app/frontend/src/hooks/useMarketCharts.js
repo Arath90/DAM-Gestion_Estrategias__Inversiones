@@ -151,6 +151,7 @@ export const useMarketCharts = ({
     sma200SeriesRef.current = chart.addLineSeries({ color: '#c084fc', lineWidth: 2, title: 'SMA 200' });
 
     const handleResize = () => {
+      if (!chartContainerRef.current) return;
       const { width } = chartContainerRef.current.getBoundingClientRect();
       chart.applyOptions({ width: Math.max(width, 320) });
     };
@@ -158,8 +159,15 @@ export const useMarketCharts = ({
     handleResize();
     window.addEventListener('resize', handleResize);
 
+    // Observer para detectar cambios en el tamaño del contenedor (ej: sidebar collapse)
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+    resizeObserver.observe(chartContainerRef.current);
+
     return () => {
       window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
@@ -194,6 +202,7 @@ export const useMarketCharts = ({
     });
 
     const handleResize = () => {
+      if (!rsiContainerRef.current) return;
       const { width } = rsiContainerRef.current.getBoundingClientRect();
       rsiChart.applyOptions({ width: Math.max(width, 320) });
     };
@@ -201,8 +210,49 @@ export const useMarketCharts = ({
     handleResize();
     window.addEventListener('resize', handleResize);
 
+    // Observer para detectar cambios en el tamaño del contenedor
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+    resizeObserver.observe(rsiContainerRef.current);
+
+    // Sincronizar la escala de tiempo con el gráfico principal
+    if (chartRef.current) {
+      const syncRange = () => {
+        if (chartRef.current && rsiChart && rsiSeriesRef.current) {
+          try {
+            const range = chartRef.current.timeScale().getVisibleRange();
+            if (range && range.from != null && range.to != null) {
+              rsiChart.timeScale().setVisibleRange(range);
+            }
+          } catch (e) {
+            // Ignorar errores si el gráfico no está listo
+            console.debug('[RSI] Error sincronizando rango:', e.message);
+          }
+        }
+      };
+
+      chartRef.current.timeScale().subscribeVisibleTimeRangeChange(syncRange);
+      
+      return () => {
+        if (chartRef.current) {
+          try {
+            chartRef.current.timeScale().unsubscribeVisibleTimeRangeChange(syncRange);
+          } catch (e) {
+            // Gráfico ya destruido
+          }
+        }
+        window.removeEventListener('resize', handleResize);
+        resizeObserver.disconnect();
+        rsiChart.remove();
+        rsiChartRef.current = null;
+        rsiSeriesRef.current = null;
+      };
+    }
+
     return () => {
       window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
       rsiChart.remove();
       rsiChartRef.current = null;
       rsiSeriesRef.current = null;
@@ -232,6 +282,7 @@ export const useMarketCharts = ({
     });
 
     const handleResize = () => {
+      if (!macdContainerRef.current) return;
       const { width } = macdContainerRef.current.getBoundingClientRect();
       macdChart.applyOptions({ width: Math.max(width, 320) });
     };
@@ -239,8 +290,51 @@ export const useMarketCharts = ({
     handleResize();
     window.addEventListener('resize', handleResize);
 
+    // Observer para detectar cambios en el tamaño del contenedor
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+    resizeObserver.observe(macdContainerRef.current);
+
+    // Sincronizar la escala de tiempo con el gráfico principal
+    if (chartRef.current) {
+      const syncRange = () => {
+        if (chartRef.current && macdChart && macdSeriesRef.current) {
+          try {
+            const range = chartRef.current.timeScale().getVisibleRange();
+            if (range && range.from != null && range.to != null) {
+              macdChart.timeScale().setVisibleRange(range);
+            }
+          } catch (e) {
+            // Ignorar errores si el gráfico no está listo
+            console.debug('[MACD] Error sincronizando rango:', e.message);
+          }
+        }
+      };
+
+      chartRef.current.timeScale().subscribeVisibleTimeRangeChange(syncRange);
+      
+      return () => {
+        if (chartRef.current) {
+          try {
+            chartRef.current.timeScale().unsubscribeVisibleTimeRangeChange(syncRange);
+          } catch (e) {
+            // Gráfico ya destruido
+          }
+        }
+        window.removeEventListener('resize', handleResize);
+        resizeObserver.disconnect();
+        macdChart.remove();
+        macdChartRef.current = null;
+        macdSeriesRef.current = null;
+        macdSignalSeriesRef.current = null;
+        macdHistogramSeriesRef.current = null;
+      };
+    }
+
     return () => {
       window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
       macdChart.remove();
       macdChartRef.current = null;
       macdSeriesRef.current = null;
@@ -267,6 +361,60 @@ export const useMarketCharts = ({
     }
   }, [settings.macd]);
 
+  // Sincronización bidireccional entre todos los gráficos
+  useEffect(() => {
+    if (!chartRef.current) return;
+
+    const charts = [
+      chartRef.current,
+      rsiChartRef.current,
+      macdChartRef.current,
+    ].filter(Boolean);
+
+    if (charts.length <= 1) return;
+
+    const handlers = [];
+
+    // Crear manejadores de sincronización para cada gráfico
+    charts.forEach((sourceChart, sourceIndex) => {
+      const handler = () => {
+        try {
+          const range = sourceChart.timeScale().getVisibleRange();
+          if (!range || range.from == null || range.to == null) return;
+
+          // Sincronizar todos los demás gráficos
+          charts.forEach((targetChart, targetIndex) => {
+            if (sourceIndex !== targetIndex && targetChart) {
+              try {
+                targetChart.timeScale().setVisibleRange(range);
+              } catch (e) {
+                // Ignorar errores de rango inválido o datos no listos
+                console.debug('[Sync] Error sincronizando:', e.message);
+              }
+            }
+          });
+        } catch (e) {
+          // Ignorar errores al obtener el rango
+          console.debug('[Sync] Error obteniendo rango:', e.message);
+        }
+      };
+
+      sourceChart.timeScale().subscribeVisibleTimeRangeChange(handler);
+      handlers.push({ chart: sourceChart, handler });
+    });
+
+    // Cleanup: desuscribir todos los manejadores
+    return () => {
+      handlers.forEach(({ chart, handler }) => {
+        try {
+          chart.timeScale().unsubscribeVisibleTimeRangeChange(handler);
+        } catch (e) {
+          // El gráfico puede haber sido destruido
+        }
+      });
+    };
+  }, [chartRef.current, rsiChartRef.current, macdChartRef.current]);
+
   useEffect(() => {
     if (!candleSeriesRef.current || !Array.isArray(candles)) return;
     if (candles.length === 0) {
@@ -286,6 +434,46 @@ export const useMarketCharts = ({
     }
 
     candleSeriesRef.current.setData(candles);
+
+    // Ajustar la escala visible de todos los gráficos para mostrar el rango completo
+    if (candles.length > 0) {
+      const first = candles[0].time;
+      const last = candles[candles.length - 1].time;
+      
+      if (first != null && last != null && first < last) {
+        const range = { from: first, to: last };
+        
+        // Usar setTimeout para dar tiempo a que los datos se procesen
+        setTimeout(() => {
+          try {
+            // Aplicar el rango al gráfico principal
+            if (chartRef.current) {
+              chartRef.current.timeScale().setVisibleRange(range);
+            }
+          } catch (e) {
+            console.debug('[Main] Error estableciendo rango:', e.message);
+          }
+          
+          try {
+            // Aplicar el rango al RSI si está activo y tiene datos
+            if (rsiChartRef.current && settings.rsi && rsiSeriesRef.current) {
+              rsiChartRef.current.timeScale().setVisibleRange(range);
+            }
+          } catch (e) {
+            console.debug('[RSI] Error estableciendo rango:', e.message);
+          }
+          
+          try {
+            // Aplicar el rango al MACD si está activo y tiene datos
+            if (macdChartRef.current && settings.macd && macdSeriesRef.current) {
+              macdChartRef.current.timeScale().setVisibleRange(range);
+            }
+          } catch (e) {
+            console.debug('[MACD] Error estableciendo rango:', e.message);
+          }
+        }, 100);
+      }
+    }
 
     if (settings.volume) mapVolumeHistogram(volumeSeriesRef, candles);
     else volumeSeriesRef.current?.setData([]);

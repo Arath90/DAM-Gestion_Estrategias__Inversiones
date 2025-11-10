@@ -1,26 +1,22 @@
 :root.dark {
 
-  /* Base estructural */
   --project-color1: #1d2538; /* Texto principal */
-  --project-colorTitle: #c9ccd1; /* Texto principal */
+  --project-colorTitle: #c9ccd1; /* Encabezados y títulos */
   --project-color2: #a5b2c4; /* Texto secundario */
-  --project-color3: #475b74; /* Bordes / separadores */
+  --project-color3: #475b74; /* Bordes y separadores */
   --project-color4: #1d2538; /* Fondo principal */
-  --project-color5: #121820; /* Fondo lateral / navbar */
+  --project-color5: #121820; /* Fondo de tarjetas, formularios y navbar */
 
-  /* Acentos de interacción */
-  --accent-color1: #4da3ff;  /* Botones primarios, links activos */
+  --accent-color1: #4da3ff;  /* Botón primario, enlaces activos, borde expandido */
   --accent-color1-hover: #6cb6ff; /* Hover de botón primario */
-  --accent-color2: #00c896;  /* Botones secundarios o confirmaciones */
+  --accent-color2: #00c896;  /* Botón secundario o acción complementaria */
   --accent-color2-hover: #1ae2ad; /* Hover de botón secundario */
 
-  /* Estados */
-  --success-color: #1fd18a;  /* Éxito, validaciones */
-  --warning-color: #ffb84d;  /* Advertencia suave */
+  --success-color: #1fd18a;  /* Éxito, validación */
+  --warning-color: #ffb84d;  /* Advertencia */
   --alert-color1: #ff6b6b;   /* Error o acción destructiva */
   --alert-color1-hover: #ff8787; /* Hover de acción destructiva */
 
-  /* Bordes y sombras */
-  --border-color: #2e3a4d;
-  --shadow-color: rgba(0, 0, 0, 0.45);
+  --border-color: #2e3a4d; /* Bordes personalizados */
+  --shadow-color: rgba(0, 0, 0, 0.45); /* Sombra de tarjetas y botones */
 }

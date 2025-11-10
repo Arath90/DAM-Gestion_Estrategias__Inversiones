@@ -9,24 +9,61 @@ const FIELD_CONFIG = [
   { name: 'period_start', label: 'Inicio periodo', type: 'datetime-local', required: true },
   { name: 'period_end', label: 'Fin periodo', type: 'datetime-local', required: true },
   { name: 'name', label: 'Nombre', type: 'text', placeholder: 'Ej. Momentum US Equities' },
-  { name: 'type', label: 'Tipo', as: 'select', options: [
-    { value: '', label: 'Selecciona tipo' },
-    { value: 'Reglas', label: 'Reglas' },
-    { value: 'ML', label: 'ML' },
-    { value: 'Discrecional', label: 'Discrecional' },
-  ] },
-  { name: 'status', label: 'Estado', as: 'select', options: [
-    { value: '', label: 'Selecciona estado' },
-    { value: 'Draft', label: 'Draft' },
-    { value: 'Live', label: 'Live' },
-    { value: 'Paused', label: 'Paused' },
-  ] },
+  {
+    name: 'type', label: 'Tipo', as: 'select', options: [
+      { value: '', label: 'Selecciona tipo' },
+      { value: 'Reglas', label: 'Reglas' },
+      { value: 'ML', label: 'ML' },
+      { value: 'Discrecional', label: 'Discrecional' },
+    ]
+  },
+  {
+    name: 'status', label: 'Estado', as: 'select', options: [
+      { value: '', label: 'Selecciona estado' },
+      { value: 'Draft', label: 'Draft' },
+      { value: 'Live', label: 'Live' },
+      { value: 'Paused', label: 'Paused' },
+    ]
+  },
   { name: 'owner', label: 'Propietario', type: 'text', placeholder: 'Equipo o usuario' },
   { name: 'frequency', label: 'Frecuencia', type: 'text', placeholder: '1D / 1H / Intradía' },
   { name: 'capitalAllocated', label: 'Capital asignado', type: 'number', placeholder: '0', step: '0.01' },
   { name: 'tags', label: 'Etiquetas', type: 'text', placeholder: 'coma,separadas,por,comas' },
   { name: 'description', label: 'Descripción', as: 'textarea', placeholder: 'Breve descripción' },
 ];
+
+
+const INDICATOR_CONFIG = {
+  "RSI": {
+    "name": "Índice de Fuerza Relativa",
+    "properties": [
+      { "id": "RSI_period", "label": "Período (N)", "type": "number", "default": 14, "min": 1, "required": true },
+      { "id": "RSI_overbought", "label": "Nivel de Sobrecompra", "type": "number", "default": 70, "min": 50 },
+      { "id": "RSI_oversold", "label": "Nivel de Sobrevanta", "type": "number", "default": 30, "max": 50 }
+    ]
+  },
+  "MACD": {
+    "name": "Divergencia/Convergencia de Media Móvil",
+    "properties": [
+      { "id": "MACD_fast_period", "label": "EMA Rápida", "type": "number", "default": 12, "min": 1, "required": true },
+      { "id": "MACD_slow_period", "label": "EMA Lenta", "type": "number", "default": 26, "min": 1, "required": true },
+      { "id": "MACD_signal_period", "label": "Período Señal", "type": "number", "default": 9, "min": 1, "required": true }
+    ]
+  },
+  "EMA": {
+    "name": "Media Móvil Exponencial",
+    "properties": [
+      { "id": "EMA_period", "label": "Período", "type": "number", "default": 20, "min": 1, "required": true }
+    ]
+  },
+  "SMA": {
+    "name": "Media Móvil Simple",
+    "properties": [
+      { "id": "SMA_period", "label": "Período", "type": "number", "default": 20, "min": 1, "required": true }
+    ]
+  }
+};
+
 
 const blankForm = () =>
   FIELD_CONFIG.reduce((acc, field) => {
@@ -148,6 +185,7 @@ const Estrategias = () => {
   const [message, setMessage] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [selectedIndicator, setSelectedIndicator] = useState('RSI');
+  const [indicatorParams, setIndicatorParams] = useState({});
   const [editForms, setEditForms] = useState({});
   const [createForm, setCreateForm] = useState(() => blankForm());
   const [showCreate, setShowCreate] = useState(false); // Asegura que el formulario de creación esté oculto por defecto
@@ -291,6 +329,27 @@ const Estrategias = () => {
     }
   };
 
+  // ... (después de tus otros useEffects)
+
+  const currentIndicatorConfig = INDICATOR_CONFIG[selectedIndicator] || { properties: [] };
+
+  // Calcula los parámetros iniciales o actuales cada vez que cambia el indicador
+  useEffect(() => {
+    // Usa la configuración para crear un objeto con los valores por defecto
+    const defaultParams = currentIndicatorConfig.properties.reduce((acc, prop) => {
+      acc[prop.id] = prop.default;
+      return acc;
+    }, {});
+    // Esto solo inicializará, si quieres mantener los valores anteriores, necesitarás otra lógica.
+    setIndicatorParams(defaultParams);
+  }, [selectedIndicator]); // Se ejecuta cuando selectedIndicator cambia
+
+  // Manejador para el cambio de un parámetro de indicador
+  const handleIndicatorParamChange = (id, value) => {
+    setIndicatorParams(prev => ({ ...prev, [id]: value }));
+  };
+
+  // ...
   return (
     <div className="page-estrategias">
       <header className="estrategias-header">
@@ -304,14 +363,34 @@ const Estrategias = () => {
           <select
             id="indicador"
             value={selectedIndicator}
-            onChange={(e) => setSelectedIndicator(e.target.value)}
+            onChange={(e) => setSelectedIndicator(e.target.value)} 
             className="selector-indicador"
           >
-            <option value="RSI">RSI</option>
-            <option value="MACD">MACD</option>
-            <option value="EMA">EMA</option>
-            <option value="SMA">SMA</option>
+            {Object.keys(INDICATOR_CONFIG).map(key => ( 
+              <option key={key} value={key}>{INDICATOR_CONFIG[key].name}</option>
+            ))}
           </select>
+        </div>
+
+        {/* --- FORMULARIO DE PROPIEDADES DINÁMICAS --- */}
+        <div className="indicador-properties-form">
+          <h4>Parámetros de {currentIndicatorConfig.name}</h4>
+          <div className="form-grid indicator-params-grid">
+            {currentIndicatorConfig.properties.map(prop => (
+              <label key={prop.id} className="form-field">
+                <span>{prop.label} {prop.required ? '*' : ''}</span>
+                <input
+                  type={prop.type || 'text'}
+                  value={indicatorParams[prop.id] || ''}
+                  min={prop.min}
+                  max={prop.max}
+                  step={prop.step || '1'}
+                  placeholder={prop.default}
+                  onChange={(e) => handleIndicatorParamChange(prop.id, e.target.value)}
+                />
+              </label>
+            ))}
+          </div>
         </div>
 
         <button type="button" className="toggle-create" onClick={() => setShowCreate((p) => !p)}>

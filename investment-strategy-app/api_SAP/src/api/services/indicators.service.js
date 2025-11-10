@@ -1,6 +1,6 @@
 const { detectRSIDivergences } = require('./indicators/divergence.service');
 const { rsiAlerts } = require('./indicators/rsi.alerts');
-const Signals = require('../models/mongodb/Signals'); // si quieres guardar
+const Signals = require('../models/mongodb/Signal'); // si quieres guardar
 
 async function analyzeRSIAndDivergences(candles, opts = {}, { persist = false, instrument_id = null } = {}) {
   const { rsi, signals } = detectRSIDivergences(candles, opts);

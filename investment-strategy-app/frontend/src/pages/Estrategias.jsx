@@ -147,6 +147,7 @@ const Estrategias = () => {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [expandedId, setExpandedId] = useState(null);
+  const [selectedIndicator, setSelectedIndicator] = useState('RSI');
   const [editForms, setEditForms] = useState({});
   const [createForm, setCreateForm] = useState(() => blankForm());
   const [showCreate, setShowCreate] = useState(false); // Asegura que el formulario de creación esté oculto por defecto
@@ -298,11 +299,33 @@ const Estrategias = () => {
       </header>
 
       <section className="estrategias-actions">
+        <div className="estrategias-selector">
+          <label htmlFor="indicador" className="selector-label">Indicador actual:</label>
+          <select
+            id="indicador"
+            value={selectedIndicator}
+            onChange={(e) => setSelectedIndicator(e.target.value)}
+            className="selector-indicador"
+          >
+            <option value="RSI">RSI</option>
+            <option value="MACD">MACD</option>
+            <option value="EMA">EMA</option>
+            <option value="SMA">SMA</option>
+          </select>
+        </div>
+
         <button type="button" className="toggle-create" onClick={() => setShowCreate((p) => !p)}>
           {showCreate ? 'Cerrar formulario' : 'Agregar nueva estrategia'}
         </button>
-        {/* Filtros rápidos (placeholders visuales) */}
-  <button type="button" className="btn-secondary" aria-label="Refrescar lista de estrategias" onClick={loadItems}>Refrescar</button>
+
+        <button
+          type="button"
+          className="btn-secondary"
+          aria-label="Refrescar lista de estrategias"
+          onClick={loadItems}
+        >
+          Refrescar
+        </button>
       </section>
 
       {showCreate && (

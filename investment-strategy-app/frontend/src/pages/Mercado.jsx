@@ -173,6 +173,111 @@ const Mercado = () => {
 
   const lastSignalRef = useRef(0);
 
+  // Estado para soportes detectados
+  const [supportLevels, setSupportLevels] = useState([]);
+  const [resistanceLevels, setResistanceLevels] = useState([]);
+
+    //Detectar soportes automáticos (mínimos locales)
+  useEffect(() => {
+    if (!candles1y || !candles1y.length) return;
+
+    const localMinSupports = [];
+    for (let i = 2; i < candles1y.length - 2; i++) {
+      const prev = candles1y[i - 1].low;
+      const curr = candles1y[i].low;
+      const next = candles1y[i + 1].low;
+      if (curr < prev && curr < next) {
+        localMinSupports.push(curr);
+      }
+    }
+
+    const uniqueSupports = [...new Set(localMinSupports)]
+      .sort((a, b) => a - b)
+      .slice(0, 3);
+
+    setSupportLevels(uniqueSupports);
+  }, [candles1y]);
+
+  //Detectar resistencias automáticas (máximos locales)
+    useEffect(() => {
+    if (!candles1y || !candles1y.length) return;
+    const localMaxResistances = [];
+    for (let i = 2; i < candles1y.length - 2; i++) {
+      const prev = candles1y[i - 1].high;
+      const curr = candles1y[i].high;
+      const next = candles1y[i + 1].high;
+      if (curr > prev && curr > next) localMaxResistances.push(curr);
+    }
+    const uniqueResistances = [...new Set(localMaxResistances)].sort((a, b) => b - a).slice(0, 3);
+    setResistanceLevels(uniqueResistances);
+  }, [candles1y]);
+
+  useEffect(() => {
+    if (!candles1y || !candles1y.length) return;
+    const localMaxResistances = [];
+    for (let i = 2; i < candles1y.length - 2; i++) {
+      const prev = candles1y[i - 1].high;
+      const curr = candles1y[i].high;
+      const next = candles1y[i + 1].high;
+      if (curr > prev && curr > next) localMaxResistances.push(curr);
+    }
+    const uniqueResistances = [...new Set(localMaxResistances)].sort((a, b) => b - a).slice(0, 3);
+    setResistanceLevels(uniqueResistances);
+  }, [candles1y]);
+
+  //Dibujar líneas horizontales de soporte en el gráfico
+
+
+  useEffect(() => {
+    if (!chartContainerRef?.current || (!supportLevels.length && !resistanceLevels.length)) return;
+    const chartInstance =
+      chartContainerRef.current?.chart ||
+      chartContainerRef.current?._chart ||
+      chartContainerRef.current?.chartRef?.current ||
+      null;
+    if (!chartInstance) {
+      console.warn('No se pudo acceder a la serie de precios principal.');
+      return;
+    }
+
+    const series = [];
+
+    // 🔹 Soportes (líneas verdes)
+    supportLevels.forEach((level) => {
+      const lineSeries = chartInstance.addLineSeries({
+        color: '#00FF00',
+        lineWidth: 2,
+        lineStyle: 2,
+      });
+      lineSeries.setData([
+        { time: candles1y[0].time, value: level },
+        { time: candles1y[candles1y.length - 1].time, value: level },
+      ]);
+      series.push(lineSeries);
+    });
+
+    // 🔹 Resistencias (líneas rojas)
+    resistanceLevels.forEach((level) => {
+      const lineSeries = chartInstance.addLineSeries({
+        color: '#FF0000',
+        lineWidth: 2,
+        lineStyle: 2,
+      });
+      lineSeries.setData([
+        { time: candles1y[0].time, value: level },
+        { time: candles1y[candles1y.length - 1].time, value: level },
+      ]);
+      series.push(lineSeries);
+    });
+
+    console.log('✅ Soportes:', supportLevels);
+    console.log('✅ Resistencias:', resistanceLevels);
+
+    return () => {
+      series.forEach((l) => chartInstance.removeSeries(l));
+    };
+  }, [chartContainerRef, supportLevels, resistanceLevels, candles1y]);
+
   // Efecto para conectar el scroll/zoom del gráfico con la carga automática de velas
   useEffect(() => {
     if (!chartContainerRef || !chartContainerRef.current) return;
@@ -535,6 +640,19 @@ const Mercado = () => {
         <div>
           <strong>Volumen ultimo:</strong> {volumeLabel}
         </div>
+        {supportLevels.length > 0 && (
+          <div className="support-info">
+            <strong>Soportes detectados:</strong>{' '}
+            {supportLevels.map((lvl) => lvl.toFixed(2)).join(', ')}
+          </div>
+        )}
+        {resistanceLevels.length > 0 && (
+          <div className="resistance-info">
+            <strong>Resistencias detectadas:</strong>{' '}
+            {resistanceLevels.map((lvl) => lvl.toFixed(2)).join(', ')}
+          </div>
+)}
+
       </section>
 
       <section className="notification-tray">

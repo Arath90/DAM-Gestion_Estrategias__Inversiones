@@ -122,6 +122,7 @@ const Mercado = () => {
     macdHistogram,
     signals,
     tradeSignals,
+    divergences,
   } = useMarketData({
     symbol,
     interval,
@@ -168,6 +169,7 @@ const Mercado = () => {
     macdSignal,
     macdHistogram,
     signals,
+    divergences, // <-- asegúrate que viene desde useMarketData
     settings,
   });
 

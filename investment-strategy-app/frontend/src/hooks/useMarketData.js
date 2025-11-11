@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchCandles } from '../services/marketData';
 
+import { findDivergences } from '../utils/divergences';
+import { computeSignals } from '../utils/signals';
+
+
+
+
 /**
  * Hook centralizado para analytics de mercado.
  *
@@ -338,56 +344,94 @@ export const useMarketData = ({
     };
   }, [symbol, interval, limit]);
 
-  const analytics = useMemo(() => {
-    const { candles } = state;
-    if (!Array.isArray(candles) || candles.length === 0) {
-      return {
-        ema20: [],
-        ema50: [],
-        sma200: [],
-        rsi14: [],
-        macdLine: [],
-        macdSignal: [],
-        macdHistogram: [],
-        signals: [],
-        tradeSignals: [],
-      };
-    }
+const analytics = useMemo(() => {
+  const { candles } = state;
+  if (!Array.isArray(candles) || candles.length === 0) {
+    return {
+      ema20: [],
+      ema50: [],
+      sma200: [],
+      rsi14: [],
+      macdLine: [],
+      macdSignal: [],
+      macdHistogram: [],
+      signals: [],
+      tradeSignals: [],
+      divergences: [],
+    };
+  }
 
-    const ema20 = calcEMA(candles, 20);
-    const ema50 = calcEMA(candles, 50);
-    const sma200 = calcSMA(candles, 200);
-    const rsi14 = calcRSI(candles, 14);
+  // indicadores básicos
+  const ema20 = calcEMA(candles, 20);
+  const ema50 = calcEMA(candles, 50);
+  const sma200 = calcSMA(candles, 200);
+  const rsi14 = calcRSI(candles, 14);
   const { macdLine, signalLine: macdSignal, histogram: macdHistogram } = calcMACD(candles);
-  const { markers: signals, events: tradeSignals } = calcSignals(candles, {
-    emaShort: ema20,
-    emaLong: ema50,
-    rsi: rsi14,
-      macdLine,
-      macdSignal,
-    macdHistogram,
-    signalConfig,
+
+  // --- Preparar series alineadas para detección de divergencias ---
+  // price series: preferimos usar highs para detectar bearish peaks y lows para bullish
+  const priceHighSeries = candles.map((c) => c.high);
+  const priceLowSeries = candles.map((c) => c.low);
+
+  // Alinear RSI con el índice de candles: creamos un array donde rsiValuesByIndex[i] corresponde a candles[i]
+  const rsiValuesByIndex = new Array(candles.length).fill(undefined);
+  if (Array.isArray(rsi14) && rsi14.length > 0) {
+    const rsiTimeMap = new Map(rsi14.map((r) => [r.time, r.value]));
+    for (let i = 0; i < candles.length; i++) {
+      rsiValuesByIndex[i] = rsiTimeMap.get(candles[i].time);
+    }
+  }
+
+  // --- Detectar divergencias (usamos highs vs RSI por defecto) ---
+  // Ajusta peakWindow / tolerancias según el activo/timeframe
+  const divergences = findDivergences(priceHighSeries, rsiValuesByIndex, {
+    peakWindow: 3,
+    maxBarsBetweenPeaks: 60,
+    minPriceChangePct: 0.002,
+    minIndicatorChangePct: 0.01,
+    maxPeakDistance: 8,
   });
 
-  // TODO: exponer tambien estadisticas agregadas (ej. volatilidad, ATR) para enriquecer la bandeja y el backend.
-  const enrichedSignals = tradeSignals.map((signal) => ({
-    ...signal,
-    symbol,
-    interval,
-  }));
+  // --- Construir objeto de indicadores para el motor de señales ---
+  // Nota: computeSignals espera arrays/alineados o al menos datos accesibles; aquí pasamos
+  // arrays sencillos (valores por índice) para rsi y los arrays de macd por índice.
+  const indicators = {
+    rsi: rsiValuesByIndex, // aligned by candles index
+    bb: null, // si luego calculas bandas, pon aquí { upper: [], mid: [], lower: [] }
+    macd: {
+      macd: (macdLine || []).map((m) => m.value),
+      signal: (macdSignal || []).map((s) => s.value),
+      hist: (macdHistogram || []).map((h) => h.value),
+    },
+    ema20: (ema20 || []).map((e) => e.value),
+    ema50: (ema50 || []).map((e) => e.value),
+  };
 
-    return {
-      ema20,
-      ema50,
-      sma200,
-      rsi14,
-      macdLine,
-      macdSignal,
-      macdHistogram,
-      signals,
-      tradeSignals: enrichedSignals,
-    };
-  }, [state.candles, signalConfig, symbol, interval]);
+  // --- Ejecutar motor de señales ---
+  // computeSignals debe devolver un array de señales (cada señal con timeIndex o time, action, reasons, confidence, price)
+  const computedSignals = computeSignals(candles, indicators, divergences, {
+    rsiOversold: signalConfig.rsiOversold,
+    rsiOverbought: signalConfig.rsiOverbought,
+    macdHistogramThreshold: signalConfig.macdHistogramThreshold,
+    minReasons: signalConfig.minReasons,
+  }) || [];
+
+  // Enriquecer señales con contexto básico (symbol/interval) para consumir en la UI
+  const tradeSignals = computedSignals.map((s) => ({ ...s, symbol, interval }));
+
+  return {
+    ema20,
+    ema50,
+    sma200,
+    rsi14,
+    macdLine,
+    macdSignal,
+    macdHistogram,
+    signals: computedSignals,
+    tradeSignals,
+    divergences,
+  };
+}, [state.candles, signalConfig, symbol, interval]);
 
   return {
     ...state,
@@ -402,4 +446,14 @@ export const marketAnalyticsUtils = {
   calcMACD,
   calcSignals,
 };
+
+
+
+
+
+
+
+
+
+
 

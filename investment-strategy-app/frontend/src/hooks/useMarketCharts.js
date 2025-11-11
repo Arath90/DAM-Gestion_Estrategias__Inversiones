@@ -104,6 +104,7 @@ export const useMarketCharts = ({
   macdSignal,
   macdHistogram,
   signals,
+  divergences,
   settings,
 }) => {
   const chartContainerRef = useRef(null);
@@ -122,6 +123,121 @@ export const useMarketCharts = ({
   const macdSeriesRef = useRef(null);
   const macdSignalSeriesRef = useRef(null);
   const macdHistogramSeriesRef = useRef(null);
+
+  /*Nuevos const de Andrick y Chat */
+  const divergenceLineSeriesRefs = useRef([]); // array para series de linea de divergencia en el chart principal
+  const rsiDivergenceMarkersRef = useRef([]); // guardamos marcadores que colocaremos en RSI (para poder limpiarlos)
+
+  //Nuevo codigo de Andrick y chat
+    // Convierte tus signals (desde useMarketData) en markers compatibles con lightweight-charts
+  const buildSignalMarkers = (signals) => {
+    // signals: [{ time, action: 'BUY'|'SELL', reasons, price, timeIndex }]
+    if (!Array.isArray(signals)) return [];
+    return signals.map(s => ({
+      time: s.time,
+      position: s.action === 'BUY' ? 'belowBar' : 'aboveBar',
+      color: s.action === 'BUY' ? '#16a34a' : '#ef4444',
+      shape: s.action === 'BUY' ? 'arrowUp' : 'arrowDown',
+      text: s.action === 'BUY' ? 'Compra' : 'Venta'
+    }));
+  };
+
+  // Renderiza lineas punteadas (divergencias) en el chart principal y marcadores en el RSI.
+  const renderDivergences = (divergences = [], candles = []) => {
+    // Limpia series previas
+    //Codigo eliminado por Andrick
+    /*if (divergenceLineSeriesRefs.current.length) {
+      divergenceLineSeriesRefs.current.forEach(s => {
+        try { s.remove(); } catch (e) {}
+      });
+      divergenceLineSeriesRefs.current = [];
+    }*/
+
+    //Codigo agregado por Andrick y chat
+          // cleanup - eliminar series de divergencias si existen
+      if (divergenceLineSeriesRefs.current.length) {
+        divergenceLineSeriesRefs.current.forEach(s => {
+          try { s.remove(); } catch(e) {}
+        });
+        divergenceLineSeriesRefs.current = [];
+      }
+      // limpiar marcadores RSI
+      if (rsiSeriesRef.current) {
+        try { rsiSeriesRef.current.setMarkers([]); } catch(e) {}
+        rsiDivergenceMarkersRef.current = [];
+      }
+
+    // Limpia marcadores RSI previos
+    if (rsiSeriesRef.current && rsiDivergenceMarkersRef.current.length) {
+      try { rsiSeriesRef.current.setMarkers([]); } catch (e) {}
+      rsiDivergenceMarkersRef.current = [];
+    }
+
+    if (!Array.isArray(divergences) || divergences.length === 0) return;
+
+    // Para cada divergencia creamos:
+    //  - una linea en el panel principal entre p1 (precio) y p2 (precio)
+    //  - marcadores en el panel RSI (dos markers en r1Index/r2Index)
+    divergences.forEach((d) => {
+      // Validar indices
+      const p1 = candles[d.p1Index];
+      const p2 = candles[d.p2Index];
+
+      // Dibujar linea en el chart principal si ambos puntos existen
+      if (p1 && p2 && chartRef.current) {
+        const lineSeries = chartRef.current.addLineSeries({
+          color: '#f59e0b',
+          lineWidth: 2,
+          lineStyle: 2, // dashed
+          priceScaleId: '' // usa escala principal
+        });
+        lineSeries.setData([
+          { time: p1.time, value: p1.high ?? p1.close },
+          { time: p2.time, value: p2.high ?? p2.close }
+        ]);
+        divergenceLineSeriesRefs.current.push(lineSeries);
+      }
+
+      // Agregar marcadores en RSI (si panel RSI existe)
+      if (rsiSeriesRef.current) {
+        const r1Index = d.r1Index;
+        const r2Index = d.r2Index;
+        const markers = [];
+
+        if (typeof r1Index === 'number' && candles[r1Index]) {
+          markers.push({
+            time: candles[r1Index].time,
+            position: 'aboveBar', // en RSI posicion relativa
+            color: '#f59e0b',
+            shape: 'circle',
+            text: d.type === 'bullish' ? 'Bull' : 'Bear'
+          });
+        }
+        if (typeof r2Index === 'number' && candles[r2Index]) {
+          markers.push({
+            time: candles[r2Index].time,
+            position: 'aboveBar',
+            color: '#f59e0b',
+            shape: 'circle',
+            text: d.type === 'bullish' ? 'Bull' : 'Bear'
+          });
+        }
+
+        // Guardamos para limpiar luego
+        if (markers.length) {
+          // Concatenar con marcadores existentes en RSI (si hay otros)
+          const existing = rsiDivergenceMarkersRef.current || [];
+          const merged = existing.concat(markers);
+          try {
+            rsiSeriesRef.current.setMarkers(merged);
+            rsiDivergenceMarkersRef.current = merged;
+          } catch (e) {
+            console.debug('[DIV] No se pudo setMarkers en RSI:', e.message);
+          }
+        }
+      }
+    });
+  };
 
   useEffect(() => {
     if (!chartContainerRef.current || chartRef.current) return;
@@ -481,7 +597,28 @@ export const useMarketCharts = ({
     ema20SeriesRef.current?.setData(settings.ema20 ? ema20 : []);
     ema50SeriesRef.current?.setData(settings.ema50 ? ema50 : []);
     sma200SeriesRef.current?.setData(settings.sma200 ? sma200 : []);
-    candleSeriesRef.current.setMarkers(settings.signals ? signals : []);
+    //candleSeriesRef.current.setMarkers(settings.signals ? signals : []);
+    //Codigo nuevo de Andrick y Chat
+    try {
+      const markers = buildSignalMarkers(signals);
+      // Si el usuario no quiere ver señales, pasamos []
+      candleSeriesRef.current.setMarkers(settings.signals ? markers : []);
+    } catch (e) {
+      console.debug('[Signals] Error seteando markers:', e.message);
+      candleSeriesRef.current.setMarkers([]);
+    }
+
+    // --- Divergencias: dibujar lineas punteadas y marcadores RSI ---
+    try {
+      // suponemos que 'signals' y 'divergences' vienen del hook padre (useMarketData)
+      // aqui 'signals' ya está disponible via props del hook; 'divergences' debes pasarlo como prop al hook useMarketCharts
+      // Si no recibes divergences en las props del hook, ajusta la firma de useMarketCharts para incluirlo.
+      // EJEMPLO: export const useMarketCharts = ({ candles, ..., signals, divergences, settings })
+      // Ahora llamamos renderDivergences
+      renderDivergences(settings.showDivergences ? (settings.divergences || []) : [], candles);
+    } catch (e) {
+      console.debug('[Divergencias] Error al renderizar:', e.message);
+    }
 
     if (settings.rsi) rsiSeriesRef.current?.setData(rsi14);
     else rsiSeriesRef.current?.setData([]);

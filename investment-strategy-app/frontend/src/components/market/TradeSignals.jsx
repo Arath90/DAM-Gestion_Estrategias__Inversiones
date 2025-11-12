@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { buildToastMessage } from '../../utils/marketUtils';
 import Notification from '../Notification';
-import '../../assets/css/components/SharedMarketComponents.css';
+import '../../assets/css/marketComponents/SharedMarketComponents.css';
 
 /**
  * Componente para manejar las señales de trading y notificaciones

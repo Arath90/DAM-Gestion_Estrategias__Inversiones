@@ -1,7 +1,7 @@
 import React from 'react';
 import { INTERVALS, TRADE_MODES, INTERVAL_GROUPS } from '../../constants/marketConstants';
 import { isValidCustomInterval } from '../../utils/marketUtils';
-import '../../assets/css/components/SharedMarketComponents.css';
+import '../../assets/css/marketComponents/SharedMarketComponents.css';
 
 /**
  * Componente para los controles principales del mercado:

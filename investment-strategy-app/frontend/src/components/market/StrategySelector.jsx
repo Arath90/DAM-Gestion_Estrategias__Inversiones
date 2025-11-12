@@ -1,8 +1,8 @@
 import React from 'react';
 import { getStrategyKey } from '../../utils/marketUtils';
 import { INDICATOR_TOGGLES } from '../../constants/strategyProfiles';
-import '../../assets/css/components/StrategySelector.css';
-import '../../assets/css/components/SharedMarketComponents.css';
+import '../../assets/css/marketComponents/StrategySelector.css';
+import '../../assets/css/marketComponents/SharedMarketComponents.css';
 
 /**
  * Selector de estrategias con visualización de indicadores activos

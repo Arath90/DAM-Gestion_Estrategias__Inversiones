@@ -1,7 +1,7 @@
 import React from 'react';
 import { DEFAULT_SYMBOLS } from '../../services/marketData';
-import '../../assets/css/components/MarketHeader.css';
-import '../../assets/css/components/SharedMarketComponents.css';
+import '../../assets/css/marketComponents/MarketHeader.css';
+import '../../assets/css/marketComponents/SharedMarketComponents.css';
 
 /**
  * Header del componente Market con selección de instrumentos

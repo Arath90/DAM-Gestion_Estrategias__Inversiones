@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { INTERVALS } from '../../constants/marketConstants';
 import { formatCustomInterval, getIntervalLabel, isValidCustomInterval } from '../../utils/marketUtils';
-import '../../assets/css/components/IntervalSelector.css';
-import '../../assets/css/components/SharedMarketComponents.css';
+import '../../assets/css/marketComponents/IntervalSelector.css';
+import '../../assets/css/marketComponents/SharedMarketComponents.css';
 
 /**
  * Selector de intervalos de tiempo con soporte para intervalos personalizados

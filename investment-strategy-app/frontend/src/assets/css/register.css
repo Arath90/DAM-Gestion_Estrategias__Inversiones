@@ -54,7 +54,7 @@
 }
 
 .register-title {
-  color: var(--project-color1); /* Texto principal */
+  color: var(--project-colorTitle); /* Texto principal */
   font-weight: 700;
   margin-bottom: 8px;
   font-size: 1.8rem;
@@ -65,7 +65,7 @@
 }
 
 .register-subtitle {
-  color: var(--project-color3); /* Texto secundario */
+  color: var(--project-color2); /* Texto secundario */
   margin-bottom: 24px;
 }
 
@@ -82,16 +82,17 @@
   left: 8px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--project-color3); /* Icono input */
+  color: #fff;
+  background: #e0e1dc;
   font-size: 20px;
 }
 
 .register-input-field {
   padding-left: 36px;
-  background: var(--project-color4); /* Fondo input */
-  color: var(--project-color1);      /* Texto input */
+  background: #e0e1dc; /* Fondo input */
+  color: #fff;      /* Texto input */
   border-radius: 8px;
-  border: 1px solid var(--project-color3);
+  border: 1.5px solid var(--project-color3);
   width: 100%;
   min-width: 300px;
   max-width: 380px;
@@ -108,10 +109,10 @@
   justify-content: center;
   align-items: center;
   border-radius: 24px;
-  background: var(--project-color2);
-  color: var(--project-color4);
+  background: var(--project-color3);
+  color: var(--project-colorTitle);
   font-weight: 600;
-  width: 120px;
+  width: auto;
   margin-top: 12px;
   margin-left: 69%;
   box-shadow: 0 2px 8px rgba(0,0,0,0.12);
@@ -122,9 +123,6 @@
   cursor: pointer;
   align-self: flex-end;
 }
-.register-btn:hover {
-  background: var(--project-color1);
-}
 
 /* =========================
    Link
@@ -132,14 +130,16 @@
 .register-link {
   text-align: right;
   margin-top: 8px;
-  color: var(--project-color1);
+  color: var(--project-colorTitle);
+  text-decoration: none !important;
   font-family: var(--font-primary);
 }
 
 .login-link {
   text-align: right;
   margin-top: 8px;
-  color: var(--project-color2);
+  color: var(--project-colorTitle);
+  text-decoration: none !important;
   font-family: var(--font-primary);
 }
 

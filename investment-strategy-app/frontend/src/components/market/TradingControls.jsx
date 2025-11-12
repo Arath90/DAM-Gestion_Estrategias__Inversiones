@@ -1,7 +1,7 @@
 import React from 'react';
 import { TRADE_MODES } from '../../constants/marketConstants';
-import '../../assets/css/components/TradingControls.css';
-import '../../assets/css/components/SharedMarketComponents.css';
+import '../../assets/css/marketComponents/TradingControls.css';
+import '../../assets/css/marketComponents/SharedMarketComponents.css';
 
 /**
  * Controles de configuración de trading y modo de ejecución

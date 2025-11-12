@@ -1,6 +1,6 @@
 import React from 'react';
 import { getIntervalLabel } from '../../utils/marketUtils';
-import '../../assets/css/components/SharedMarketComponents.css';
+import '../../assets/css/marketComponents/SharedMarketComponents.css';
 
 /**
  * Resumen de información del mercado, estadísticas y niveles de soporte/resistencia

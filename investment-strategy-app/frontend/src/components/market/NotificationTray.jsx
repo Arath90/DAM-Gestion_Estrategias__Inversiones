@@ -1,8 +1,8 @@
 import React from 'react';
 import { TRADE_MODES, priceFormatter } from '../../constants/marketConstants';
 import { formatConfidence } from '../../utils/marketUtils';
-import '../../assets/css/components/NotificationTray.css';
-import '../../assets/css/components/SharedMarketComponents.css';
+import '../../assets/css/marketComponents/NotificationTray.css';
+import '../../assets/css/marketComponents/SharedMarketComponents.css';
 
 /**
  * Bandeja de notificaciones con el historial de señales recientes

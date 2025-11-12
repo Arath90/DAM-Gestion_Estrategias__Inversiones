@@ -1,7 +1,7 @@
 import React from 'react';
 import { INDICATOR_TOGGLES } from '../../constants/strategyProfiles';
-import '../../assets/css/components/IndicatorSettings.css';
-import '../../assets/css/components/SharedMarketComponents.css';
+import '../../assets/css/marketComponents/IndicatorSettings.css';
+import '../../assets/css/marketComponents/SharedMarketComponents.css';
 
 /**
  * Componente para configuración de indicadores técnicos

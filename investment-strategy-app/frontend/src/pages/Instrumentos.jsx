@@ -166,6 +166,14 @@ const Instrumentos = () => {
 
   const emptyState = useMemo(() => !loading && !items.length, [loading, items.length]);
 
+  const [tiposInstrumento] = useState([
+    { value: 'STK', label: 'Acción (STK)' },
+    { value: 'FUT', label: 'Futuro (FUT)' },
+    { value: 'OPT', label: 'Opción (OPT)' },
+    { value: 'IND', label: 'Índice (IND)' },
+    { value: 'ETF', label: 'Fondo (ETF)' },
+  ]);
+
   const loadItems = async () => {
     setLoading(true);
     setError('');
@@ -312,13 +320,27 @@ const Instrumentos = () => {
               {FIELD_CONFIG.map(({ name, label, type, placeholder, step }) => (
                 <label key={name} className="form-field">
                   <span>{label}</span>
-                  <input
-                    type={type}
-                    value={createForm[name]}
-                    placeholder={placeholder}
-                    step={step}
-                    onChange={(event) => handleCreateChange(name, event.target.value)}
-                  />
+                  {name === 'sec_type' ? (
+                    <select
+                      value={createForm[name]}
+                      onChange={(event) => handleCreateChange(name, event.target.value)}
+                    >
+                      <option value="">Selecciona un tipo</option>
+                      {tiposInstrumento.map((t) => (
+                        <option key={t.value} value={t.value}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type={type}
+                      value={createForm[name]}
+                      placeholder={placeholder}
+                      step={step}
+                      onChange={(event) => handleCreateChange(name, event.target.value)}
+                    />
+                  )}
                 </label>
               ))}
             </div>
@@ -407,15 +429,31 @@ const Instrumentos = () => {
                       {FIELD_CONFIG.map(({ name, label, type, placeholder, step }) => (
                         <label key={name} className="form-field">
                           <span>{label}</span>
-                          <input
-                            type={type}
-                            value={formState[name] ?? ''}
-                            placeholder={placeholder}
-                            step={step}
-                            onChange={(event) =>
-                              handleEditChange(item.ID, name, event.target.value)
-                            }
-                          />
+                          {name === 'sec_type' ? (
+                            <select
+                              value={formState[name] ?? ''}
+                              onChange={(event) =>
+                                handleEditChange(item.ID, name, event.target.value)
+                              }
+                            >
+                              <option value="">Selecciona un tipo</option>
+                              {tiposInstrumento.map((t) => (
+                                <option key={t.value} value={t.value}>
+                                  {t.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type={type}
+                              value={formState[name] ?? ''}
+                              placeholder={placeholder}
+                              step={step}
+                              onChange={(event) =>
+                                handleEditChange(item.ID, name, event.target.value)
+                              }
+                            />
+                          )}
                         </label>
                       ))}
                     </div>

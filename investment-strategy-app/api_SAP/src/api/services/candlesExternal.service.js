@@ -1,5 +1,5 @@
 const cfg = require('../../config/dotenvXConfig');
-
+//src/api/services/candlesExternal.service.js
 /**
  * Servicio encargado de obtener velas historicas desde un proveedor externo.
  *

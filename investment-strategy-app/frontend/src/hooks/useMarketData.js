@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchCandles } from '../services/marketData';
+import { DEFAULT_SIGNAL_CONFIG } from '../constants/strategyProfiles';
 
 import { findDivergences } from '../utils/divergences';
 import { computeSignals } from '../utils/signals';
@@ -32,17 +33,6 @@ import { computeSignals } from '../utils/signals';
  */
 
 
-
-// Reglas por defecto para decidir cuando disparar una senal. Mercado.jsx permite sobreescribir algunas.
-const DEFAULT_SIGNAL_CONFIG = {
-  useEMA: true,
-  useRSI: true,
-  useMACD: true,
-  rsiOversold: 30,
-  rsiOverbought: 70,
-  macdHistogramThreshold: 0.15,
-  minReasons: 1,
-};
 
 const calcEMA = (values, period, accessor = (v) => v.close) => {
   if (!Array.isArray(values) || values.length === 0) return [];

@@ -236,6 +236,77 @@
   transform: scale(1.15);
 }
 
+.strategy-section,
+.strategy-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #0f172a;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid #1e2a44;
+}
+
+.strategy-selector {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.strategy-selector select {
+  flex: 1;
+  min-width: 220px;
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  color: #e2e8f0;
+  padding: 8px 12px;
+  font-size: 0.95rem;
+}
+
+.strategy-status {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.strategy-status.error {
+  color: #f87171;
+}
+
+.strategy-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.indicator-pill-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.indicator-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(148, 163, 184, 0.12);
+  font-size: 0.85rem;
+  color: #e2e8f0;
+}
+
+.indicator-pill.muted {
+  opacity: 0.65;
+}
+
+.strategy-signal-summary {
+  font-size: 0.9rem;
+  color: #cbd5f5;
+}
+
 .signal-config {
   display: flex;
   flex-direction: column;

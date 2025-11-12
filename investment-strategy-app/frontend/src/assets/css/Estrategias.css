@@ -322,5 +322,82 @@ button.primary:disabled { opacity: 0.6; cursor: default; }
 /*----------------------------------*/
 
 
+.strategy-config-block {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.strategy-config-block h5 {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.indicator-toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.strategy-config-block .config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.strategy-config-block label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+  color: #e2e8f0;
+}
+
+.strategy-config-block input[type='number'] {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: #f8fafc;
+}
+
+.indicator-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.indicator-toggle input {
+  accent-color: #38bdf8;
+}
+
+.toggle-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toggle-icon {
+  font-size: 1.15rem;
+}
+
+.form-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.form-hint.error {
+  color: #f87171;
+}
 
 

@@ -13,7 +13,7 @@ import { createChart, CrosshairMode } from 'lightweight-charts';
  *  - Renderiza overlays (EMA, SMA), paneles secundarios (RSI/MACD) y marcadores de senales.
  *  - Garantiza cleanup/resize para prevenir fugas cuando se cambia de seccion.
  *
- * TODO: agregar sincronizacion de escala entre los subpanels (RSI/MACD) y el panel principal
+ *  
  *  para facilitar comparaciones temporales cuando el usuario hace zoom o pan.
  */
 

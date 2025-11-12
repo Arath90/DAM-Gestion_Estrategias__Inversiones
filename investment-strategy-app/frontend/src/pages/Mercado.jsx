@@ -1,12 +1,19 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Notification from '../components/Notification';
 import { DEFAULT_SYMBOLS } from '../services/marketData';
 import { persistTradeSignals } from '../services/tradingSignals';
 import { useMarketData } from '../hooks/useMarketData';
 import { useMarketCharts } from '../hooks/useMarketCharts';
+import api from '../config/apiClient';
+import {
+  DEFAULT_INDICATOR_SETTINGS,
+  DEFAULT_SIGNAL_CONFIG,
+  INDICATOR_TOGGLES,
+  hydrateStrategyProfile,
+} from '../constants/strategyProfiles';
 import '../assets/css/Mercado.css';
 import '../assets/globalAssets.css';
-
+//todo: eliminar indicadores tecnicos para que solo se seleccione una estrategia de trading en un combobox, entonces tanto indicadores como configuracion de señales se adaptan a la estrategia seleccionada, esto quiere decir que en estrategias.jsx  se debe agregar la logica para definir que indicadores y configuraciones de señales se usan por estrategia. asi como el asignarlo a una estrategia en la creacion/edicion de estrategias que esto a su vez se va a mostrar en un combo box en esta pantalla de mercado lo cual debe hacer funcion de filtro para los datos que se muestran en el grafico y las señales generadas.
 /**
  * Pantalla Mercado.
  * Orquesta el flujo completo de datos -> graficos -> acciones:
@@ -44,42 +51,122 @@ const buildToastMessage = (signal, mode) => {
   return `${prefix}: ${actionLabel} ${signal.symbol} @ ${priceLabel} (${reasons})`;
 };
 
+const STRATEGY_BASE_PARAMS = { dbServer: 'MongoDB', ProcessType: 'READ', $top: 50 };
+
+const collectStrategyNodes = (node) => {
+  if (!node || typeof node !== 'object') return [];
+  const bucket = [];
+  if (Array.isArray(node.dataRes)) bucket.push(...node.dataRes);
+  else if (node.dataRes && typeof node.dataRes === 'object') bucket.push(node.dataRes);
+  if (Array.isArray(node.data)) node.data.forEach((entry) => bucket.push(...collectStrategyNodes(entry)));
+  return bucket;
+};
+
+const normalizeStrategiesResponse = (payload) => {
+  if (!payload) return [];
+  if (Array.isArray(payload.value)) {
+    const collected = payload.value.flatMap(collectStrategyNodes);
+    return collected.length ? collected : payload.value;
+  }
+  const collected = collectStrategyNodes(payload);
+  if (collected.length) return collected;
+  if (Array.isArray(payload)) return payload;
+  if (payload.data) return normalizeStrategiesResponse(payload.data);
+  return [payload];
+};
+
+const attachStrategyKey = (list = []) =>
+  list.map((item, idx) => ({
+    ...item,
+    __frontendId:
+      item.ID || item._id || item.strategy_code || item.name || `strategy-${idx}`,
+  }));
+
+const getStrategyKey = (strategy) => strategy?.__frontendId || '';
+
+const fetchStrategiesCatalog = async () => {
+  const { data } = await api.get('/Strategies', { params: STRATEGY_BASE_PARAMS });
+  return attachStrategyKey(normalizeStrategiesResponse(data));
+};
+
 const Mercado = () => {
   // 1. Estados y datos
   const [symbol, setSymbol] = useState(DEFAULT_SYMBOLS[0]?.value || 'I:NDX');
   const [interval, setInterval] = useState(INTERVALS[0].value);
   const [customTicker, setCustomTicker] = useState('');
-  const [settings, setSettings] = useState({
-    ema20: true,
-    ema50: true,
-    sma200: false,
-    volume: true,
-    rsi: true,
-    macd: true,
-    signals: true,
-  });
+  const [settings, setSettings] = useState(() => ({ ...DEFAULT_INDICATOR_SETTINGS }));
   const [tradeMode, setTradeMode] = useState(TRADE_MODES.notify);
-  const [macdThreshold, setMacdThreshold] = useState(0.15);
-  const [signalLevels, setSignalLevels] = useState({ rsiOversold: 30, rsiOverbought: 70 });
+  const [strategySignalConfig, setStrategySignalConfig] = useState(() => ({ ...DEFAULT_SIGNAL_CONFIG }));
+  const [strategies, setStrategies] = useState([]);
+  const [selectedStrategyId, setSelectedStrategyId] = useState('');
+  const [strategiesLoading, setStrategiesLoading] = useState(false);
+  const [strategiesError, setStrategiesError] = useState('');
   const [notifications, setNotifications] = useState([]);
   const [popup, setPopup] = useState({ open: false, message: '' });
+
+  const loadStrategies = useCallback(async () => {
+    setStrategiesLoading(true);
+    setStrategiesError('');
+    try {
+      const catalog = await fetchStrategiesCatalog();
+      setStrategies(Array.isArray(catalog) ? catalog.filter((item) => getStrategyKey(item)) : []);
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        'No se pudieron cargar las estrategias.';
+      setStrategiesError(message);
+    } finally {
+      setStrategiesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadStrategies();
+  }, [loadStrategies]);
+
+  useEffect(() => {
+    if (!strategies.length) {
+      setSelectedStrategyId('');
+      return;
+    }
+    const exists = strategies.some((strategy) => getStrategyKey(strategy) === selectedStrategyId);
+    if (!exists) {
+      setSelectedStrategyId(getStrategyKey(strategies[0]));
+    }
+  }, [strategies, selectedStrategyId]);
+
+  const selectedStrategy = useMemo(
+    () => strategies.find((strategy) => getStrategyKey(strategy) === selectedStrategyId) || null,
+    [strategies, selectedStrategyId],
+  );
+
+  useEffect(() => {
+    const { indicatorSettings, signalConfig: cfg } = hydrateStrategyProfile(selectedStrategy);
+    setSettings(indicatorSettings);
+    setStrategySignalConfig(cfg);
+  }, [selectedStrategy]);
 
   const intervalLabel = useMemo(
     () => INTERVALS.find((it) => it.value === interval)?.fullLabel || interval,
     [interval],
   );
 
+  const indicatorBadges = useMemo(
+    () => INDICATOR_TOGGLES.filter(({ key }) => settings[key]),
+    [settings],
+  );
+
   const signalConfig = useMemo(
     () => ({
+      ...DEFAULT_SIGNAL_CONFIG,
+      ...strategySignalConfig,
       useEMA: settings.ema20 && settings.ema50,
       useRSI: settings.rsi,
       useMACD: settings.macd,
-      rsiOversold: Number(signalLevels.rsiOversold) || 30,
-      rsiOverbought: Number(signalLevels.rsiOverbought) || 70,
-      macdHistogramThreshold: Math.max(0, Number(macdThreshold) || 0),
-      minReasons: 1,
     }),
-    [settings, macdThreshold, signalLevels],
+    [strategySignalConfig, settings],
   );
 
   // Calcular el límite de velas necesario para cubrir 1 año según el intervalo
@@ -320,6 +407,12 @@ const Mercado = () => {
     const freshSignals = tradeSignals.filter((signal) => signal.time > lastKnown);
     if (!freshSignals.length) return;
 
+    const strategyKey = getStrategyKey(selectedStrategy);
+    const strategyCode =
+      selectedStrategy?.strategy_code ||
+      selectedStrategy?.name ||
+      'FRONTEND_MACD_RSI';
+
     const batch = freshSignals.map((signal) => ({
       id: signal.id,
       ts: signal.time,
@@ -331,6 +424,8 @@ const Mercado = () => {
       symbol: signal.symbol || symbol,
       interval: signal.interval || intervalLabel,
       mode: tradeMode,
+      strategyId: strategyKey,
+      strategyCode,
     }));
 
     setNotifications((prev) => {
@@ -345,14 +440,14 @@ const Mercado = () => {
     });
 
     if (tradeMode === TRADE_MODES.auto) {
-      // Persistir señales con manejo de errores mejorado
       persistTradeSignals(batch, {
         symbol,
         interval: intervalLabel,
         mode: tradeMode,
+        strategyCode,
       })
         .then(({ persisted, errors }) => {
-          console.log(`✓ ${persisted.length} señales guardadas`);
+          console.log(`✓ ${persisted} señales guardadas`);
           if (errors.length) {
             console.warn('[signals] errores al persistir:', errors);
             setError(`Algunas señales no se pudieron guardar: ${errors.length} fallos`);
@@ -363,16 +458,11 @@ const Mercado = () => {
           setError('Error al guardar señales de trading');
         });
     }
-  }, [tradeSignals, tradeMode, symbol, intervalLabel]);
+  }, [tradeSignals, tradeMode, symbol, intervalLabel, selectedStrategy]);
 
   const handleSymbolPreset = (event) => {
     setSymbol(event.target.value);
     setCustomTicker('');
-  };
-
-  const handleSignalLevelChange = (field) => (event) => {
-    const value = event.target.value;
-    setSignalLevels((prev) => ({ ...prev, [field]: value }));
   };
 
   const volumeLabel = useMemo(() => {
@@ -488,35 +578,70 @@ const Mercado = () => {
           </div>
         </div>
 
-        <div className="indicators-section">
+        <div className="strategy-section">
           <label className="section-label">
-            <span className="label-icon">📊</span>
-            Indicadores Técnicos
+            <span className="label-icon">🧠</span>
+            Estrategia de trading
           </label>
-          <div className="switches">
-            {[
-              ['ema20', 'EMA 20', '📈'],
-              ['ema50', 'EMA 50', '📈'],
-              ['sma200', 'SMA 200', '📉'],
-              ['volume', 'Volumen', '📊'],
-              ['rsi', 'RSI', '⚡'],
-              ['macd', 'MACD', '〰️'],
-              ['signals', 'Señales', '🎯'],
-            ].map(([key, label, icon]) => (
-              <label key={key} className="indicator-toggle">
-                <input
-                  type="checkbox"
-                  checked={settings[key]}
-                  onChange={(event) =>
-                    setSettings((prev) => ({ ...prev, [key]: event.target.checked }))
-                  }
-                />
-                <span className="toggle-content">
-                  <span className="toggle-icon">{icon}</span>
-                  <span className="toggle-label">{label}</span>
-                </span>
-              </label>
-            ))}
+          <div className="strategy-selector">
+            <select
+              value={selectedStrategyId}
+              onChange={(event) => setSelectedStrategyId(event.target.value)}
+              disabled={strategiesLoading || !strategies.length}
+            >
+              {(!strategies.length) && (
+                <option value="">
+                  {strategiesLoading ? 'Cargando estrategias...' : 'Sin estrategias registradas'}
+                </option>
+              )}
+              {strategies.map((strategy, index) => {
+                const value = getStrategyKey(strategy) || `strategy-${index}`;
+                const label = strategy.name || strategy.strategy_code || value;
+                const suffix =
+                  strategy.name && strategy.strategy_code ? ` (${strategy.strategy_code})` : '';
+                return (
+                  <option key={value} value={value}>
+                    {label}
+                    {suffix}
+                  </option>
+                );
+              })}
+            </select>
+            <button
+              type="button"
+              className="btn-secondary"
+              aria-label="Refrescar estrategias"
+              onClick={loadStrategies}
+              disabled={strategiesLoading}
+            >
+              {strategiesLoading ? 'Actualizando...' : 'Refrescar'}
+            </button>
+          </div>
+          {strategiesError && <p className="strategy-status error">{strategiesError}</p>}
+        </div>
+
+        <div className="strategy-summary">
+          <div>
+            <strong>Indicadores activos</strong>
+            <div className="indicator-pill-group">
+              {indicatorBadges.length ? (
+                indicatorBadges.map(({ key, label, icon }) => (
+                  <span key={key} className="indicator-pill">
+                    <span className="toggle-icon">{icon}</span>
+                    {label}
+                  </span>
+                ))
+              ) : (
+                <span className="indicator-pill muted">Sin indicadores</span>
+              )}
+            </div>
+          </div>
+          <div>
+            <strong>Configuración de señales</strong>
+            <span className="strategy-signal-summary">
+              RSI {signalConfig.rsiOversold}/{signalConfig.rsiOverbought} · MACD ≥{' '}
+              {signalConfig.macdHistogramThreshold} · {signalConfig.minReasons}+ razones
+            </span>
           </div>
         </div>
 
@@ -525,7 +650,7 @@ const Mercado = () => {
         <div className="signal-config">
           <label className="section-label">
             <span className="label-icon">⚙️</span>
-            Configuración de Señales
+            Configuración de ejecución
           </label>
           <div className="trade-mode">
             <span className="mode-label">Modo de Trading:</span>
@@ -548,34 +673,6 @@ const Mercado = () => {
                 onChange={(event) => setTradeMode(event.target.value)}
               />
               Auto trading
-            </label>
-          </div>
-
-          <div className="config-grid">
-            <label>
-              <span>Umbral MACD</span>
-              <input
-                type="number"
-                step="0.01"
-                value={macdThreshold}
-                onChange={(event) => setMacdThreshold(event.target.value)}
-              />
-            </label>
-            <label>
-              <span>RSI sobreventa</span>
-              <input
-                type="number"
-                value={signalLevels.rsiOversold}
-                onChange={handleSignalLevelChange('rsiOversold')}
-              />
-            </label>
-            <label>
-              <span>RSI sobrecompra</span>
-              <input
-                type="number"
-                value={signalLevels.rsiOverbought}
-                onChange={handleSignalLevelChange('rsiOverbought')}
-              />
             </label>
           </div>
         </div>

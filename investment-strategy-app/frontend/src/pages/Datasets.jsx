@@ -1,94 +1,185 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import '../assets/css/Datasets.css';
-// import axios from '../config/apiClient'; // ← conéctalo cuando tengas backend
+import axios from '../config/apiClient';
 
 import DatasetCard from '../components/DatasetCard';
 
 const FIELD_CONFIG = [
-  { name: 'code', label: 'Código', type: 'text', placeholder: 'Ej. SP500_Daily_2024' },
-  { name: 'name', label: 'Nombre', type: 'text', placeholder: 'Nombre legible' },
-  { name: 'timeframe', label: 'Timeframe', type: 'text', placeholder: '1D / 1H' },
-  { name: 'status', label: 'Estatus', type: 'text', placeholder: 'Active / Archived' },
-  { name: 'tags', label: 'Etiquetas', type: 'text', placeholder: 'comma,separadas,por,comas' },
-  { name: 'dateStart', label: 'Desde', type: 'date' },
-  { name: 'dateEnd', label: 'Hasta', type: 'date' },
+  { name: 'name', label: 'Nombre', type: 'text', placeholder: 'Ej. SP500_Daily_Features', required: true },
   { name: 'description', label: 'Descripción', as: 'textarea', placeholder: 'Breve descripción' },
+  { name: 'instrument_conid', label: 'Instrumento CONID', type: 'number', placeholder: '123456', step: '1' },
+  { name: 'spec_json', label: 'Spec JSON', as: 'textarea', placeholder: '{ "features": ["ema20", "macd"] }' },
 ];
 
 const blankForm = () =>
-  FIELD_CONFIG.reduce((acc, f) => ({ ...acc, [f.name]: '' }), {});
+  FIELD_CONFIG.reduce((acc, field) => {
+    acc[field.name] = '';
+    return acc;
+  }, {});
+
+const toReadableSpec = (value) => {
+  if (value == null || value === '') return '';
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+};
+
+const buildFormFromDataset = (item) => {
+  const base = blankForm();
+  FIELD_CONFIG.forEach(({ name }) => {
+    if (item[name] == null) return;
+    if (name === 'spec_json') {
+      base[name] = toReadableSpec(item[name]);
+    } else {
+      base[name] = String(item[name]);
+    }
+  });
+  return base;
+};
+
+const parseNumber = (value) => {
+  if (value === '' || value == null) return undefined;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : undefined;
+};
+
+const sanitizePayload = (form) => {
+  const payload = {};
+  if (form.name && form.name.trim()) payload.name = form.name.trim();
+  if (form.description && form.description.trim()) payload.description = form.description.trim();
+
+  const conid = parseNumber(form.instrument_conid);
+  if (conid != null) payload.instrument_conid = conid;
+
+  if (form.spec_json && form.spec_json.trim()) {
+    const trimmed = form.spec_json.trim();
+    // Validamos JSON pero siempre enviamos string para cumplir con LargeString en CAP.
+    try {
+      JSON.parse(trimmed);
+    } catch {
+      // Si no es JSON válido igual permitimos guardarlo como texto describiendo el dataset.
+    }
+    payload.spec_json = trimmed;
+  }
+
+  return payload;
+};
+
+const getErrorMessage = (err, fallback) => {
+  const raw =
+    err?.response?.data?.message ||
+    err?.response?.data?.error ||
+    err?.message ||
+    fallback;
+  if (!raw) return fallback;
+  if (typeof raw === 'string') return raw;
+  try {
+    return JSON.stringify(raw);
+  } catch {
+    return String(raw);
+  }
+};
+
+const BASE_PARAMS = { dbServer: 'MongoDB' };
+const keyFor = (id) => `(ID='${encodeURIComponent(id)}')`;
+
+const collectDataRes = (node) => {
+  if (!node || typeof node !== 'object') return [];
+  const bucket = [];
+  if (Array.isArray(node.dataRes)) bucket.push(...node.dataRes);
+  else if (node.dataRes && typeof node.dataRes === 'object') bucket.push(node.dataRes);
+  if (Array.isArray(node.data)) node.data.forEach((entry) => bucket.push(...collectDataRes(entry)));
+  return bucket;
+};
+
+const normalizeResponse = (payload) => {
+  if (!payload) return [];
+  if (Array.isArray(payload.value)) {
+    const collected = payload.value.flatMap(collectDataRes);
+    return collected.length ? collected : payload.value;
+  }
+  const collected = collectDataRes(payload);
+  if (collected.length) return collected;
+  if (Array.isArray(payload)) return payload;
+  if (payload.data) return normalizeResponse(payload.data);
+  return [payload];
+};
+
+const unwrap = (payload) => {
+  const arr = normalizeResponse(payload);
+  return Array.isArray(arr) ? arr : arr ? [arr] : [];
+};
+
+const fetchList = async () => {
+  const params = { ...BASE_PARAMS, ProcessType: 'READ', $top: 100 };
+  const { data } = await axios.get('/MLDatasets', { params });
+  return unwrap(data);
+};
+
+const createDataset = async (payload) => {
+  const params = { ...BASE_PARAMS, ProcessType: 'CREATE' };
+  const { data } = await axios.post('/MLDatasets', payload, { params });
+  return unwrap(data)[0] || payload;
+};
+
+const updateDataset = async (id, payload) => {
+  const params = { ...BASE_PARAMS, ProcessType: 'UPDATE' };
+  const { data } = await axios.patch(`/MLDatasets${keyFor(id)}`, payload, { params });
+  return unwrap(data)[0] || payload;
+};
+
+const deleteDataset = async (id) => {
+  const params = { ...BASE_PARAMS, ProcessType: 'DELETE' };
+  await axios.delete(`/MLDatasets${keyFor(id)}`, { params });
+};
 
 const Datasets = () => {
-  // Estado base
-  const [items, setItems] = useState([]);            // lista datasets
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [expandedId, setExpandedId] = useState(null);
 
-  // Crear/editar
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState(() => blankForm());
   const [editForms, setEditForms] = useState({});
   const [submittingCreate, setSubmittingCreate] = useState(false);
   const [submittingId, setSubmittingId] = useState(null);
 
-  // Filtros
   const [q, setQ] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterTimeframe, setFilterTimeframe] = useState('');
 
-  const emptyState = useMemo(() => !loading && items.length === 0, [loading, items.length]);
+  const emptyState = useMemo(() => !loading && items.length === 0, [items.length, loading]);
 
-  // ==========================
-  // Stubs para integrar Backend
-  // ==========================
-  const fetchList = async () => {
-    // TODO: reemplazar con llamada real (axios.get('/MLDatasets', { params }))
-    // Simulación: carga vacía inicialmente
-    return [];
-  };
-
-  const createDataset = async (payload) => {
-    // TODO: axios.post('/MLDatasets', payload)
-    console.log('createDataset()', payload);
-    return { ID: crypto.randomUUID(), ...payload, updatedAt: new Date().toISOString() };
-  };
-
-  const updateDataset = async (id, payload) => {
-    // TODO: axios.patch(`/MLDatasets(ID='${id}')`, payload)
-    console.log('updateDataset()', id, payload);
-    return { ID: id, ...payload, updatedAt: new Date().toISOString() };
-  };
-
-  const deleteDataset = async (id) => {
-    // TODO: axios.delete(`/MLDatasets(ID='${id}')`)
-    console.log('deleteDataset()', id);
-  };
-
-  // =============
-  // Ciclo de vida
-  // =============
-  const loadItems = async () => {
+  const loadItems = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const data = await fetchList();
       setItems(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(err?.message || 'No se pudo cargar la lista.');
+      setError(getErrorMessage(err, 'No se pudo cargar la lista.'));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadItems();
-  }, []);
+  }, [loadItems]);
 
-  // =========
-  // Handlers
-  // =========
+  useEffect(() => {
+    if (!expandedId) return;
+    setEditForms((prev) => {
+      if (prev[expandedId]) return prev;
+      const current = items.find((x) => x.ID === expandedId);
+      if (!current) return prev;
+      return { ...prev, [expandedId]: buildFormFromDataset(current) };
+    });
+  }, [expandedId, items]);
+
   const handleToggleExpand = (id) => {
     setExpandedId((prev) => (prev === id ? null : id));
     setMessage('');
@@ -105,12 +196,15 @@ const Datasets = () => {
   const handleCreate = async (e) => {
     e.preventDefault();
     setSubmittingCreate(true);
-    setError(''); setMessage('');
+    setError('');
+    setMessage('');
+
     try {
-      // Limpieza mínima
-      const payload = { ...createForm };
-      if (typeof payload.tags === 'string') {
-        payload.tags = payload.tags.split(',').map(s => s.trim()).filter(Boolean);
+      const payload = sanitizePayload(createForm);
+      if (!payload.name) {
+        setError('El nombre del dataset es obligatorio.');
+        setSubmittingCreate(false);
+        return;
       }
       const created = await createDataset(payload);
       setItems((prev) => [created, ...prev]);
@@ -118,7 +212,7 @@ const Datasets = () => {
       setShowCreate(false);
       setMessage('Dataset creado correctamente.');
     } catch (err) {
-      setError(err?.message || 'No se pudo crear el dataset.');
+      setError(getErrorMessage(err, 'No se pudo crear el dataset.'));
     } finally {
       setSubmittingCreate(false);
     }
@@ -129,17 +223,21 @@ const Datasets = () => {
     const formState = editForms[id];
     if (!formState) return;
     setSubmittingId(id);
-    setError(''); setMessage('');
+    setError('');
+    setMessage('');
+
     try {
-      const payload = { ...formState };
-      if (typeof payload.tags === 'string') {
-        payload.tags = payload.tags.split(',').map(s => s.trim()).filter(Boolean);
+      const payload = sanitizePayload(formState);
+      if (!payload.name) {
+        setError('El nombre del dataset es obligatorio.');
+        setSubmittingId(null);
+        return;
       }
       const updated = await updateDataset(id, payload);
-      setItems((prev) => prev.map((it) => (it.ID === id ? { ...it, ...updated } : it)));
-      setMessage('Dataset actualizado.');
+      setItems((prev) => prev.map((item) => (item.ID === id ? { ...item, ...updated } : item)));
+      setMessage('Dataset actualizado correctamente.');
     } catch (err) {
-      setError(err?.message || 'No se pudo actualizar el dataset.');
+      setError(getErrorMessage(err, 'No se pudo actualizar el dataset.'));
     } finally {
       setSubmittingId(null);
     }
@@ -148,43 +246,40 @@ const Datasets = () => {
   const handleDelete = async (id) => {
     if (!window.confirm('¿Eliminar este dataset?')) return;
     setSubmittingId(id);
-    setError(''); setMessage('');
+    setError('');
+    setMessage('');
     try {
       await deleteDataset(id);
-      setItems((prev) => prev.filter((x) => x.ID !== id));
-      setMessage('Dataset eliminado.');
+      setItems((prev) => prev.filter((item) => item.ID !== id));
+      setEditForms((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
       if (expandedId === id) setExpandedId(null);
+      setMessage('Dataset eliminado.');
     } catch (err) {
-      setError(err?.message || 'No se pudo eliminar el dataset.');
+      setError(getErrorMessage(err, 'No se pudo eliminar el dataset.'));
     } finally {
       setSubmittingId(null);
     }
   };
 
-  // ==========
-  // Derivados
-  // ==========
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return items.filter((it) => {
-      const okQ =
-        !needle ||
-        [it.code, it.name, it.timeframe, (it.tags || []).join(',')]
-          .filter(Boolean)
-          .some((s) => String(s).toLowerCase().includes(needle));
-
-      const okStatus = !filterStatus || it.status === filterStatus;
-      const okTf = !filterTimeframe || it.timeframe === filterTimeframe;
-
-      return okQ && okStatus && okTf;
-    });
-  }, [items, q, filterStatus, filterTimeframe]);
+    if (!needle) return items;
+    return items.filter((it) =>
+      [it.name, it.description, it.instrument_conid, JSON.stringify(it.spec_json)]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(needle)),
+    );
+  }, [items, q]);
 
   return (
     <div className="page-datasets">
       <header className="datasets-header">
         <h2>ML Datasets</h2>
-        <p>Visualiza, filtra y administra los datasets para entrenamiento y backtesting (En desarrollo). </p>
+        <p>Administra los datasets utilizados para entrenamiento, backtesting y simulaciones.</p>
       </header>
 
       <section className="datasets-actions">
@@ -199,31 +294,10 @@ const Datasets = () => {
         <div className="right filters">
           <input
             className="input"
-            placeholder="Buscar por código, nombre o etiquetas…"
+            placeholder="Buscar por nombre, descripción o CONID..."
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <label className="form-field" style={{ minWidth: 180 }}>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-            >
-              <option value="">Estatus (todos)</option>
-              <option value="Active">Active</option>
-              <option value="Archived">Archived</option>
-            </select>
-          </label>
-          <label className="form-field" style={{ minWidth: 180 }}>
-            <select
-              value={filterTimeframe}
-              onChange={(e) => setFilterTimeframe(e.target.value)}
-            >
-              <option value="">Timeframe (todos)</option>
-              <option value="1D">1D</option>
-              <option value="1H">1H</option>
-              <option value="5m">5m</option>
-            </select>
-          </label>
         </div>
       </section>
 
@@ -231,9 +305,9 @@ const Datasets = () => {
         <form className="dataset-form" onSubmit={handleCreate}>
           <h4>Nuevo dataset</h4>
           <div className="form-grid">
-            {FIELD_CONFIG.map(({ name, label, type, placeholder, as }) => (
+            {FIELD_CONFIG.map(({ name, label, type, placeholder, as, step }) => (
               <label key={name} className="form-field">
-                <span>{label}</span>
+                <span>{label} {name === 'name' ? '*' : ''}</span>
                 {as === 'textarea' ? (
                   <textarea
                     value={createForm[name]}
@@ -245,6 +319,7 @@ const Datasets = () => {
                     type={type || 'text'}
                     value={createForm[name]}
                     placeholder={placeholder}
+                    step={step}
                     onChange={(e) => handleCreateChange(name, e.target.value)}
                   />
                 )}
@@ -252,32 +327,25 @@ const Datasets = () => {
             ))}
           </div>
           <button className="btn-primary" type="submit" disabled={submittingCreate}>
-            {submittingCreate ? 'Guardando…' : 'Crear dataset'}
+            {submittingCreate ? 'Guardando...' : 'Crear dataset'}
           </button>
         </form>
       )}
 
-      {loading && <div className="datasets-status">Cargando datasets…</div>}
+      {loading && <div className="datasets-status">Cargando datasets...</div>}
       {error && !loading && <div className="datasets-status error">{error}</div>}
       {message && <div className="datasets-status success">{message}</div>}
       {emptyState && <div className="datasets-status">Aún no hay datasets registrados.</div>}
 
       <section className="datasets-list">
-        {filtered.map((item) => {
+        {filtered.map((item, idx) => {
           const isExpanded = expandedId === item.ID;
-          const editState = editForms[item.ID] ?? {
-            code: item.code || '',
-            name: item.name || '',
-            timeframe: item.timeframe || '',
-            status: item.status || '',
-            tags: Array.isArray(item.tags) ? item.tags.join(',') : (item.tags || ''),
-            dateStart: item.dateStart || '',
-            dateEnd: item.dateEnd || '',
-            description: item.description || '',
-          };
+          const editState =
+            editForms[item.ID] ||
+            buildFormFromDataset(item);
           return (
             <DatasetCard
-              key={item.ID}
+              key={item.ID || item._id || `dataset-${idx}`}
               item={item}
               isExpanded={isExpanded}
               onToggle={handleToggleExpand}

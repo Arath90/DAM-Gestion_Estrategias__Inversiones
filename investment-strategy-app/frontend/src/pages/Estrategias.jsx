@@ -1,11 +1,19 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import '../assets/css/Estrategias.css';
 import '../assets/globalAssets.css';
 import axios from '../config/apiClient';
+import {
+  DEFAULT_INDICATOR_SETTINGS,
+  DEFAULT_SIGNAL_CONFIG,
+  INDICATOR_TOGGLES,
+  STRATEGY_SIGNAL_FIELDS,
+  describeIndicators,
+  hydrateStrategyProfile,
+} from '../constants/strategyProfiles';
 
 const FIELD_CONFIG = [
   { name: 'strategy_code', label: 'Código Estrategia', type: 'text', placeholder: 'STRAT-2025-001', required: true },
-  { name: 'dataset_id', label: 'ID Dataset', type: 'text', placeholder: 'ObjectId de MLDataset', required: true },
+  { name: 'dataset_id', label: 'Dataset', as: 'select', options: [{ value: '', label: 'Selecciona dataset' }], required: true },
   { name: 'period_start', label: 'Inicio periodo', type: 'datetime-local', required: true },
   { name: 'period_end', label: 'Fin periodo', type: 'datetime-local', required: true },
   { name: 'name', label: 'Nombre', type: 'text', placeholder: 'Ej. Momentum US Equities' },
@@ -32,44 +40,54 @@ const FIELD_CONFIG = [
   { name: 'description', label: 'Descripción', as: 'textarea', placeholder: 'Breve descripción' },
 ];
 
+const mergeIndicatorSettings = (value) => ({
+  ...DEFAULT_INDICATOR_SETTINGS,
+  ...(value || {}),
+});
 
-const INDICATOR_CONFIG = {
-  "RSI": {
-    "name": "Índice de Fuerza Relativa",
-    "properties": [
-      { "id": "RSI_period", "label": "Período (N)", "type": "number", "default": 14, "min": 1, "required": true },
-      { "id": "RSI_overbought", "label": "Nivel de Sobrecompra", "type": "number", "default": 70, "min": 50 },
-      { "id": "RSI_oversold", "label": "Nivel de Sobrevanta", "type": "number", "default": 30, "max": 50 }
-    ]
-  },
-  "MACD": {
-    "name": "Divergencia/Convergencia de Media Móvil",
-    "properties": [
-      { "id": "MACD_fast_period", "label": "EMA Rápida", "type": "number", "default": 12, "min": 1, "required": true },
-      { "id": "MACD_slow_period", "label": "EMA Lenta", "type": "number", "default": 26, "min": 1, "required": true },
-      { "id": "MACD_signal_period", "label": "Período Señal", "type": "number", "default": 9, "min": 1, "required": true }
-    ]
-  },
-  "EMA": {
-    "name": "Media Móvil Exponencial",
-    "properties": [
-      { "id": "EMA_period", "label": "Período", "type": "number", "default": 20, "min": 1, "required": true }
-    ]
-  },
-  "SMA": {
-    "name": "Media Móvil Simple",
-    "properties": [
-      { "id": "SMA_period", "label": "Período", "type": "number", "default": 20, "min": 1, "required": true }
-    ]
+const mergeSignalConfig = (value) => ({
+  ...DEFAULT_SIGNAL_CONFIG,
+  ...(value || {}),
+});
+
+const parseParamsBag = (value) => {
+  if (!value) return {};
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return typeof parsed === 'object' && parsed ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  if (typeof value === 'object') return { ...value };
+  return {};
+};
+
+const getErrorMessage = (err, fallback) => {
+  const raw =
+    err?.response?.data?.message ||
+    err?.response?.data?.error ||
+    err?.message ||
+    fallback;
+  if (typeof raw === 'string') return raw;
+  try {
+    return JSON.stringify(raw);
+  } catch {
+    return String(raw || fallback);
   }
 };
 
-
-const blankForm = () =>
-  FIELD_CONFIG.reduce((acc, field) => {
+const blankForm = () => {
+  const base = FIELD_CONFIG.reduce((acc, field) => {
     acc[field.name] = '';
     return acc;
   }, {});
+  base.indicator_settings = { ...DEFAULT_INDICATOR_SETTINGS };
+  base.signal_config = { ...DEFAULT_SIGNAL_CONFIG };
+  base.params_bag = {};
+  return base;
+};
 
 const pad2 = (n) => `${n}`.padStart(2, '0');
 const toDateInput = (value) => {
@@ -85,8 +103,25 @@ const buildFormFromStrategy = (item) => {
     if (item[name] == null) return;
     if (["period_start", "period_end"].includes(name)) base[name] = toDateInput(item[name]);
     else if (name === 'tags' && Array.isArray(item[name])) base[name] = item[name].join(',');
+    else if (name === 'dataset_id') {
+      const datasetValue = item[name];
+      if (typeof datasetValue === 'object' && datasetValue !== null) {
+        base[name] =
+          datasetValue.ID ||
+          datasetValue._id ||
+          datasetValue.id ||
+          datasetValue.name ||
+          '';
+      } else {
+        base[name] = datasetValue != null ? String(datasetValue) : '';
+      }
+    }
     else base[name] = String(item[name]);
   });
+  const { indicatorSettings, signalConfig, paramsBag } = hydrateStrategyProfile(item);
+  base.indicator_settings = mergeIndicatorSettings(indicatorSettings);
+  base.signal_config = mergeSignalConfig(signalConfig);
+  base.params_bag = paramsBag;
   return base;
 };
 
@@ -103,27 +138,54 @@ const toISOOrNull = (v) => {
 
 const sanitizePayload = (form) => {
   const payload = {};
+  const paramsBag = {
+    ...parseParamsBag(form.params_bag),
+  };
+  const normalizedIndicatorSettings = mergeIndicatorSettings(form.indicator_settings);
+  const normalizedSignalConfig = mergeSignalConfig(form.signal_config);
+
   Object.entries(form).forEach(([k, v]) => {
     if (v === '' || v == null) return;
+    if (['indicator_settings', 'signal_config', 'params_bag'].includes(k)) return;
     if (k === 'capitalAllocated') {
       const n = toNumberOrNull(v);
       if (n != null) payload[k] = n;
       return;
     }
-    // Solo enviar period_start y period_end, NO createdAt ni updatedAt
     if (["period_start", "period_end"].includes(k)) {
       const iso = toISOOrNull(v);
       if (iso) payload[k] = iso;
       return;
     }
     if (k === 'tags') {
-      const arr = String(v).split(',').map(s => s.trim()).filter(Boolean);
+      const arr = String(v).split(',').map((s) => s.trim()).filter(Boolean);
       if (arr.length) payload[k] = arr;
       return;
     }
     payload[k] = v;
   });
+
+  const nextParams = {
+    ...paramsBag,
+    indicator_settings: normalizedIndicatorSettings,
+    signal_config: normalizedSignalConfig,
+  };
+  payload.params_json = JSON.stringify(nextParams);
+
   return payload;
+};
+
+const sanitizeSignalValue = (field, rawValue, previous = DEFAULT_SIGNAL_CONFIG[field]) => {
+  if (rawValue === '' || rawValue == null) return previous;
+  const num = Number(rawValue);
+  if (!Number.isFinite(num)) return previous;
+  if (field === 'minReasons') return Math.max(1, Math.round(num));
+  if (field === 'macdHistogramThreshold') return Math.max(0, num);
+  if (field === 'rsiOversold' || field === 'rsiOverbought') {
+    const bounded = Math.min(100, Math.max(0, num));
+    return field === 'rsiOversold' ? Math.min(bounded, 100) : bounded;
+  }
+  return num;
 };
 
 // === Helpers de red (mismo patrón que Instrumentos) ===
@@ -160,6 +222,11 @@ const fetchList = async () => {
   const { data } = await axios.get('/Strategies', { params });
   return unwrap(data);
 };
+const fetchDatasets = async () => {
+  const params = { ...BASE_PARAMS, ProcessType: 'READ', $top: 100 };
+  const { data } = await axios.get('/MLDatasets', { params });
+  return unwrap(data);
+};
 const createStrategy = async (payload) => {
   const params = { ...BASE_PARAMS, ProcessType: 'CREATE' };
   const { data } = await axios.post('/Strategies', payload, { params });
@@ -184,14 +251,29 @@ const Estrategias = () => {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [expandedId, setExpandedId] = useState(null);
-  const [selectedIndicator, setSelectedIndicator] = useState('RSI');
-  const [indicatorParams, setIndicatorParams] = useState({});
   const [editForms, setEditForms] = useState({});
   const [createForm, setCreateForm] = useState(() => blankForm());
   const [showCreate, setShowCreate] = useState(false); // Asegura que el formulario de creación esté oculto por defecto
   const [submittingId, setSubmittingId] = useState(null);
   const [submittingCreate, setSubmittingCreate] = useState(false);
+  const [datasets, setDatasets] = useState([]);
+  const [datasetsLoading, setDatasetsLoading] = useState(false);
+  const [datasetsError, setDatasetsError] = useState('');
   const emptyState = useMemo(() => !loading && !items.length, [loading, items.length]);
+  const datasetOptions = useMemo(() => {
+    const baseOption = datasetsLoading
+      ? [{ value: '', label: 'Cargando datasets...' }]
+      : [{ value: '', label: datasets.length ? 'Selecciona dataset' : 'Sin datasets disponibles' }];
+    const mapped = (datasets || []).map((dataset) => {
+      const rawValue = dataset.ID || dataset._id || dataset.id || dataset.name || '';
+      const value = String(rawValue);
+      return {
+        value,
+        label: dataset.name || value,
+      };
+    });
+    return [...baseOption, ...mapped];
+  }, [datasets, datasetsLoading]);
 
   const loadItems = async () => {
     setLoading(true);
@@ -200,18 +282,33 @@ const Estrategias = () => {
       const data = await fetchList();
       setItems(Array.isArray(data) ? data : []);
     } catch (err) {
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.message ||
-        'No se pudo cargar la lista.';
-      setError(msg);
+      setError(getErrorMessage(err, 'No se pudo cargar la lista.'));
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => { loadItems(); }, []);
+
+  const loadDatasets = useCallback(async () => {
+    setDatasetsLoading(true);
+    setDatasetsError('');
+    try {
+      const data = await fetchDatasets();
+      setDatasets(Array.isArray(data) ? data : []);
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        'No se pudo cargar la lista de datasets.';
+      setDatasetsError(getErrorMessage(err, 'No se pudo cargar la lista de datasets.'));
+    } finally {
+      setDatasetsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadDatasets(); }, [loadDatasets]);
 
   useEffect(() => {
     if (!expandedId) return;
@@ -234,6 +331,66 @@ const Estrategias = () => {
 
   const handleCreateChange = (field, value) => {
     setCreateForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const getEditSnapshot = (forms, id) =>
+    forms[id] || buildFormFromStrategy(items.find((x) => x.ID === id) || {});
+
+  const handleCreateIndicatorToggle = (key, checked) => {
+    setCreateForm((prev) => ({
+      ...prev,
+      indicator_settings: {
+        ...(prev.indicator_settings || DEFAULT_INDICATOR_SETTINGS),
+        [key]: checked,
+      },
+    }));
+  };
+
+  const handleEditIndicatorToggle = (id, key, checked) => {
+    setEditForms((prev) => {
+      const snapshot = getEditSnapshot(prev, id);
+      return {
+        ...prev,
+        [id]: {
+          ...snapshot,
+          indicator_settings: {
+            ...(snapshot.indicator_settings || DEFAULT_INDICATOR_SETTINGS),
+            [key]: checked,
+          },
+        },
+      };
+    });
+  };
+
+  const handleCreateSignalConfigChange = (field, value) => {
+    setCreateForm((prev) => ({
+      ...prev,
+      signal_config: {
+        ...(prev.signal_config || DEFAULT_SIGNAL_CONFIG),
+        [field]: sanitizeSignalValue(field, value, prev.signal_config?.[field]),
+      },
+    }));
+  };
+
+  const handleEditSignalConfigChange = (id, field, value) => {
+    setEditForms((prev) => {
+      const snapshot = getEditSnapshot(prev, id);
+      const nextValue = sanitizeSignalValue(
+        field,
+        value,
+        snapshot.signal_config?.[field],
+      );
+      return {
+        ...prev,
+        [id]: {
+          ...snapshot,
+          signal_config: {
+            ...(snapshot.signal_config || DEFAULT_SIGNAL_CONFIG),
+            [field]: nextValue,
+          },
+        },
+      };
+    });
   };
 
   const generateId = () => {
@@ -260,17 +417,17 @@ const Estrategias = () => {
       // Si el modelo requiere un ID generado manualmente, descomenta la siguiente línea:
       // if (!payload.ID) { payload.ID = generateId(); }
       const created = await createStrategy(payload);
-      setItems((prev) => [created, ...prev]);
+      const merged = {
+        ...payload,
+        ...created,
+        params_json: created?.params_json ?? payload.params_json,
+      };
+      setItems((prev) => [merged, ...prev]);
       setCreateForm(blankForm());
       setMessage('Estrategia creada correctamente.');
       setShowCreate(false);
     } catch (err) {
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.message ||
-        'No se pudo crear la estrategia.';
-      setError(msg);
+      setError(getErrorMessage(err, 'No se pudo crear la estrategia.'));
     } finally {
       setSubmittingCreate(false);
     }
@@ -286,17 +443,25 @@ const Estrategias = () => {
     try {
       const payload = sanitizePayload(formState);
       const updated = await updateStrategy(id, payload);
+      const merged = {
+        ...payload,
+        ...updated,
+        params_json: updated?.params_json ?? payload.params_json,
+      };
       setItems((prev) =>
-        prev.map((it) => (it.ID === id ? { ...it, ...updated, ...payload } : it)),
+        prev.map((it) => (it.ID === id ? { ...it, ...merged } : it)),
       );
+      const nextParamsBag = parseParamsBag(merged.params_json);
+      setEditForms((prev) => ({
+        ...prev,
+        [id]: {
+          ...(prev[id] || {}),
+          params_bag: nextParamsBag,
+        },
+      }));
       setMessage('Estrategia actualizada.');
     } catch (err) {
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.message ||
-        'No se pudo actualizar la estrategia.';
-      setError(msg);
+      setError(getErrorMessage(err, 'No se pudo actualizar la estrategia.'));
     } finally {
       setSubmittingId(null);
     }
@@ -318,38 +483,12 @@ const Estrategias = () => {
       setMessage('Estrategia eliminada.');
       if (expandedId === id) setExpandedId(null);
     } catch (err) {
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.message ||
-        'No se pudo eliminar la estrategia.';
-      setError(msg);
+      setError(getErrorMessage(err, 'No se pudo eliminar la estrategia.'));
     } finally {
       setSubmittingId(null);
     }
   };
 
-  // ... (después de tus otros useEffects)
-
-  const currentIndicatorConfig = INDICATOR_CONFIG[selectedIndicator] || { properties: [] };
-
-  // Calcula los parámetros iniciales o actuales cada vez que cambia el indicador
-  useEffect(() => {
-    // Usa la configuración para crear un objeto con los valores por defecto
-    const defaultParams = currentIndicatorConfig.properties.reduce((acc, prop) => {
-      acc[prop.id] = prop.default;
-      return acc;
-    }, {});
-    // Esto solo inicializará, si quieres mantener los valores anteriores, necesitarás otra lógica.
-    setIndicatorParams(defaultParams);
-  }, [selectedIndicator]); // Se ejecuta cuando selectedIndicator cambia
-
-  // Manejador para el cambio de un parámetro de indicador
-  const handleIndicatorParamChange = (id, value) => {
-    setIndicatorParams(prev => ({ ...prev, [id]: value }));
-  };
-
-  // ...
   return (
     <div className="page-estrategias">
       <header className="estrategias-header">
@@ -358,41 +497,6 @@ const Estrategias = () => {
       </header>
 
       <section className="estrategias-actions">
-        <div className="estrategias-selector">
-          <label htmlFor="indicador" className="selector-label">Indicador actual:</label>
-          <select
-            id="indicador"
-            value={selectedIndicator}
-            onChange={(e) => setSelectedIndicator(e.target.value)} 
-            className="selector-indicador"
-          >
-            {Object.keys(INDICATOR_CONFIG).map(key => ( 
-              <option key={key} value={key}>{INDICATOR_CONFIG[key].name}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* --- FORMULARIO DE PROPIEDADES DINÁMICAS --- */}
-        <div className="indicador-properties-form">
-          <h4>Parámetros de {currentIndicatorConfig.name}</h4>
-          <div className="form-grid indicator-params-grid">
-            {currentIndicatorConfig.properties.map(prop => (
-              <label key={prop.id} className="form-field">
-                <span>{prop.label} {prop.required ? '*' : ''}</span>
-                <input
-                  type={prop.type || 'text'}
-                  value={indicatorParams[prop.id] || ''}
-                  min={prop.min}
-                  max={prop.max}
-                  step={prop.step || '1'}
-                  placeholder={prop.default}
-                  onChange={(e) => handleIndicatorParamChange(prop.id, e.target.value)}
-                />
-              </label>
-            ))}
-          </div>
-        </div>
-
         <button type="button" className="toggle-create" onClick={() => setShowCreate((p) => !p)}>
           {showCreate ? 'Cerrar formulario' : 'Agregar nueva estrategia'}
         </button>
@@ -411,37 +515,86 @@ const Estrategias = () => {
         <form className="estrategia-form" onSubmit={handleCreate}>
           <h4>Nueva estrategia</h4>
           <div className="form-grid">
-            {FIELD_CONFIG.map(({ name, label, type, placeholder, step, as, options }) => (
-              <label key={name} className="form-field">
-                <span>{label}</span>
-                {as === 'textarea' ? (
-                  <textarea
-                    value={createForm[name]}
-                    placeholder={placeholder}
-                    onChange={(e) => handleCreateChange(name, e.target.value)}
-                  />
-                ) : as === 'select' ? (
-                  <select
-                    value={createForm[name]}
-                    onChange={(e) => handleCreateChange(name, e.target.value)}
-                  >
-                    {options.map(opt => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                ) : (
+            {FIELD_CONFIG.map(({ name, label, type, placeholder, step, as, options }) => {
+              const isDatasetField = name === 'dataset_id';
+              const selectOptions = isDatasetField ? datasetOptions : options;
+              const disabledSelect = isDatasetField && datasetsLoading;
+              return (
+                <label key={name} className="form-field">
+                  <span>{label}</span>
+                  {as === 'textarea' ? (
+                    <textarea
+                      value={createForm[name]}
+                      placeholder={placeholder}
+                      onChange={(e) => handleCreateChange(name, e.target.value)}
+                    />
+                  ) : as === 'select' ? (
+                    <>
+                      <select
+                        value={createForm[name]}
+                        onChange={(e) => handleCreateChange(name, e.target.value)}
+                        disabled={disabledSelect}
+                      >
+                        {(selectOptions || []).map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                      {isDatasetField && datasetsError && (
+                        <small className="form-hint error">{datasetsError}</small>
+                      )}
+                      {isDatasetField && !datasetsLoading && !datasets.length && !datasetsError && (
+                        <small className="form-hint">No hay datasets disponibles. Registra uno en la sección Datasets.</small>
+                      )}
+                    </>
+                  ) : (
+                    <input
+                      type={type || 'text'}
+                      value={createForm[name]}
+                      {...(['text', 'number', 'email', 'password', 'search', 'tel', 'url'].includes(type) && placeholder
+                        ? { placeholder }
+                        : {})}
+                      step={step}
+                      onChange={(e) => handleCreateChange(name, e.target.value)}
+                    />
+                  )}
+                </label>
+              );
+            })}
+          </div>
+          <div className="strategy-config-block">
+            <h5>Indicadores vinculados</h5>
+            <div className="indicator-toggle-grid">
+              {INDICATOR_TOGGLES.map(({ key, label, icon }) => (
+                <label key={key} className="indicator-toggle">
                   <input
-                    type={type || 'text'}
-                    value={createForm[name]}
-                    {...(['text', 'number', 'email', 'password', 'search', 'tel', 'url'].includes(type) && placeholder
-                      ? { placeholder }
-                      : {})}
-                    step={step}
-                    onChange={(e) => handleCreateChange(name, e.target.value)}
+                    type="checkbox"
+                    checked={!!createForm.indicator_settings?.[key]}
+                    onChange={(e) => handleCreateIndicatorToggle(key, e.target.checked)}
                   />
-                )}
-              </label>
-            ))}
+                  <span className="toggle-content">
+                    <span className="toggle-icon">{icon}</span>
+                    <span className="toggle-label">{label}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="strategy-config-block">
+            <h5>Configuración de señales</h5>
+            <div className="config-grid">
+              {STRATEGY_SIGNAL_FIELDS.map(({ key, label, step, min }) => (
+                <label key={key}>
+                  <span>{label}</span>
+                  <input
+                    type="number"
+                    value={createForm.signal_config?.[key] ?? ''}
+                    step={step ?? 'any'}
+                    min={min}
+                    onChange={(e) => handleCreateSignalConfigChange(key, e.target.value)}
+                  />
+                </label>
+              ))}
+            </div>
           </div>
           <button type="submit" className="primary" disabled={submittingCreate}>
             {submittingCreate ? 'Guardando...' : 'Crear estrategia'}
@@ -466,10 +619,14 @@ const Estrategias = () => {
                 onToggle={handleToggleExpand}
                 onDelete={handleDelete}
                 onChangeField={handleEditChange}
+                onChangeIndicatorSetting={handleEditIndicatorToggle}
+                onChangeSignalConfig={handleEditSignalConfigChange}
                 onSubmitEdit={handleUpdate}
                 editState={formState}
                 submittingId={submittingId}
                 FIELD_CONFIG={FIELD_CONFIG}
+                datasetOptions={datasetOptions}
+                datasetsLoading={datasetsLoading}
               />
               {/* Mostrar solo info de creado/actualizado si existen */}
               {isExpanded && (

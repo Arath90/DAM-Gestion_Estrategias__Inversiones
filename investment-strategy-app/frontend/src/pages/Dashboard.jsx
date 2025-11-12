@@ -22,7 +22,7 @@ const menuOptions = [
   { key: "instrumentos", text: "Instrumentos", icon: "tools-opportunity" },
   { key: "mercado", text: "Mercado", icon: "trend-up" },
   { key: "estrategias", text: "Estrategias", icon: "bo-strategy-management" },
-  { key: "datasets", text: "Datasets", icon: "database", disabled: true },
+  { key: "datasets", text: "Datasets", icon: "database" },
   { key: "rendimiento", text: "Rendimiento", icon: "line-chart", disabled: true },
   { key: "ordenes", text: "Órdenes", icon: "sales-order", disabled: true },
   { key: "riesgos", text: "Riesgos", icon: "shield", disabled: true },

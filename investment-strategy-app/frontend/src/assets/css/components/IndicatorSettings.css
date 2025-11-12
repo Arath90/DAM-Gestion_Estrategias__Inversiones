@@ -1,0 +1,78 @@
+/* ====================================================================
+   INDICATOR SETTINGS COMPONENT CSS
+   Estilos específicos para el componente IndicatorSettings
+   ==================================================================== */
+
+/* === INDICADORES COMPONENT === */
+.indicators-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.switches {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.indicator-toggle {
+  position: relative;
+  cursor: pointer;
+}
+
+.indicator-toggle input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.toggle-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #0a1120;
+  border: 2px solid #1e293b;
+  border-radius: 12px;
+  padding: 10px 16px;
+  transition: all 0.2s ease;
+}
+
+.toggle-icon {
+  font-size: 1.1rem;
+  transition: transform 0.2s ease;
+}
+
+.toggle-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #94a3b8;
+  transition: color 0.2s ease;
+}
+
+.indicator-toggle:hover .toggle-content {
+  border-color: #334155;
+  background: #0f1729;
+}
+
+.indicator-toggle input[type="checkbox"]:checked ~ .toggle-content {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.15), rgba(250, 204, 21, 0.15));
+  border-color: var(--project-color2);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+}
+
+.indicator-toggle input[type="checkbox"]:checked ~ .toggle-content .toggle-label {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.indicator-toggle input[type="checkbox"]:checked ~ .toggle-content .toggle-icon {
+  transform: scale(1.15);
+}
+
+/* === RESPONSIVE DESIGN === */
+@media (max-width: 768px) {
+  .switches {
+    justify-content: center;
+  }
+}

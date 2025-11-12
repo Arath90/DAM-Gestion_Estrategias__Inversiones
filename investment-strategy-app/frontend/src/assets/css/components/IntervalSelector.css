@@ -1,0 +1,344 @@
+/* ====================================================================
+   INTERVAL SELECTOR COMPONENT CSS
+   Estilos específicos para el componente IntervalSelector
+   ==================================================================== */
+
+/* === INTERVAL SELECTOR COMPONENT === */
+.intervals-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--project-colorTitle);
+  margin-bottom: 4px;
+}
+
+.label-icon {
+  font-size: 1.2rem;
+}
+
+.intervals-grid {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.interval-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 140px;
+}
+
+.group-label {
+  font-size: 0.75rem;
+  color: var(--project-color2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+  padding-left: 4px;
+}
+
+.interval-buttons {
+  display: flex;
+  gap: 6px;
+  background: var(--project-color5);
+  color: var(--project-colorTitle);
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--project-color3);
+}
+
+.interval-buttons button {
+  background: transparent;
+  border: none;
+  color: var(--project-colorTitle);
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  flex: 1;
+  min-width: 50px;
+}
+
+.interval-buttons button:hover {
+  background: rgba(var(--project-color2-rgb), 0.1);
+  color: var(--project-colorTitle);
+}
+
+.interval-buttons button.active {
+  background: linear-gradient(135deg, #f97316, #facc15);
+  color: #0f172a;
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
+  transform: translateY(-1px);
+}
+
+.interval-buttons button.custom-active::after {
+  content: '●';
+  position: absolute;
+  top: -2px;
+  right: 4px;
+  color: #10b981;
+  font-size: 0.6rem;
+  animation: pulse 2s infinite;
+}
+
+/* Botón personalizado - asegurar colores consistentes */
+.interval-buttons button:not(.active):not(.custom-active) {
+  color: var(--project-colorTitle) !important;
+}
+
+.interval-buttons button.custom-active {
+  color: var(--project-colorTitle) !important;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Dropdown de intervalo personalizado */
+.custom-interval-dropdown {
+  position: absolute;
+  right: 0;
+  top: 2.5em;
+  background: var(--project-color4);
+  border: 2px solid var(--accent-color1);
+  border-radius: 16px;
+  box-shadow: 
+    0 20px 40px rgba(0, 0, 0, 0.5),
+    0 8px 16px rgba(var(--accent-color1-rgb), 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  padding: 1.8rem;
+  min-width: 360px;
+  z-index: 10;
+  color: var(--project-color1);
+  animation: fadeInDropdown 0.2s ease-out;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+@keyframes fadeInDropdown {
+  from { 
+    opacity: 0; 
+    transform: translateY(-8px) scale(0.95); 
+    filter: blur(4px);
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.custom-interval-dropdown .dropdown-header {
+  margin-bottom: 1.2rem;
+  color: var(--accent-color1);
+  font-weight: 700;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 2px solid var(--project-color3);
+  padding-bottom: 0.8rem;
+  text-shadow: 0 2px 4px rgba(var(--accent-color1-rgb), 0.3);
+}
+
+.custom-interval-form {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 1rem;
+  align-items: center;
+}
+
+.custom-interval-form .form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.custom-interval-form .form-field span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--project-color2);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 4px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.custom-interval-form input,
+.custom-interval-form select {
+  background: var(--project-color5);
+  color: var(--project-colorTitle) !important;
+  border: 2px solid var(--project-color3);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.3),
+    0 1px 3px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(var(--accent-color1-rgb), 0.1);
+  min-width: 120px;
+  text-align: center;
+  cursor: pointer;
+  -webkit-text-fill-color: var(--project-colorTitle) !important;
+}
+
+.custom-interval-form select {
+  appearance: none;
+  padding-right: 16px;
+  color: var(--project-colorTitle) !important;
+  -webkit-text-fill-color: var(--project-colorTitle) !important;
+}
+
+.custom-interval-form input:focus,
+.custom-interval-form select:focus {
+  outline: none;
+  border-color: var(--accent-color1);
+  background: var(--project-color5);
+  box-shadow: 
+    0 0 0 4px rgba(var(--accent-color1-rgb), 0.2),
+    inset 0 2px 4px rgba(0, 0, 0, 0.4),
+    0 8px 25px rgba(var(--accent-color1-rgb), 0.15),
+    0 0 0 1px var(--accent-color1);
+  transform: translateY(-2px);
+  color: var(--project-colorTitle);
+}
+
+.custom-interval-form input:hover,
+.custom-interval-form select:hover {
+  border-color: var(--project-color2);
+  background: var(--project-color5);
+  transform: translateY(-1px);
+  color: var(--project-colorTitle);
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.3),
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(var(--accent-color1-rgb), 0.2);
+}
+
+.custom-interval-form select option {
+  background: var(--project-color5);
+  color: var(--project-colorTitle);
+  padding: 12px 16px;
+  border: none;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.custom-interval-form select option:hover,
+.custom-interval-form select option:checked {
+  background: var(--accent-color1);
+  color: var(--project-color5);
+  font-weight: 700;
+}
+
+.custom-interval-form select option:disabled {
+  background: var(--project-color3);
+  color: var(--project-color2);
+  opacity: 0.6;
+}
+
+.custom-interval-error {
+  color: var(--alert-color1);
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+  font-size: 0.85em;
+  background: rgba(var(--alert-color1-rgb), 0.1);
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 2px solid rgba(var(--alert-color1-rgb), 0.3);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 4px 12px rgba(var(--alert-color1-rgb), 0.2);
+}
+
+.custom-interval-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--project-color3);
+}
+
+.custom-interval-actions .cancel-btn {
+  background: var(--project-color3);
+  color: var(--project-color2);
+  border: 2px solid var(--project-color2);
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 4px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.custom-interval-actions .cancel-btn:hover {
+  background: var(--project-color2);
+  border-color: var(--project-color1);
+  color: var(--project-color1);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+.custom-interval-actions .apply-btn {
+  background: linear-gradient(135deg, var(--accent-color1), var(--accent-color1));
+  color: var(--project-color5);
+  border: 2px solid var(--accent-color1);
+  border-radius: 10px;
+  padding: 10px 24px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 4px 8px rgba(var(--accent-color1-rgb), 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.custom-interval-actions .apply-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--accent-color1), rgba(var(--accent-color1-rgb), 0.8));
+  transform: translateY(-2px);
+  box-shadow: 
+    0 8px 16px rgba(var(--accent-color1-rgb), 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.custom-interval-actions .apply-btn:disabled {
+  background: var(--project-color3);
+  color: var(--project-color2);
+  border-color: var(--project-color3);
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* === RESPONSIVE DESIGN === */
+@media (max-width: 768px) {
+  .intervals-grid {
+    flex-direction: column;
+  }
+}

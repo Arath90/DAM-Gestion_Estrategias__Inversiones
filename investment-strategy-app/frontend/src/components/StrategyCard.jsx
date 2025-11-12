@@ -212,4 +212,4 @@ const StrategyCard = ({
   );
 };
 
-export default StrategyCard;
+export default React.memo(StrategyCard);

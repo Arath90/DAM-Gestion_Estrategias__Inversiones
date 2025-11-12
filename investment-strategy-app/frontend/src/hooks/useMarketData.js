@@ -288,7 +288,6 @@ export const useMarketData = ({
   useEffect(() => {
     let alive = true;
     let timeoutId;
-    
     // Debounce de 500ms para evitar múltiples requests (aumentado por rate limiting)
     timeoutId = setTimeout(() => {
       console.log(`📊 Solicitando ${limit} velas de ${symbol} en intervalo ${interval}`);
@@ -296,30 +295,28 @@ export const useMarketData = ({
       fetchCandles({ symbol, interval, limit })
         .then(({ candles }) => {
           if (!alive) return;
-          
-          // Calcular período cubierto
-          if (candles && candles.length > 0) {
-            const firstTime = new Date(candles[0].time * 1000);
-            const lastTime = new Date(candles[candles.length - 1].time * 1000);
-            const daysCovered = (lastTime - firstTime) / (1000 * 60 * 60 * 24);
-            const formatDate = (date) => {
-              return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
-            };
-            console.log(`✅ Recibidas ${candles.length} velas. Período: ${formatDate(firstTime)} - ${formatDate(lastTime)} (~${Math.round(daysCovered)} días)`);
+          if (!candles || candles.length === 0) {
+            setState({ candles: [], loading: false, error: 'No se encontraron datos para el intervalo seleccionado. Prueba con otro rango o instrumento.' });
+            return;
           }
-          
+          // Calcular período cubierto
+          const firstTime = new Date(candles[0].time * 1000);
+          const lastTime = new Date(candles[candles.length - 1].time * 1000);
+          const daysCovered = (lastTime - firstTime) / (1000 * 60 * 60 * 24);
+          const formatDate = (date) => {
+            return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+          };
+          console.log(`✅ Recibidas ${candles.length} velas. Período: ${formatDate(firstTime)} - ${formatDate(lastTime)} (~${Math.round(daysCovered)} días)`);
           setState({ candles, loading: false, error: '' });
         })
         .catch((err) => {
           if (!alive) return;
           let errorMessage;
-          
           if (err?.isRateLimit || err?.response?.status === 429) {
             errorMessage = 'Límite de peticiones alcanzado. Usando datos en cache...';
           } else {
             errorMessage = err?.message || 'No se pudieron obtener las velas.';
           }
-          
           setState({
             candles: [],
             loading: false,
@@ -327,7 +324,6 @@ export const useMarketData = ({
           });
         });
     }, 500);
-    
     return () => {
       alive = false;
       if (timeoutId) clearTimeout(timeoutId);

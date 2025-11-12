@@ -1,0 +1,153 @@
+/* ====================================================================
+   STRATEGY SELECTOR COMPONENT CSS
+   Estilos específicos para el componente StrategySelector
+   ==================================================================== */
+
+/* === STRATEGY SELECTOR COMPONENT === */
+.strategy-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.strategy-selector {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.strategy-selector select {
+  flex: 1;
+  background: var(--project-color5);
+  color: var(--project-colorTitle) !important;
+  border: 2px solid var(--project-color3);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.3),
+    0 1px 3px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(var(--accent-color1-rgb), 0.1);
+  cursor: pointer;
+  appearance: none;
+  -webkit-text-fill-color: var(--project-colorTitle) !important;
+}
+
+.strategy-selector select:focus {
+  outline: none;
+  border-color: var(--accent-color1);
+  background: var(--project-color5);
+  color: var(--project-colorTitle) !important;
+  box-shadow: 
+    0 0 0 4px rgba(var(--accent-color1-rgb), 0.2),
+    inset 0 2px 4px rgba(0, 0, 0, 0.4),
+    0 8px 25px rgba(var(--accent-color1-rgb), 0.15),
+    0 0 0 1px var(--accent-color1);
+  transform: translateY(-2px);
+}
+
+.strategy-selector select:hover {
+  border-color: var(--project-color2);
+  background: var(--project-color5);
+  color: var(--project-colorTitle) !important;
+  transform: translateY(-1px);
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.3),
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(var(--accent-color1-rgb), 0.2);
+}
+
+.strategy-selector select option {
+  background: var(--project-color5);
+  color: var(--project-colorTitle);
+  padding: 12px 16px;
+  border: none;
+  font-weight: 600;
+}
+
+.strategy-selector select option:hover,
+.strategy-selector select option:checked {
+  background: var(--accent-color1);
+  color: var(--project-color5);
+  font-weight: 700;
+}
+
+.strategy-status {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.strategy-status.error {
+  background: rgba(248, 113, 113, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+.strategy-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #0a1120;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 12px;
+}
+
+.strategy-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.strategy-summary strong {
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.indicator-pill-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.indicator-pill {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.15), rgba(250, 204, 21, 0.15));
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  color: #fbbf24;
+  padding: 4px 8px;
+  border-radius: 16px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.indicator-pill.muted {
+  background: rgba(148, 163, 184, 0.1);
+  border-color: rgba(148, 163, 184, 0.3);
+  color: #94a3b8;
+}
+
+.indicator-pill .toggle-icon {
+  font-size: 0.8rem;
+}
+
+.strategy-signal-summary {
+  color: #cbd5e1;
+  font-size: 0.8rem;
+  background: rgba(148, 163, 184, 0.1);
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #1e293b;
+  font-family: 'Courier New', monospace;
+}

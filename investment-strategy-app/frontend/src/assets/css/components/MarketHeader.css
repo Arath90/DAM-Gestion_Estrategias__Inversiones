@@ -1,0 +1,47 @@
+/* ====================================================================
+   MARKET HEADER COMPONENT CSS
+   Estilos específicos para el componente MarketHeader
+   ==================================================================== */
+
+/* === MARKET HEADER COMPONENT === */
+.market-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.market-header h2 {
+  margin: 0;
+  font-size: 1.8rem;
+  color: var(--project-colorTitle);
+}
+
+.market-header p {
+  margin: 4px 0 0;
+  color: var(--project-color2);
+  max-width: 540px;
+}
+
+.market-header-actions {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.btn-secondary{
+    background-color: var(--project-color3) !important;
+}
+
+/* === RESPONSIVE DESIGN === */
+@media (max-width: 768px) {
+  .market-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .market-header-actions {
+    flex-direction: column;
+  }
+}

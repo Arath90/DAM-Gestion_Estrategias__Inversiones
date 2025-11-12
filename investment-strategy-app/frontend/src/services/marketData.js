@@ -52,6 +52,41 @@ let rateLimitBackoffMs = 5000; // Empezar con 5 segundos
 export async function fetchCandles({ symbol, interval = '1hour', limit = 120, offset = 0 }) {
   if (!symbol) throw new Error('symbol requerido');
   
+  // Mapear intervalos personalizados a intervalos soportados por la API
+  const intervalMapping = {
+    '15min': '15min',
+    '30min': '30min', 
+    '1hour': '1hour',
+    '2hour': '2hour',
+    '4hour': '4hour',
+    '6hour': '6hour',
+    '8hour': '8hour',
+    '12hour': '12hour',
+    '1day': '1day',
+    // Mapear intervalos personalizados a intervalos existentes como fallback
+    '3week': '1day',   // 3 semanas -> datos diarios
+    '4week': '1day',   // 4 semanas -> datos diarios  
+    '2week': '1day',   // 2 semanas -> datos diarios
+    '3day': '1day',    // 3 días -> datos diarios
+    '4day': '1day',    // 4 días -> datos diarios
+    '5min': '1hour',   // 5 minutos -> datos por hora
+    '10min': '1hour',  // 10 minutos -> datos por hora
+  };
+  
+  const apiInterval = intervalMapping[interval] || '1hour';
+  
+  // Ajustar límite si estamos usando un intervalo de fallback
+  let adjustedLimit = limit;
+  if (apiInterval !== interval) {
+    console.log(`[marketData] Intervalo personalizado ${interval} mapeado a ${apiInterval}`);
+    // Aumentar el límite para compensar el intervalo diferente
+    if (interval.includes('week')) {
+      adjustedLimit = Math.min(limit * 7, 2000); // Más datos para intervalos semanales
+    } else if (interval.includes('day') && !interval.includes('1day')) {
+      adjustedLimit = Math.min(limit * 3, 1000); // Más datos para intervalos de múltiples días
+    }
+  }
+  
   const cacheKey = `${symbol}-${interval}-${limit}-${offset}`;
   
   // 1. Verificar si hay una petición en progreso
@@ -79,8 +114,8 @@ export async function fetchCandles({ symbol, interval = '1hour', limit = 120, of
   // 5. Hacer la petición solo si no hay rate limit activo
   const params = {
     symbol,
-    interval,
-    limit,
+    interval: apiInterval, // Usar el intervalo mapeado
+    limit: adjustedLimit,
     offset,
   };
 
@@ -95,7 +130,7 @@ export async function fetchCandles({ symbol, interval = '1hour', limit = 120, of
       
       const result = {
         symbol: data?.symbol || symbol,
-        interval: data?.interval || interval,
+        interval: interval, // Devolver el intervalo original solicitado
         candles: normalizeCandles(data?.data || data),
       };
       
@@ -105,7 +140,7 @@ export async function fetchCandles({ symbol, interval = '1hour', limit = 120, of
         timestamp: Date.now(),
       });
       
-      console.log(`[marketData] ${result.candles.length} velas obtenidas para ${symbol} (${interval})`);
+      console.log(`[marketData] ${result.candles.length} velas obtenidas para ${symbol} (${interval} -> ${apiInterval})`);
       return result;
     })
     .catch((error) => {
@@ -127,6 +162,13 @@ export async function fetchCandles({ symbol, interval = '1hour', limit = 120, of
         err.isRateLimit = true;
         throw err;
       }
+      
+      // Para otros errores, verificar si podemos usar cache como fallback
+      if (cached) {
+        console.warn(`[marketData] Error en petición, usando datos en cache como fallback:`, error.message);
+        return cached.data;
+      }
+      
       throw error;
     })
     .finally(() => {

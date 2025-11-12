@@ -1,0 +1,42 @@
+/* ====================================================================
+   SHARED MARKET COMPONENTS CSS
+   Estilos compartidos para todos los componentes de Market
+   ==================================================================== */
+
+/* === SHARED ELEMENTS === */
+.section-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--project-colorTitle);
+  margin-bottom: 4px;
+}
+
+.label-icon {
+  font-size: 1.2rem;
+}
+
+/* === DIVIDERS === */
+.controls-divider {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #1f2a44, transparent);
+  margin: 20px 0;
+  border-radius: 2px;
+}
+
+/* === RESPONSIVE DESIGN FOR ALL COMPONENTS === */
+@media (max-width: 768px) {
+  .section-label {
+    font-size: 0.9rem;
+  }
+  
+  .label-icon {
+    font-size: 1.1rem;
+  }
+  
+  .controls-divider {
+    margin: 16px 0;
+  }
+}

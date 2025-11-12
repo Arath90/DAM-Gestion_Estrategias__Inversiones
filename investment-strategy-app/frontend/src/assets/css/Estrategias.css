@@ -260,9 +260,6 @@ button.primary:disabled { opacity: 0.6; cursor: default; }
 
 /* === Select con estilo a juego === */
 .selector-indicador {
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
   
   background: var(--project-color2);
   color: var(--project-color3);

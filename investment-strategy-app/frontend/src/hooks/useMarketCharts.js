@@ -1,6 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { createChart, CrosshairMode } from 'lightweight-charts';
 
+// Helper para logging seguro
+const safeLog = (level, message, error = null) => {
+  const errorMsg = error?.message || error?.toString() || 'Error desconocido';
+  console[level](message, error ? errorMsg : '');
+};
+
 /**
  * Bridge hook entre analytics (useMarketData) y la UI (Mercado.jsx).
  *
@@ -69,29 +75,47 @@ const MACD_CHART_OPTIONS = {
 };
 
 const mapVolumeHistogram = (seriesRef, candles) => {
-  if (!seriesRef.current) return;
-  seriesRef.current.setData(
-    candles.map((candle) => ({
-      time: candle.time,
-      value: candle.volume ?? 0,
-      color: candle.close >= candle.open ? '#47d16c88' : '#ff6b6b88',
-    })),
-  );
+  if (!seriesRef.current || !Array.isArray(candles)) return;
+  try {
+    const volumeData = candles
+      .filter(candle => candle && typeof candle.time === 'number' && typeof candle.volume === 'number')
+      .map((candle) => ({
+        time: candle.time,
+        value: candle.volume ?? 0,
+        color: candle.close >= candle.open ? '#47d16c88' : '#ff6b6b88',
+      }));
+    seriesRef.current.setData(volumeData);
+  } catch (e) {
+    console.debug('[Volume] Error estableciendo histograma de volumen:', e.message);
+  }
 };
 
 const mapMacdHistogram = (seriesRef, histogram) => {
-  if (!seriesRef.current) return;
-  seriesRef.current.setData(
-    histogram.map((point) => ({
-      time: point.time,
-      value: point.value,
-      color: point.value >= 0 ? '#22d3ee55' : '#ef444455',
-    })),
-  );
+  if (!seriesRef.current || !Array.isArray(histogram)) return;
+  try {
+    const histogramData = histogram
+      .filter(point => point && typeof point.time === 'number' && typeof point.value === 'number')
+      .map((point) => ({
+        time: point.time,
+        value: point.value,
+        color: point.value >= 0 ? '#22d3ee55' : '#ef444455',
+      }));
+    seriesRef.current.setData(histogramData);
+  } catch (e) {
+    console.debug('[MACD] Error estableciendo histograma MACD:', e.message);
+  }
 };
 
 const resetSeries = (...seriesRefs) => {
-  seriesRefs.forEach((ref) => ref.current?.setData([]));
+  seriesRefs.forEach((ref) => {
+    try {
+      if (ref.current && typeof ref.current.setData === 'function') {
+        ref.current.setData([]);
+      }
+    } catch (e) {
+      console.debug('[Reset] Error reseteando serie:', e.message);
+    }
+  });
 };
 
 export const useMarketCharts = ({
@@ -133,13 +157,20 @@ export const useMarketCharts = ({
   const buildSignalMarkers = (signals) => {
     // signals: [{ time, action: 'BUY'|'SELL', reasons, price, timeIndex }]
     if (!Array.isArray(signals)) return [];
-    return signals.map(s => ({
-      time: s.time,
-      position: s.action === 'BUY' ? 'belowBar' : 'aboveBar',
-      color: s.action === 'BUY' ? '#16a34a' : '#ef4444',
-      shape: s.action === 'BUY' ? 'arrowUp' : 'arrowDown',
-      text: s.action === 'BUY' ? 'Compra' : 'Venta'
-    }));
+    try {
+      return signals
+        .filter(s => s && typeof s.time === 'number' && (s.action === 'BUY' || s.action === 'SELL'))
+        .map(s => ({
+          time: s.time,
+          position: s.action === 'BUY' ? 'belowBar' : 'aboveBar',
+          color: s.action === 'BUY' ? '#16a34a' : '#ef4444',
+          shape: s.action === 'BUY' ? 'arrowUp' : 'arrowDown',
+          text: s.action === 'BUY' ? 'Compra' : 'Venta'
+        }));
+    } catch (e) {
+      safeLog('debug', '[Signals] Error construyendo marcadores:', e);
+      return [];
+    }
   };
 
   // Renderiza lineas punteadas (divergencias) en el chart principal y marcadores en el RSI.
@@ -533,6 +564,13 @@ export const useMarketCharts = ({
 
   useEffect(() => {
     if (!candleSeriesRef.current || !Array.isArray(candles)) return;
+    
+    // Verificación adicional para asegurar que el gráfico esté completamente inicializado
+    if (!chartRef.current) {
+      console.debug('[Charts] Gráfico principal no inicializado, esperando...');
+      return;
+    }
+
     if (candles.length === 0) {
       resetSeries(
         candleSeriesRef,
@@ -545,92 +583,169 @@ export const useMarketCharts = ({
         macdSignalSeriesRef,
         macdHistogramSeriesRef,
       );
-      candleSeriesRef.current.setMarkers([]);
+      try {
+        candleSeriesRef.current.setMarkers([]);
+      } catch (e) {
+        console.debug('[Charts] Error limpiando marcadores:', e.message);
+      }
       return;
     }
 
-    candleSeriesRef.current.setData(candles);
+    try {
+      // Verificar que los datos de velas sean válidos
+      const validCandles = candles.filter(candle => 
+        candle && 
+        typeof candle.time === 'number' && 
+        typeof candle.open === 'number' && 
+        typeof candle.high === 'number' && 
+        typeof candle.low === 'number' && 
+        typeof candle.close === 'number'
+      );
 
-    // Ajustar la escala visible de todos los gráficos para mostrar el rango completo
-    if (candles.length > 0) {
-      const first = candles[0].time;
-      const last = candles[candles.length - 1].time;
-      
-      if (first != null && last != null && first < last) {
-        const range = { from: first, to: last };
-        
-        // Usar setTimeout para dar tiempo a que los datos se procesen
-        setTimeout(() => {
-          try {
-            // Aplicar el rango al gráfico principal
-            if (chartRef.current) {
-              chartRef.current.timeScale().setVisibleRange(range);
-            }
-          } catch (e) {
-            console.debug('[Main] Error estableciendo rango:', e.message);
-          }
-          
-          try {
-            // Aplicar el rango al RSI si está activo y tiene datos
-            if (rsiChartRef.current && settings.rsi && rsiSeriesRef.current) {
-              rsiChartRef.current.timeScale().setVisibleRange(range);
-            }
-          } catch (e) {
-            console.debug('[RSI] Error estableciendo rango:', e.message);
-          }
-          
-          try {
-            // Aplicar el rango al MACD si está activo y tiene datos
-            if (macdChartRef.current && settings.macd && macdSeriesRef.current) {
-              macdChartRef.current.timeScale().setVisibleRange(range);
-            }
-          } catch (e) {
-            console.debug('[MACD] Error estableciendo rango:', e.message);
-          }
-        }, 100);
+      if (validCandles.length === 0) {
+        console.debug('[Charts] No hay velas válidas para mostrar');
+        return;
       }
-    }
 
-    if (settings.volume) mapVolumeHistogram(volumeSeriesRef, candles);
-    else volumeSeriesRef.current?.setData([]);
+      candleSeriesRef.current.setData(validCandles);
+      console.debug(`[Charts] Datos establecidos: ${validCandles.length} velas`);
 
-    ema20SeriesRef.current?.setData(settings.ema20 ? ema20 : []);
-    ema50SeriesRef.current?.setData(settings.ema50 ? ema50 : []);
-    sma200SeriesRef.current?.setData(settings.sma200 ? sma200 : []);
-    //candleSeriesRef.current.setMarkers(settings.signals ? signals : []);
-    //Codigo nuevo de Andrick y Chat
-    try {
-      const markers = buildSignalMarkers(signals);
-      // Si el usuario no quiere ver señales, pasamos []
-      candleSeriesRef.current.setMarkers(settings.signals ? markers : []);
+      // Ajustar la escala visible de todos los gráficos para mostrar el rango completo
+      if (validCandles.length > 0) {
+        const first = validCandles[0].time;
+        const last = validCandles[validCandles.length - 1].time;
+        
+        if (first != null && last != null && first < last) {
+          const range = { from: first, to: last };
+          
+          // Usar setTimeout para dar tiempo a que los datos se procesen
+          setTimeout(() => {
+            try {
+              // Aplicar el rango al gráfico principal
+              if (chartRef.current) {
+                chartRef.current.timeScale().setVisibleRange(range);
+              }
+            } catch (e) {
+              console.debug('[Main] Error estableciendo rango:', e.message);
+            }
+            
+            try {
+              // Aplicar el rango al RSI si está activo y tiene datos
+              if (rsiChartRef.current && settings.rsi && rsiSeriesRef.current) {
+                rsiChartRef.current.timeScale().setVisibleRange(range);
+              }
+            } catch (e) {
+              console.debug('[RSI] Error estableciendo rango:', e.message);
+            }
+            
+            try {
+              // Aplicar el rango al MACD si está activo y tiene datos
+              if (macdChartRef.current && settings.macd && macdSeriesRef.current) {
+                macdChartRef.current.timeScale().setVisibleRange(range);
+              }
+            } catch (e) {
+              console.debug('[MACD] Error estableciendo rango:', e.message);
+            }
+          }, 100);
+        }
+      }
+
+      // Volumen
+      try {
+        if (settings.volume && volumeSeriesRef.current) {
+          mapVolumeHistogram(volumeSeriesRef, validCandles);
+        } else if (volumeSeriesRef.current) {
+          volumeSeriesRef.current.setData([]);
+        }
+      } catch (e) {
+        console.debug('[Charts] Error estableciendo volumen:', e.message);
+      }
+
+      // Indicadores de línea
+      try {
+        if (ema20SeriesRef.current) {
+          ema20SeriesRef.current.setData(settings.ema20 ? ema20 : []);
+        }
+      } catch (e) {
+        console.debug('[Charts] Error estableciendo EMA20:', e.message);
+      }
+
+      try {
+        if (ema50SeriesRef.current) {
+          ema50SeriesRef.current.setData(settings.ema50 ? ema50 : []);
+        }
+      } catch (e) {
+        console.debug('[Charts] Error estableciendo EMA50:', e.message);
+      }
+
+      try {
+        if (sma200SeriesRef.current) {
+          sma200SeriesRef.current.setData(settings.sma200 ? sma200 : []);
+        }
+      } catch (e) {
+        console.debug('[Charts] Error estableciendo SMA200:', e.message);
+      }
+
+      // Señales
+      try {
+        const markers = buildSignalMarkers(signals);
+        if (candleSeriesRef.current) {
+          candleSeriesRef.current.setMarkers(settings.signals ? markers : []);
+        }
+      } catch (e) {
+        console.debug('[Signals] Error seteando markers:', e.message);
+        if (candleSeriesRef.current) {
+          candleSeriesRef.current.setMarkers([]);
+        }
+      }
+
+      // Divergencias
+      try {
+        renderDivergences(settings.showDivergences ? (divergences || []) : [], validCandles);
+      } catch (e) {
+        console.debug('[Divergencias] Error al renderizar:', e.message);
+      }
+
+      // RSI
+      try {
+        if (settings.rsi && rsiSeriesRef.current) {
+          rsiSeriesRef.current.setData(rsi14);
+        } else if (rsiSeriesRef.current) {
+          rsiSeriesRef.current.setData([]);
+        }
+      } catch (e) {
+        console.debug('[Charts] Error estableciendo RSI:', e.message);
+      }
+
+      // MACD
+      try {
+        if (settings.macd) {
+          if (macdSeriesRef.current) {
+            macdSeriesRef.current.setData(macdLine);
+          }
+          if (macdSignalSeriesRef.current) {
+            macdSignalSeriesRef.current.setData(macdSignal);
+          }
+          if (macdHistogramSeriesRef.current) {
+            mapMacdHistogram(macdHistogramSeriesRef, macdHistogram);
+          }
+        } else {
+          if (macdSeriesRef.current) {
+            macdSeriesRef.current.setData([]);
+          }
+          if (macdSignalSeriesRef.current) {
+            macdSignalSeriesRef.current.setData([]);
+          }
+          if (macdHistogramSeriesRef.current) {
+            macdHistogramSeriesRef.current.setData([]);
+          }
+        }
+      } catch (e) {
+        console.debug('[Charts] Error estableciendo MACD:', e?.message || 'Error desconocido');
+      }
+
     } catch (e) {
-      console.debug('[Signals] Error seteando markers:', e.message);
-      candleSeriesRef.current.setMarkers([]);
-    }
-
-    // --- Divergencias: dibujar lineas punteadas y marcadores RSI ---
-    try {
-      // suponemos que 'signals' y 'divergences' vienen del hook padre (useMarketData)
-      // aqui 'signals' ya está disponible via props del hook; 'divergences' debes pasarlo como prop al hook useMarketCharts
-      // Si no recibes divergences en las props del hook, ajusta la firma de useMarketCharts para incluirlo.
-      // EJEMPLO: export const useMarketCharts = ({ candles, ..., signals, divergences, settings })
-      // Ahora llamamos renderDivergences
-      renderDivergences(settings.showDivergences ? (settings.divergences || []) : [], candles);
-    } catch (e) {
-      console.debug('[Divergencias] Error al renderizar:', e.message);
-    }
-
-    if (settings.rsi) rsiSeriesRef.current?.setData(rsi14);
-    else rsiSeriesRef.current?.setData([]);
-
-    if (settings.macd) {
-      macdSeriesRef.current?.setData(macdLine);
-      macdSignalSeriesRef.current?.setData(macdSignal);
-      mapMacdHistogram(macdHistogramSeriesRef, macdHistogram);
-    } else {
-      macdSeriesRef.current?.setData([]);
-      macdSignalSeriesRef.current?.setData([]);
-      macdHistogramSeriesRef.current?.setData([]);
+      safeLog('error', '[Charts] Error general estableciendo datos del gráfico:', e);
     }
   }, [
     candles,
@@ -639,6 +754,7 @@ export const useMarketCharts = ({
     rsi14,
     settings,
     signals,
+    divergences,
     sma200,
     macdLine,
     macdSignal,
@@ -649,6 +765,11 @@ export const useMarketCharts = ({
     chartContainerRef,
     rsiContainerRef,
     macdContainerRef,
+    // Exponer las referencias de los charts para funcionalidades adicionales
+    chartRef: chartRef.current,
+    rsiChartRef: rsiChartRef.current,
+    macdChartRef: macdChartRef.current,
+    candleSeriesRef: candleSeriesRef.current,
   };
 };
 

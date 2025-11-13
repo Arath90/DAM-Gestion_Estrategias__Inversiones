@@ -31,6 +31,7 @@ const { findPivots }  = require('./pivots.service'); // Encuentra máximos y mí
  *
  * @returns {Object} { rsi: Array<number>, signals: Array<Object> }
  */
+//esta funcion detecta las divergencias tomando  candles y los parametros de configuracion de rsi
 function detectRSIDivergences(candles, {
   period = 14,
   source = 'close',

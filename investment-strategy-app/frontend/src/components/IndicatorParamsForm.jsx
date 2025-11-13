@@ -2,18 +2,30 @@ import React, { useMemo } from 'react';
 import { INDICATOR_CONFIG } from '../constants/indicatorConfig'; 
 
 
-const IndicatorParamsForm = ({ 
-    indicatorKey, 
-    params, 
-    onParamChange, 
-    isEditing = false,
-    onIndicatorChange 
+const IndicatorParamsForm = ({
+  indicatorKey,
+  params,
+  onParamChange,
+  isEditing = false,
+  onIndicatorChange,
+  allowedIndicators = Object.keys(INDICATOR_CONFIG),
 }) => {
-    
-    const currentIndicatorConfig = useMemo(() => 
-        INDICATOR_CONFIG[indicatorKey] || { name: 'Desconocido', properties: [] }, 
-        [indicatorKey]
-    );
+  const options = useMemo(() => {
+    const source = Array.isArray(allowedIndicators) && allowedIndicators.length
+      ? allowedIndicators
+      : Object.keys(INDICATOR_CONFIG);
+    const unique = [...new Set(source)].filter((key) => INDICATOR_CONFIG[key]);
+    return unique.length ? unique : Object.keys(INDICATOR_CONFIG);
+  }, [allowedIndicators]);
+
+  const safeIndicatorKey = options.includes(indicatorKey)
+    ? indicatorKey
+    : options[0] || indicatorKey;
+
+  const currentIndicatorConfig = useMemo(
+    () => INDICATOR_CONFIG[safeIndicatorKey] || { name: 'Desconocido', properties: [] },
+    [safeIndicatorKey],
+  );
 
     return (
         <div className="strategy-config-block">
@@ -22,11 +34,11 @@ const IndicatorParamsForm = ({
                     <label htmlFor="indicador-create" className="selector-label">Indicador a configurar:</label>
                     <select
                         id="indicador-create"
-                        value={indicatorKey}
-                        onChange={(e) => onIndicatorChange(e.target.value)} 
+                        value={safeIndicatorKey}
+                        onChange={(e) => onIndicatorChange(e.target.value)}
                         className="selector-indicador"
                     >
-                        {Object.keys(INDICATOR_CONFIG).map(key => (
+                        {options.map(key => (
                             <option key={key} value={key}>{INDICATOR_CONFIG[key].name}</option>
                         ))}
                     </select>

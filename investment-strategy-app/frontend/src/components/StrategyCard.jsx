@@ -10,6 +10,9 @@ import {
   hydrateStrategyProfile,
 } from '../constants/strategyProfiles';
 
+const ALL_INDICATOR_TOGGLE_KEYS = INDICATOR_TOGGLES.map(({ key }) => key);
+const DEFAULT_CONFIG_KEYS = Object.keys(INDICATOR_CONFIG);
+
 const StrategyCard = ({
   item,
   isExpanded,
@@ -24,6 +27,8 @@ const StrategyCard = ({
   FIELD_CONFIG,
   datasetOptions = [],
   datasetsLoading = false,
+  allowedIndicatorKeys = ALL_INDICATOR_TOGGLE_KEYS,
+  allowedIndicatorConfigKeys = DEFAULT_CONFIG_KEYS,
 }) => {
   const indicatorSettings = {
     ...DEFAULT_INDICATOR_SETTINGS,
@@ -78,6 +83,22 @@ const StrategyCard = ({
     (typeof datasetRaw === 'object' && datasetRaw ? datasetRaw.name : '') ||
     datasetValue ||
     '-';
+
+  const effectiveToggleKeys = allowedIndicatorKeys?.length
+    ? allowedIndicatorKeys
+    : ALL_INDICATOR_TOGGLE_KEYS;
+  const filteredToggleList = INDICATOR_TOGGLES.filter(({ key }) =>
+    effectiveToggleKeys.includes(key),
+  );
+  const indicatorToggleList = filteredToggleList.length ? filteredToggleList : INDICATOR_TOGGLES;
+
+  const effectiveConfigKeys = allowedIndicatorConfigKeys?.length
+    ? allowedIndicatorConfigKeys
+    : DEFAULT_CONFIG_KEYS;
+  const safeIndicatorKey = useMemo(() => {
+    if (effectiveConfigKeys.includes(currentIndicatorKey)) return currentIndicatorKey;
+    return effectiveConfigKeys[0] || currentIndicatorKey;
+  }, [currentIndicatorKey, effectiveConfigKeys]);
 
   return (
     <article className={`strategy-row${isExpanded ? ' expanded' : ''}`}>
@@ -226,17 +247,18 @@ const StrategyCard = ({
 
             {/* 2. FORMULARIO DINÁMICO DE INDICADOR */}
             <IndicatorParamsForm
-              indicatorKey={currentIndicatorKey}
+              indicatorKey={safeIndicatorKey}
               params={editState.indicator_params || {}}
               onParamChange={handleEditIndicatorParamChange}
               isEditing={true}
+              allowedIndicators={effectiveConfigKeys}
             />
 
             {/* 3. INDICADORES VINCULADOS */}
             <div className="strategy-config-block">
               <h5>Indicadores vinculados</h5>
               <div className="indicator-toggle-grid">
-                {INDICATOR_TOGGLES.map(({ key, label, icon }) => (
+                {indicatorToggleList.map(({ key, label, icon }) => (
                   <label key={key} className="indicator-toggle">
                     <input
                       type="checkbox"

@@ -11,7 +11,8 @@ import {
   hydrateStrategyProfile,
 } from '../constants/strategyProfiles';
 import { INDICATOR_CONFIG } from '../constants/indicatorConfig';
-import IndicatorParamsForm from '../components/IndicatorParamsForm'; // <-- ¡NUEVO COMPONENTE!
+import IndicatorParamsForm from '../components/IndicatorParamsForm';
+import StrategyCard from '../components/StrategyCard'; // <-- mover import aquí
 const FIELD_CONFIG = [
   { name: 'strategy_code', label: 'Código Estrategia', type: 'text', placeholder: 'STRAT-2025-001', required: true },
   { name: 'dataset_id', label: 'Dataset', as: 'select', options: [{ value: '', label: 'Selecciona dataset' }], required: true },
@@ -191,7 +192,6 @@ const sanitizeSignalValue = (field, rawValue, previous = DEFAULT_SIGNAL_CONFIG[f
   if (field === 'rsiOversold' || field === 'rsiOverbought') {
     const bounded = Math.min(100, Math.max(0, num));
     return field === 'rsiOversold' ? Math.min(bounded, 100) : bounded;
-    base.indicator_params = paramsBag.indicator_params || {};
   }
   return num;
 };
@@ -251,8 +251,6 @@ const deleteStrategy = async (id) => {
 };
 
 // === Componente ===
-import StrategyCard from '../components/StrategyCard';
-
 const Estrategias = () => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -267,6 +265,9 @@ const Estrategias = () => {
   const [datasets, setDatasets] = useState([]);
   const [datasetsLoading, setDatasetsLoading] = useState(false);
   const [datasetsError, setDatasetsError] = useState('');
+  const [datasetComponentsMap, setDatasetComponentsMap] = useState({});
+  const [componentsLoading, setComponentsLoading] = useState(false);
+  const [componentsError, setComponentsError] = useState('');
 
 
 
@@ -315,6 +316,48 @@ const Estrategias = () => {
     return [...baseOption, ...mapped];
   }, [datasets, datasetsLoading]);
 
+  const normalizedCreateDatasetId = useMemo(
+    () => normalizeDatasetKey(createForm.dataset_id),
+    [createForm.dataset_id],
+  );
+
+  useEffect(() => {
+    const allowedConfigs = deriveAllowedConfigKeys(
+      datasetComponentsMap,
+      normalizedCreateDatasetId,
+    );
+    setSelectedIndicator((prev) =>
+      allowedConfigs.includes(prev) ? prev : allowedConfigs[0] || prev,
+    );
+  }, [datasetComponentsMap, normalizedCreateDatasetId]);
+
+  useEffect(() => {
+    const allowedKeys = deriveAllowedIndicatorKeys(datasetComponentsMap, normalizedCreateDatasetId);
+    setCreateForm((prev) => {
+      const clamped = clampIndicatorSettings(prev.indicator_settings, allowedKeys);
+      if (shallowEqual(prev.indicator_settings, clamped)) return prev;
+      return { ...prev, indicator_settings: clamped };
+    });
+  }, [datasetComponentsMap, normalizedCreateDatasetId]);
+
+  useEffect(() => {
+    setEditForms((prev) => {
+      let changed = false;
+      const next = {};
+      Object.entries(prev).forEach(([formId, formValue]) => {
+        const allowed = deriveAllowedIndicatorKeys(datasetComponentsMap, formValue?.dataset_id);
+        const clamped = clampIndicatorSettings(formValue?.indicator_settings || {}, allowed);
+        if (!shallowEqual(formValue?.indicator_settings || {}, clamped)) {
+          changed = true;
+          next[formId] = { ...formValue, indicator_settings: clamped };
+        } else {
+          next[formId] = formValue;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [datasetComponentsMap]);
+
   const loadItems = async () => {
     setLoading(true);
     setError('');
@@ -329,6 +372,41 @@ const Estrategias = () => {
   };
 
   useEffect(() => { loadItems(); }, []);
+
+  const loadDatasetComponents = useCallback(async () => {
+    setComponentsLoading(true);
+    setComponentsError('');
+    try {
+      const entries = await fetchModelComponents();
+      const mapped = {};
+      entries.forEach((record) => {
+        const metrics = parseLargeJSON(
+          record.metricsJson || record.metrics_json || record.metrics,
+        );
+        if (metrics?.model_type !== MODEL_TYPE) return;
+        const datasetIdRaw =
+          metrics?.dataset_id ||
+          metrics?.datasetId ||
+          record.dataset_id ||
+          record.datasetId;
+        if (!datasetIdRaw) return;
+        const datasetId = String(datasetIdRaw);
+        const components = parseComponentsArray(metrics?.components);
+        const metadata = parseLargeJSON(metrics?.metadata);
+        mapped[datasetId] = {
+          components,
+          metadata,
+          indicatorKeys: deriveIndicatorKeys(components),
+          modelId: record.ID || record.id,
+        };
+      });
+      setDatasetComponentsMap(mapped);
+    } catch (err) {
+      setComponentsError(getErrorMessage(err, 'No se pudieron cargar los indicadores permitidos.'));
+    } finally {
+      setComponentsLoading(false);
+    }
+  }, []);
 
   const loadDatasets = useCallback(async () => {
     setDatasetsLoading(true);
@@ -349,6 +427,7 @@ const Estrategias = () => {
   }, []);
 
   useEffect(() => { loadDatasets(); }, [loadDatasets]);
+  useEffect(() => { loadDatasetComponents(); }, [loadDatasetComponents]);
 
   useEffect(() => {
     if (!expandedId) return;
@@ -366,17 +445,63 @@ const Estrategias = () => {
   };
 
   const handleEditChange = (id, field, value) => {
-    setEditForms((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), [field]: value } }));
+    setEditForms((prev) => {
+      const snapshot = getEditSnapshot(prev, id);
+      const nextForm = {
+        ...snapshot,
+        [field]: value,
+      };
+      if (field === 'dataset_id') {
+        nextForm.indicator_settings = clampIndicatorSettings(
+          snapshot.indicator_settings,
+          deriveAllowedIndicatorKeys(datasetComponentsMap, value),
+        );
+      }
+      return { ...prev, [id]: nextForm };
+    });
   };
 
   const handleCreateChange = (field, value) => {
+    if (field === 'dataset_id') {
+      setCreateForm((prev) => ({
+        ...prev,
+        dataset_id: value,
+        indicator_settings: clampIndicatorSettings(
+          prev.indicator_settings,
+          deriveAllowedIndicatorKeys(datasetComponentsMap, value),
+        ),
+      }));
+      const allowedConfigs = deriveAllowedConfigKeys(datasetComponentsMap, value);
+      setSelectedIndicator((prev) =>
+        allowedConfigs.includes(prev) ? prev : allowedConfigs[0] || prev,
+      );
+      return;
+    }
     setCreateForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const getEditSnapshot = (forms, id) =>
-    forms[id] || buildFormFromStrategy(items.find((x) => x.ID === id) || {});
+const getEditSnapshot = (forms, id) =>
+  forms[id] || buildFormFromStrategy(items.find((x) => x.ID === id) || {});
+
+  const allowedToggleKeysForCreate = useMemo(
+    () => deriveAllowedIndicatorKeys(datasetComponentsMap, normalizedCreateDatasetId),
+    [datasetComponentsMap, normalizedCreateDatasetId],
+  );
+
+  const allowedConfigKeysForCreate = useMemo(
+    () => deriveAllowedConfigKeys(datasetComponentsMap, normalizedCreateDatasetId),
+    [datasetComponentsMap, normalizedCreateDatasetId],
+  );
+
+  const createIndicatorToggleList = useMemo(() => {
+    const allowed = allowedToggleKeysForCreate;
+    if (!allowed.length) return INDICATOR_TOGGLES;
+    const filtered = INDICATOR_TOGGLES.filter(({ key }) => allowed.includes(key));
+    return filtered.length ? filtered : INDICATOR_TOGGLES;
+  }, [allowedToggleKeysForCreate]);
 
   const handleCreateIndicatorToggle = (key, checked) => {
+    if (!allowedToggleKeysForCreate.includes(key)) return;
     setCreateForm((prev) => ({
       ...prev,
       indicator_settings: {
@@ -389,6 +514,8 @@ const Estrategias = () => {
   const handleEditIndicatorToggle = (id, key, checked) => {
     setEditForms((prev) => {
       const snapshot = getEditSnapshot(prev, id);
+      const allowed = deriveAllowedIndicatorKeys(datasetComponentsMap, snapshot?.dataset_id);
+      if (!allowed.includes(key)) return prev;
       return {
         ...prev,
         [id]: {
@@ -565,15 +692,14 @@ const Estrategias = () => {
         <form className="estrategia-form" onSubmit={handleCreate}>
           <h4>Nueva estrategia</h4>
 
-      {/* --- REEMPLAZO POR EL NUEVO COMPONENTE --- */}
-          <IndicatorParamsForm 
-            indicatorKey={selectedIndicator}
-            params={indicatorParams}
-            onParamChange={handleIndicatorParamChange}
-            onIndicatorChange={setSelectedIndicator} 
-            isEditing={false}
-          />
-          {/* --------------------------------------- */}
+          <IndicatorParamsForm
+            indicatorKey={selectedIndicator}
+            params={indicatorParams}
+            onParamChange={handleIndicatorParamChange}
+            onIndicatorChange={setSelectedIndicator}
+            isEditing={false}
+            allowedIndicators={allowedConfigKeysForCreate}
+          />
 
           <div className="form-grid">
             {FIELD_CONFIG.map(({ name, label, type, placeholder, step, as, options }) => {
@@ -625,11 +751,12 @@ const Estrategias = () => {
           <div className="strategy-config-block">
             <h5>Indicadores vinculados</h5>
             <div className="indicator-toggle-grid">
-              {INDICATOR_TOGGLES.map(({ key, label, icon }) => (
+              {createIndicatorToggleList.map(({ key, label, icon }) => (
                 <label key={key} className="indicator-toggle">
                   <input
                     type="checkbox"
                     checked={!!createForm.indicator_settings?.[key]}
+                    disabled={!allowedToggleKeysForCreate.includes(key)}
                     onChange={(e) => handleCreateIndicatorToggle(key, e.target.checked)}
                   />
                   <span className="toggle-content">
@@ -664,7 +791,13 @@ const Estrategias = () => {
       )}
 
       {loading && <div className="estrategias-status">Cargando estrategias...</div>}
+      {componentsLoading && !loading && (
+        <div className="estrategias-status">Sincronizando indicadores permitidos...</div>
+      )}
       {error && !loading && <div className="estrategias-status error">{error}</div>}
+      {componentsError && !componentsLoading && (
+        <div className="estrategias-status error">{componentsError}</div>
+      )}
       {message && <div className="estrategias-status success">{message}</div>}
       {emptyState && <div className="estrategias-status">Aún no hay estrategias registradas.</div>}
 
@@ -672,6 +805,9 @@ const Estrategias = () => {
         {items.filter(item => !!item.ID).map((item, idx) => {
           const isExpanded = expandedId === item.ID;
           const formState = editForms[item.ID] || buildFormFromStrategy(item);
+          const datasetKey = normalizeDatasetKey(formState.dataset_id || item.dataset_id);
+          const allowedToggleKeys = deriveAllowedIndicatorKeys(datasetComponentsMap, datasetKey);
+          const allowedConfigKeys = deriveAllowedConfigKeys(datasetComponentsMap, datasetKey);
           return (
             <div key={item.ID || `estrategia-${idx}`} className="estrategia-card-wrapper">
               <StrategyCard
@@ -688,6 +824,8 @@ const Estrategias = () => {
                 FIELD_CONFIG={FIELD_CONFIG}
                 datasetOptions={datasetOptions}
                 datasetsLoading={datasetsLoading}
+                allowedIndicatorKeys={allowedToggleKeys}
+                allowedIndicatorConfigKeys={allowedConfigKeys}
               />
               {/* Mostrar solo info de creado/actualizado si existen */}
               {isExpanded && (
@@ -709,3 +847,124 @@ const Estrategias = () => {
 };
 
 export default Estrategias;
+
+// Eliminar duplicados y hooks fuera de componente, dejar solo constantes y helpers puros
+const MODEL_TYPE = 'DATASET_COMPONENTS';
+const INDICATOR_TOGGLE_TO_CONFIG = {
+  rsi: 'RSI',
+  macd: 'MACD',
+  ema20: 'EMA',
+  ema50: 'EMA',
+  sma200: 'SMA',
+  volume: null,
+  signals: null,
+};
+const ALL_INDICATOR_KEYS = INDICATOR_TOGGLES.map((item) => item.key);
+
+const parseLargeJSON = (value) => {
+  if (!value) return {};
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return typeof parsed === 'object' && parsed ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  if (typeof value === 'object') return { ...value };
+  return {};
+};
+
+const normalizeDatasetKey = (datasetValue) => {
+  if (!datasetValue) return '';
+  if (typeof datasetValue === 'object') {
+    return String(
+      datasetValue.ID ||
+        datasetValue.id ||
+        datasetValue._id ||
+        datasetValue.value ||
+        datasetValue.name ||
+        '',
+    );
+  }
+  return String(datasetValue);
+};
+
+const clampIndicatorSettings = (settings = {}, allowedKeys = ALL_INDICATOR_KEYS) => {
+  const next = {};
+  const keys = allowedKeys.length ? allowedKeys : ALL_INDICATOR_KEYS;
+  keys.forEach((key) => {
+    const defaultValue = DEFAULT_INDICATOR_SETTINGS[key] ?? false;
+    next[key] = settings[key] ?? defaultValue;
+  });
+  return next;
+};
+
+const shallowEqual = (a = {}, b = {}) => {
+  const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
+  for (const key of keys) {
+    if (a[key] !== b[key]) return false;
+  }
+  return true;
+};
+
+const deriveAllowedIndicatorKeys = (componentsMap, datasetIdRaw) => {
+  const datasetId = normalizeDatasetKey(datasetIdRaw);
+  if (!datasetId) return ALL_INDICATOR_KEYS;
+  const entry = componentsMap[datasetId];
+  if (entry?.indicatorKeys?.length) return entry.indicatorKeys;
+  return ALL_INDICATOR_KEYS;
+};
+
+const deriveAllowedConfigKeys = (componentsMap, datasetIdRaw) => {
+  const toggleKeys = deriveAllowedIndicatorKeys(componentsMap, datasetIdRaw);
+  const configKeys = toggleKeys.map((key) => INDICATOR_TOGGLE_TO_CONFIG[key]).filter(Boolean);
+  const unique = [...new Set(configKeys)];
+  return unique.length ? unique : Object.keys(INDICATOR_CONFIG);
+};
+
+const parseComponentsArray = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  if (Array.isArray(value?.components)) return value.components;
+  return [];
+};
+
+const deriveIndicatorKeys = (components = []) => {
+  const keys = new Set();
+  components.forEach((component) => {
+    const kind = component.kind;
+    const params = component.params || {};
+    const alias = (component.alias || component.output_key || '').toLowerCase();
+    if (kind === 'indicator:rsi') keys.add('rsi');
+    else if (kind === 'indicator:macd') keys.add('macd');
+    else if (kind === 'indicator:ema') {
+      const period = Number(params.period);
+      if (period === 20) keys.add('ema20');
+      if (period === 50) keys.add('ema50');
+    } else if (kind === 'indicator:sma') {
+      const period = Number(params.period);
+      if (period === 200) keys.add('sma200');
+    } else if (kind === 'price') {
+      const field = (params.field || component.output_key || '').toLowerCase();
+      if (field.includes('vol')) keys.add('volume');
+    } else if (kind === 'custom') {
+      if (alias.includes('señal') || alias.includes('senal')) keys.add('signals');
+    }
+  });
+  return Array.from(keys);
+};
+
+const fetchModelComponents = async () => {
+  const params = { dbServer: 'MongoDB', ProcessType: 'READ', $top: 500 };
+  const { data } = await axios.get('/MLModels', { params });
+  return unwrap(data);
+};

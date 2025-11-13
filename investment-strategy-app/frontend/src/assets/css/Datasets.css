@@ -211,3 +211,182 @@
   display: block;
   filter: none;
 }
+
+.spec-meta-grid {
+  margin: 8px 0 16px;
+}
+.spec-meta-grid h5 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  color: var(--project-color3);
+}
+
+.components-builder {
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 12px;
+  padding: 16px;
+  background: rgba(0,0,0,0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.component-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.component-chip {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(148,163,184,0.35);
+  border-radius: 999px;
+  padding: 6px 14px;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border 0.2s, background 0.2s;
+}
+.component-chip .chip-label {
+  font-weight: 600;
+}
+.component-chip .chip-muted {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-left: 6px;
+}
+.component-chip.active {
+  border-color: var(--project-color3);
+  background: rgba(59,130,246,0.18);
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.25);
+}
+.chip-adder {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.chip-adder-select {
+  background: rgba(15,23,42,0.85);
+  border: 1px solid rgba(148,163,184,0.35);
+  border-radius: 999px;
+  color: #e2e8f0;
+  padding: 4px 12px;
+}
+.chip-add-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px dashed rgba(148,163,184,0.4);
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.components-builder-empty {
+  font-size: 14px;
+  color: rgba(255,255,255,0.65);
+}
+.component-detail {
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 10px;
+  padding: 16px;
+  background: rgba(0,0,0,0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.component-detail-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.component-title {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.component-title input,
+.component-title select {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(0,0,0,0.35);
+  color: var(--project-color3);
+}
+.component-head-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--project-color3);
+  cursor: pointer;
+  padding: 0;
+}
+.btn-link.danger {
+  color: #ff7a7a;
+}
+.component-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.component-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+.component-field input,
+.component-field textarea,
+.component-field select {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(0,0,0,0.35);
+  color: var(--project-color3);
+}
+.component-field .toggle {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.component-params-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.dataset-meta-block {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin: 8px 0;
+}
+.dataset-component-summary {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dataset-component-summary li {
+  padding: 4px 8px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 6px;
+  font-size: 12px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.dataset-component-summary .component-kind {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+  color: rgba(255,255,255,0.7);
+}

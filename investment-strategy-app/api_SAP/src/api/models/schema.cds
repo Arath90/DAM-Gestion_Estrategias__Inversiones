@@ -165,6 +165,11 @@ entity MLModels {
       trainedAt         : DateTime;    // Fecha de entrenamiento.
       metricsJson       : LargeString; // Metricas de evaluacion en formato JSON.
       featureImportance : LargeString; // Importancia de features (JSON).
+      model_type        : String;      // Clasificacion del registro (TRAINED_MODEL, DATASET_COMPONENTS, etc).
+      dataset_id        : String;      // Dataset asociado cuando aplica.
+      dataset_name      : String;      // Nombre del dataset asociado.
+      components_json   : LargeString; // Componentes/indicadores serializados.
+      metadata_json     : LargeString; // Metadata adicional (spec meta).
       createdAt         : DateTime;    // Auditoria.
       updatedAt         : DateTime;
 }
@@ -264,4 +269,17 @@ entity Strategies @cds.persistence.skip {
       metrics_json     : LargeString;
       createdAt        : DateTime;
       updatedAt        : DateTime;
+}
+
+entity AlgorithmSettings @cds.persistence.skip {
+  key ID           : String;
+      user_email   : String;
+      scope_type   : String;
+      scope_ref    : String;
+      strategy_id  : String;
+      instrument_key : String;
+      interval     : String;
+      params_json  : LargeString;
+      createdAt    : DateTime;
+      updatedAt    : DateTime;
 }

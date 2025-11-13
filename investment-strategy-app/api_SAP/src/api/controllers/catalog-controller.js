@@ -28,6 +28,7 @@ const OptionChainSnapshotItem = require("../models/mongodb/OptionChainSnapshotIt
 const OptionQuote = require("../models/mongodb/OptionQuote");
 const SecUser = require("../models/mongodb/SecUser");
 const StrategiesModel = require("../models/mongodb/Strategies");
+const AlgorithmSetting = require("../models/mongodb/AlgorithmSetting");
 
 // ============================================================================
 // Helper utilities reutilizados por todos los handlers
@@ -454,7 +455,118 @@ class CatalogController extends cds.ApplicationService {
       OptionQuotes,
       SecUsers,
       Strategies,
+      AlgorithmSettings,
     } = this.entities;
+
+    const ensureAlgorithmScope = async (req) => {
+      const email = readUser(req);
+      if (!email || email === "anonymous") {
+        const err = new Error("Usuario no autenticado.");
+        err.status = 401;
+        throw err;
+      }
+
+      req.data = req.data || {};
+      let existing = null;
+      const targetId = extractId(req);
+      if (targetId) {
+        existing = await AlgorithmSetting.findById(targetId).lean();
+        if (existing && existing.user_email && existing.user_email !== email) {
+          const err = new Error("No autorizado a modificar esta configuracion.");
+          err.status = 403;
+          throw err;
+        }
+      }
+
+      const scopeType =
+        req.data.scope_type ||
+        req?.req?.query?.scope_type ||
+        existing?.scope_type ||
+        (req.data.strategy_id ? "strategy" : "instrument");
+
+      let scopeRef =
+        req.data.scope_ref ||
+        req?.req?.query?.scope_ref ||
+        existing?.scope_ref ||
+        (scopeType === "strategy" ? req.data.strategy_id : null);
+
+      if (!scopeRef && scopeType === "instrument") {
+        scopeRef =
+          req.data.instrument_key ||
+          req?.req?.query?.instrument_key ||
+          req?.req?.query?.symbol ||
+          existing?.scope_ref ||
+          null;
+      }
+
+      if (!scopeRef) {
+        const err = new Error("scope_ref requerido para guardar preferencias.");
+        err.status = 400;
+        throw err;
+      }
+
+      req.data.user_email = email;
+      req.data.scope_type = scopeType;
+      req.data.scope_ref = scopeRef;
+
+      if (scopeType === "strategy" && !req.data.strategy_id) {
+        req.data.strategy_id = scopeRef;
+      }
+
+      if (scopeType === "instrument") {
+        if (!req.data.instrument_key) {
+          req.data.instrument_key =
+            req.data.instrument_key ||
+            req?.req?.query?.instrument_key ||
+            req?.req?.query?.symbol ||
+            existing?.instrument_key ||
+            scopeRef;
+        }
+        if (!req.data.interval) {
+          req.data.interval =
+            req?.req?.query?.interval || existing?.interval || req.data.interval;
+        }
+      }
+
+      if (!targetId && req.data.params_json == null) req.data.params_json = {};
+    };
+
+    const restrictAlgorithmRead = async (ctx) => {
+      const email = readUser(ctx.req);
+      if (!email || email === "anonymous") {
+        const err = new Error("Usuario no autenticado.");
+        err.status = 401;
+        throw err;
+      }
+      ctx.filter = ctx.filter || {};
+      ctx.filter.user_email = email;
+      if (ctx.req?.req?.query?.scope_type) {
+        ctx.filter.scope_type = ctx.req.req.query.scope_type;
+      }
+      if (ctx.req?.req?.query?.scope_ref) {
+        ctx.filter.scope_ref = ctx.req.req.query.scope_ref;
+      }
+    };
+
+    const ensureAlgorithmOwnershipOnDelete = async (ctx) => {
+      const email = readUser(ctx.req);
+      if (!email || email === "anonymous") {
+        const err = new Error("Usuario no autenticado.");
+        err.status = 401;
+        throw err;
+      }
+      if (!ctx.id) return;
+      const doc =
+        (await AlgorithmSetting.findById(ctx.id).lean()) ||
+        (await AlgorithmSetting.findOne({
+          $expr: { $eq: [{ $toString: '$_id' }, ctx.id] },
+        }).lean());
+      if (doc && doc.user_email && doc.user_email !== email) {
+        const err = new Error("No autorizado a eliminar esta configuracion.");
+        err.status = 403;
+        throw err;
+      }
+    };
 
     /**
      * Helper para registrar cada entidad.
@@ -672,6 +784,13 @@ class CatalogController extends cds.ApplicationService {
         const found = await StrategiesModel.findOne({ code: r.data.code });
         if (found) r.reject(409, "Strategy.code ya existe");
       }
+    });
+
+    registerEntity(AlgorithmSettings, AlgorithmSetting, {
+      beforeCreate: ensureAlgorithmScope,
+      beforeUpdate: ensureAlgorithmScope,
+      beforeRead: restrictAlgorithmRead,
+      beforeDelete: ensureAlgorithmOwnershipOnDelete,
     });
 
     // Acción DetectDivergences (actualizada con validaciones y valores por defecto)

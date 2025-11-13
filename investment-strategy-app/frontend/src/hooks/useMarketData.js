@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchCandles } from '../services/marketData';
 import { DEFAULT_SIGNAL_CONFIG } from '../constants/strategyProfiles';
+import { DEFAULT_ALGORITHM_PARAMS, mergeAlgorithmParams } from '../constants/algorithmDefaults';
 
 import { findDivergences } from '../utils/divergences';
 import { computeSignals } from '../utils/signals';
@@ -275,9 +276,10 @@ const calcSignals = (candles, options = {}) => {
 
 export const useMarketData = ({
   symbol,
-  interval,
-  limit,
+  interval = '1hour',
+  limit = 120,
   signalConfig = DEFAULT_SIGNAL_CONFIG,
+  algoParams = DEFAULT_ALGORITHM_PARAMS,
 }) => {
   const [state, setState] = useState({
     candles: [],
@@ -336,6 +338,7 @@ export const useMarketData = ({
 
 const analytics = useMemo(() => {
   const { candles } = state;
+  const mergedAlgo = mergeAlgorithmParams(algoParams);
   if (!Array.isArray(candles) || candles.length === 0) {
     return {
       ema20: [],
@@ -348,15 +351,29 @@ const analytics = useMemo(() => {
       signals: [],
       tradeSignals: [],
       divergences: [],
+      appliedAlgoParams: mergedAlgo,
     };
   }
 
-  // indicadores básicos
-  const ema20 = calcEMA(candles, 20);
-  const ema50 = calcEMA(candles, 50);
-  const sma200 = calcSMA(candles, 200);
-  const rsi14 = calcRSI(candles, 14);
-  const { macdLine, signalLine: macdSignal, histogram: macdHistogram } = calcMACD(candles);
+  const emaFastPeriod = Number(mergedAlgo.emaFast) || 20;
+  const emaSlowPeriod = Number(mergedAlgo.emaSlow) || 50;
+  const smaLongPeriod = Number(mergedAlgo.smaLong) || 200;
+  const rsiPeriod = Number(mergedAlgo.rsiPeriod) || 14;
+  const macdFastPeriod = Number(mergedAlgo.macdFast) || 12;
+  const macdSlowPeriod = Number(mergedAlgo.macdSlow) || 26;
+  const macdSignalPeriod = Number(mergedAlgo.macdSignal) || 9;
+  const divergenceConfig = mergedAlgo.divergence || {};
+
+  // indicadores configurables
+  const ema20 = calcEMA(candles, emaFastPeriod);
+  const ema50 = calcEMA(candles, emaSlowPeriod);
+  const sma200 = calcSMA(candles, smaLongPeriod);
+  const rsi14 = calcRSI(candles, rsiPeriod);
+  const {
+    macdLine,
+    signalLine: macdSignal,
+    histogram: macdHistogram,
+  } = calcMACD(candles, macdFastPeriod, macdSlowPeriod, macdSignalPeriod);
 
   // --- Preparar series alineadas para detección de divergencias ---
   // price series: preferimos usar highs para detectar bearish peaks y lows para bullish
@@ -374,13 +391,14 @@ const analytics = useMemo(() => {
 
   // --- Detectar divergencias (usamos highs vs RSI por defecto) ---
   // Ajusta peakWindow / tolerancias según el activo/timeframe
-  const divergences = findDivergences(priceHighSeries, rsiValuesByIndex, {
-    peakWindow: 3,
-    maxBarsBetweenPeaks: 60,
-    minPriceChangePct: 0.002,
-    minIndicatorChangePct: 0.01,
-    maxPeakDistance: 8,
-  });
+  const divergenceParams = {
+    peakWindow: Number(divergenceConfig.peakWindow) || 3,
+    maxBarsBetweenPeaks: Number(divergenceConfig.maxBarsBetweenPeaks) || 60,
+    minPriceChangePct: Number(divergenceConfig.minPriceChangePct) || 0.002,
+    minIndicatorChangePct: Number(divergenceConfig.minIndicatorChangePct) || 0.01,
+    maxPeakDistance: Number(divergenceConfig.maxPeakDistance) || 8,
+  };
+  const divergences = findDivergences(priceHighSeries, rsiValuesByIndex, divergenceParams);
 
   // --- Construir objeto de indicadores para el motor de señales ---
   // Nota: computeSignals espera arrays/alineados o al menos datos accesibles; aquí pasamos
@@ -420,8 +438,18 @@ const analytics = useMemo(() => {
     signals: computedSignals,
     tradeSignals,
     divergences,
+    appliedAlgoParams: {
+      emaFastPeriod,
+      emaSlowPeriod,
+      smaLongPeriod,
+      rsiPeriod,
+      macdFastPeriod,
+      macdSlowPeriod,
+      macdSignalPeriod,
+      divergence: divergenceParams,
+    },
   };
-}, [state.candles, signalConfig, symbol, interval]);
+}, [state.candles, signalConfig, symbol, interval, algoParams]);
 
   return {
     ...state,

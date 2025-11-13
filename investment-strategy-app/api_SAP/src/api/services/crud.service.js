@@ -24,7 +24,7 @@ function normalizeMongoError(err) {
 }
 
 function makeCrudHandlers(cdsEntity, Model, opts = {}) {
-  const { uniqueCheck, beforeCreate, beforeUpdate } = opts;
+  const { uniqueCheck, beforeCreate, beforeUpdate, beforeRead, beforeDelete } = opts;
   const { SELECT, INSERT, UPDATE, DELETE } = cds;
 
   const findByIdMongo = (id) =>
@@ -32,7 +32,10 @@ function makeCrudHandlers(cdsEntity, Model, opts = {}) {
 
   return {
     async READ(ctx) {
-      const { db, id, top = 0, skip = 0, filter = {}, orderby = null } = ctx;
+      const { db, id, top = 0, skip = 0, orderby = null } = ctx;
+
+      if (beforeRead) await beforeRead(ctx);
+      const filter = ctx.filter || {};
 
       if (db === 'hana') {
         let q = SELECT.from(cdsEntity.name);
@@ -118,6 +121,7 @@ function makeCrudHandlers(cdsEntity, Model, opts = {}) {
       }
 
       if (!isValidObjectId(id)) { const e = new Error('ID inválido'); e.status = 400; throw e; }
+      if (beforeDelete) await beforeDelete(ctx, Model);
       const deleted = await Model.findByIdAndDelete(id)
                   || await Model.findOneAndDelete({ $expr: { $eq: [{ $toString: '$_id' }, id] } });
       if (!deleted) { const e = new Error('No encontrado'); e.status = 404; throw e; }

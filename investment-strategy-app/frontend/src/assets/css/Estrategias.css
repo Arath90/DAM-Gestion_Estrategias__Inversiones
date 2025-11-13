@@ -39,7 +39,7 @@
 .toggle-create,
 .btn-secondary {
   background: var(--project-color3);
-  color: var(--project-color1);
+  color: var(--project-colorTitle);
   border: none;
   border-radius: 12px;
   padding: 7px 18px;
@@ -405,7 +405,6 @@ button.primary:disabled { opacity: 0.6; cursor: default; }
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--project-color4);
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-  backdrop-filter: blur(6px);
 }
 
 .strategy-visual-overview h4 {

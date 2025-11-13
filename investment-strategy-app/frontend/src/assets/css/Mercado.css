@@ -111,3 +111,60 @@
     min-height: 280px;
   }
 }
+
+
+
+/* EventsTable styles - integrated with Mercado.css theme */
+/* Inserta este bloque al final de frontend/src/assets/css/Mercado.css */
+.strategy-events-card {
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border: 1px solid var(--project-color3);
+  padding: 12px;
+  color: var(--project-color1);
+  box-shadow: 0 8px 24px rgba(2,6,23,0.35);
+}
+.strategy-events-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  cursor:pointer;
+}
+.strategy-events-header h4 { margin:0; font-size:1.05rem; color:var(--project-colorTitle); }
+.events-meta { font-size:0.85rem; color:var(--project-color2); }
+.events-actions { display:flex; gap:8px; align-items:center; }
+button.export-btn, button.toggle-btn {
+  background: linear-gradient(90deg, var(--project-color1), var(--project-colorTitle));
+  border: none;
+  color: #fff;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-weight:600;
+  cursor:pointer;
+}
+button.toggle-btn { background: transparent; border: 1px solid rgba(255,255,255,0.04); color: var(--project-color2); padding:6px 10px; }
+.events-table-wrapper { margin-top:12px; overflow-x:auto; border-radius:8px; }
+.events-table { width:100%; border-collapse:collapse; min-width:900px; }
+.events-table thead th { text-align:left; padding:10px 12px; background: rgba(255,255,255,0.01); color: var(--project-color2); font-size:0.88rem; }
+.events-table td { padding:8px 12px; border-bottom:1px solid rgba(255,255,255,0.02); color:var(--project-color1); }
+.events-table tbody tr:nth-child(odd) { background: rgba(255,255,255,0.006); }
+.events-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+.col-time { width:200px; white-space:nowrap; }
+.col-type { width:120px; text-transform:uppercase; font-weight:700; }
+.col-ind { width:120px; color:var(--project-color2); }
+.col-price, .col-val { width:120px; text-align:right; }
+.col-reason { min-width:240px; color:var(--project-color2); }
+.badge { display:inline-block; padding:6px 10px; border-radius:999px; font-size:0.78rem; font-weight:700; color:#061226; }
+.badge-CROSS_UP { background: linear-gradient(90deg,#10b981,#34d399); }
+.badge-CROSS_DOWN { background: linear-gradient(90deg,#f97316,#fb923c); }
+.badge-RSI_UP { background: linear-gradient(90deg,#60a5fa,#38bdf8); }
+.badge-RSI_DOWN { background: linear-gradient(90deg,#fb7185,#ef4444); }
+.badge-MAX { background: linear-gradient(90deg,#facc15,#f59e0b); }
+.badge-MIN { background: linear-gradient(90deg,#7c3aed,#a78bfa); }
+.badge-DIVERGENCE_BULL { background: linear-gradient(90deg,#34d399,#10b981); }
+.badge-DIVERGENCE_BEAR { background: linear-gradient(90deg,#fb7185,#ef4444); }
+@media (max-width:920px) {
+  .col-time { width:160px; }
+  .events-table thead th, .events-table td { padding:8px; font-size:0.86rem; }
+}

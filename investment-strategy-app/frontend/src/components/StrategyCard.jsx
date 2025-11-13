@@ -145,7 +145,37 @@ const StrategyCard = ({
               <span>{item.updated_at ? new Date(item.updated_at).toLocaleString() : '-'}</span>
             </div>
           </div>
+            <div className="strategy-visual-overview">
+            <h4>Vista general de la estrategia</h4>
+            <p>
+              Esta vista muestra de forma resumida todos los elementos aplicados en la estrategia actual:
+              indicadores, señales activas y líneas clave.
+            </p>
 
+            <div className="overview-grid">
+              <div className="overview-item">
+                <h5>Indicadores activos</h5>
+                <ul>
+                  {Object.entries(persistedIndicators)
+                    .filter(([_, v]) => v)
+                    .map(([k]) => (
+                      <li key={k}>{k.toUpperCase()}</li>
+                    ))}
+                </ul>
+              </div>
+              <div className="overview-item">
+                <h5>Configuración de señales</h5>
+                <ul>
+                  <li>RSI: {persistedSignalConfig.rsiOversold} / {persistedSignalConfig.rsiOverbought}</li>
+                  <li>MACD Histograma ≥ {persistedSignalConfig.macdHistogramThreshold}</li>
+                </ul>
+              </div>
+              <div className="overview-item">
+                <h5>Estado actual</h5>
+                <p><strong>{item.status || 'Sin estado'}</strong></p>
+              </div>
+            </div>
+          </div>
           <form className="estrategia-form" onSubmit={(e) => onSubmitEdit(e, item.ID)}>
             <h4>Editar estrategia</h4>
 

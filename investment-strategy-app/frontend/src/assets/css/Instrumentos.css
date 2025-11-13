@@ -63,11 +63,18 @@
 
 .form-field input[type="text"],
 .form-field input[type="number"],
-.form-field input[type="datetime-local"] {
-  background: var(--project-color5);
-  color: var(--project-color2);
-  border: 1px solid var(--project-color3);
+.form-field input[type="datetime-local"],
+.form-field select {
+  background-color: var(--project-color5) !important;
+  color: var(--project-color2) !important;
+  border: 1px solid var(--project-color3) !important;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: var(--project-font);
+  outline: none;
 }
+
+
 
 /* Botón principal del formulario */
 .instrument-form button.primary {

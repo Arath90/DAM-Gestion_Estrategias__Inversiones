@@ -181,6 +181,14 @@ const Instrumentos = () => {
   const sortedGroupKeys = useMemo(() => {
     return Object.keys(groupedItems).sort(); // Ordenar los tipos (keys) alfabéticamente
   }, [groupedItems]);
+  const [tiposInstrumento] = useState([
+    { value: 'STK', label: 'Acción (STK)' },
+    { value: 'FUT', label: 'Futuro (FUT)' },
+    { value: 'OPT', label: 'Opción (OPT)' },
+    { value: 'IND', label: 'Índice (IND)' },
+    { value: 'ETF', label: 'Fondo (ETF)' },
+  ]);
+
   const loadItems = async () => {
     setLoading(true);
     setError('');
@@ -327,13 +335,27 @@ const Instrumentos = () => {
               {FIELD_CONFIG.map(({ name, label, type, placeholder, step }) => (
                 <label key={name} className="form-field">
                   <span>{label}</span>
-                  <input
-                    type={type}
-                    value={createForm[name]}
-                    placeholder={placeholder}
-                    step={step}
-                    onChange={(event) => handleCreateChange(name, event.target.value)}
-                  />
+                  {name === 'sec_type' ? (
+                    <select
+                      value={createForm[name]}
+                      onChange={(event) => handleCreateChange(name, event.target.value)}
+                    >
+                      <option value="">Selecciona un tipo</option>
+                      {tiposInstrumento.map((t) => (
+                        <option key={t.value} value={t.value}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type={type}
+                      value={createForm[name]}
+                      placeholder={placeholder}
+                      step={step}
+                      onChange={(event) => handleCreateChange(name, event.target.value)}
+                    />
+                  )}
                 </label>
               ))}
             </div>
@@ -450,6 +472,113 @@ const Instrumentos = () => {
             </div>
           </div>
         ))}
+        {items.map((item) => {
+          const isExpanded = expandedId === item.ID;
+          const formState = editForms[item.ID] || buildFormFromInstrument(item);
+          return (
+            <article
+              key={item.ID}
+              className={`instrument-row${isExpanded ? ' expanded' : ''}`}
+            >
+              <header className="row-head">
+                <button
+                  type="button"
+                  className="row-toggle"
+                  onClick={() => handleToggleExpand(item.ID)}
+                >
+                  <span className="symbol">{item.symbol || 'Sin simbolo'}</span>
+                  <span className="meta">
+                    {item.sec_type || 'N/D'} &middot; {item.exchange || 'Sin exchange'} &middot;{' '}
+                    {item.currency || '-'}
+                  </span>
+                  <span className="chevron" aria-hidden="true">
+                    {isExpanded ? '^' : 'v'}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={() => handleDelete(item.ID)}
+                  disabled={submittingId === item.ID}
+                >
+                  {submittingId === item.ID ? 'Eliminando...' : 'Eliminar'}
+                </button>
+              </header>
+              {isExpanded && (
+                <div className="row-dropdown">
+                  <div className="row-details">
+                    <div>
+                      <strong>ID</strong>
+                      <span>{item.ID}</span>
+                    </div>
+                    <div>
+                      <strong>Multiplicador</strong>
+                      <span>{item.multiplier || '-'}</span>
+                    </div>
+                    <div>
+                      <strong>Clase</strong>
+                      <span>{item.trading_class || '-'}</span>
+                    </div>
+                    <div>
+                      <strong>CONID</strong>
+                      <span>{item.ib_conid ?? '-'}</span>
+                    </div>
+                    <div>
+                      <strong>Subyacente</strong>
+                      <span>{item.underlying_conid ?? '-'}</span>
+                    </div>
+                    <div>
+                      <strong>Ultimo trade</strong>
+                      <span>
+                        {item.last_trade_date
+                          ? new Date(item.last_trade_date).toLocaleString()
+                          : '-'}
+                      </span>
+                    </div>
+                  </div>
+                  <form className="instrument-form" onSubmit={(event) => handleUpdate(event, item.ID)}>
+                    <h4>Editar instrumento</h4>
+                    <div className="form-grid">
+                      {FIELD_CONFIG.map(({ name, label, type, placeholder, step }) => (
+                        <label key={name} className="form-field">
+                          <span>{label}</span>
+                          {name === 'sec_type' ? (
+                            <select
+                              value={formState[name] ?? ''}
+                              onChange={(event) =>
+                                handleEditChange(item.ID, name, event.target.value)
+                              }
+                            >
+                              <option value="">Selecciona un tipo</option>
+                              {tiposInstrumento.map((t) => (
+                                <option key={t.value} value={t.value}>
+                                  {t.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type={type}
+                              value={formState[name] ?? ''}
+                              placeholder={placeholder}
+                              step={step}
+                              onChange={(event) =>
+                                handleEditChange(item.ID, name, event.target.value)
+                              }
+                            />
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                    <button type="submit" className="primary" disabled={submittingId === item.ID}>
+                      {submittingId === item.ID ? 'Guardando...' : 'Actualizar'}
+                    </button>
+                  </form>
+                </div>
+              )}
+            </article>
+          );
+        })}
       </section>
     </div>
   );

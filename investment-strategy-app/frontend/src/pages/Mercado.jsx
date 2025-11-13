@@ -30,6 +30,13 @@ import {
 } from '../utils/marketUtils';
 import '../assets/css/Mercado.css';
 import '../assets/globalAssets.css';
+
+
+//Codigo agregado por Andrick y chat
+import { buildEvents } from '../utils/events'; // o './utils/events' según tu alias
+import EventsTable from '../components/market/EventsTable';
+
+
 /**
  * Pantalla Mercado.
  * Orquesta el flujo completo de datos -> gráficos -> acciones:
@@ -115,6 +122,31 @@ const Mercado = () => {
 
   // Filtrar las velas para mostrar solo el último año hasta la fecha actual
   const candles1y = useMemo(() => filterCandlesLastYear(candles), [candles]);
+
+  const indicatorsForEvents = useMemo(() => {
+  // Convertir a arrays simples alineados por índice si es necesario
+  return {
+    ema20: (ema20 || []).map(e => e?.value ?? null),
+    ema50: (ema50 || []).map(e => e?.value ?? null),
+    rsi: (rsi14 || []).map(r => r?.value ?? null),
+    macd: {
+      macd: (macdLine || []).map(m => m?.value ?? null),
+      signal: (macdSignal || []).map(s => s?.value ?? null),
+      hist: (macdHistogram || []).map(h => h?.value ?? null),
+    },
+    // si calculas bollinger, ponlo aquí: bb: { upper:[], lower:[] }
+  };
+}, [ema20, ema50, rsi14, macdLine, macdSignal, macdHistogram]);
+
+const events = useMemo(() => {
+  if (!candles1y || !candles1y.length) return [];
+  return buildEvents({
+    candles: candles1y,
+    indicators: indicatorsForEvents,
+    divergences,
+    cfg: { rsiOversold: signalConfig.rsiOversold, rsiOverbought: signalConfig.rsiOverbought }
+  });
+}, [candles1y, indicatorsForEvents, divergences, signalConfig]);
 
   // Mostrar error destacado si no hay datos
   const renderError = error && (
@@ -352,6 +384,8 @@ const Mercado = () => {
             )}
           </div>
         )}
+
+        
       </section>
 
       <MarketSummary
@@ -360,13 +394,18 @@ const Mercado = () => {
         candles={candles}
         supportLevels={supportLevels}
         resistanceLevels={resistanceLevels}
-      />
 
+        
+      />
+      <EventsTable events={events} symbol={symbol} />
       <NotificationTray
         notifications={notifications}
         tradeMode={tradeMode}
       />
+
+      
     </div>
+    
   );
 };
 

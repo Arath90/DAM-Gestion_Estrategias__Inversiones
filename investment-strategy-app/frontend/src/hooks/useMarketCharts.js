@@ -148,9 +148,10 @@ export const useMarketCharts = ({
   const macdSignalSeriesRef = useRef(null);
   const macdHistogramSeriesRef = useRef(null);
 
-  /*Nuevos const de Andrick y Chat */
-  const divergenceLineSeriesRefs = useRef([]); // array para series de linea de divergencia en el chart principal
-  const rsiDivergenceMarkersRef = useRef([]); // guardamos marcadores que colocaremos en RSI (para poder limpiarlos)
+  const divergenceLineSeriesRefs = useRef([]);
+  const rsiDivergenceMarkersRef = useRef([]);
+  //Codigo agregado por Andrick y chat
+  const syncingRef = useRef(false);
 
   //Nuevo codigo de Andrick y chat
     // Convierte tus signals (desde useMarketData) en markers compatibles con lightweight-charts
@@ -175,100 +176,68 @@ export const useMarketCharts = ({
 
   // Renderiza lineas punteadas (divergencias) en el chart principal y marcadores en el RSI.
   const renderDivergences = (divergences = [], candles = []) => {
-    // Limpia series previas
-    //Codigo eliminado por Andrick
-    /*if (divergenceLineSeriesRefs.current.length) {
-      divergenceLineSeriesRefs.current.forEach(s => {
-        try { s.remove(); } catch (e) {}
-      });
-      divergenceLineSeriesRefs.current = [];
-    }*/
-
-    //Codigo agregado por Andrick y chat
-          // cleanup - eliminar series de divergencias si existen
-      if (divergenceLineSeriesRefs.current.length) {
-        divergenceLineSeriesRefs.current.forEach(s => {
-          try { s.remove(); } catch(e) {}
-        });
+    try {
+      // limpiar series de lineas dibujadas en precio
+      if (divergenceLineSeriesRefs.current && divergenceLineSeriesRefs.current.length) {
+        divergenceLineSeriesRefs.current.forEach(s => { try { s.remove(); } catch (e) {} });
         divergenceLineSeriesRefs.current = [];
       }
-      // limpiar marcadores RSI
+      // limpiar marcadores en RSI
       if (rsiSeriesRef.current) {
-        try { rsiSeriesRef.current.setMarkers([]); } catch(e) {}
+        try { rsiSeriesRef.current.setMarkers([]); } catch (e) {}
         rsiDivergenceMarkersRef.current = [];
       }
-
-    // Limpia marcadores RSI previos
-    if (rsiSeriesRef.current && rsiDivergenceMarkersRef.current.length) {
-      try { rsiSeriesRef.current.setMarkers([]); } catch (e) {}
-      rsiDivergenceMarkersRef.current = [];
+    } catch (e) {
+      console.debug('[DIV] cleanup error:', e?.message || e);
     }
 
     if (!Array.isArray(divergences) || divergences.length === 0) return;
+    if (!Array.isArray(candles) || candles.length === 0) return;
 
-    // Para cada divergencia creamos:
-    //  - una linea en el panel principal entre p1 (precio) y p2 (precio)
-    //  - marcadores en el panel RSI (dos markers en r1Index/r2Index)
+    // Simplemente colocar markers en RSI y, si aplica, la línea punteada en precio (mantener mínimo)
     divergences.forEach((d) => {
-      // Validar indices
-      const p1 = candles[d.p1Index];
-      const p2 = candles[d.p2Index];
+      try {
+        const p1 = candles[d.p1Index];
+        const p2 = candles[d.p2Index];
+        if (!p1 || !p2) return;
 
-      // Dibujar linea en el chart principal si ambos puntos existen
-      if (p1 && p2 && chartRef.current) {
-        const lineSeries = chartRef.current.addLineSeries({
-          color: '#f59e0b',
-          lineWidth: 2,
-          lineStyle: 2, // dashed
-          priceScaleId: '' // usa escala principal
-        });
-        lineSeries.setData([
-          { time: p1.time, value: p1.high ?? p1.close },
-          { time: p2.time, value: p2.high ?? p2.close }
-        ]);
-        divergenceLineSeriesRefs.current.push(lineSeries);
-      }
-
-      // Agregar marcadores en RSI (si panel RSI existe)
-      if (rsiSeriesRef.current) {
+        // marcar picos en el RSI (si existen índices)
         const r1Index = d.r1Index;
         const r2Index = d.r2Index;
-        const markers = [];
 
-        if (typeof r1Index === 'number' && candles[r1Index]) {
-          markers.push({
-            time: candles[r1Index].time,
-            position: 'aboveBar', // en RSI posicion relativa
-            color: '#f59e0b',
-            shape: 'circle',
-            text: d.type === 'bullish' ? 'Bull' : 'Bear'
-          });
-        }
-        if (typeof r2Index === 'number' && candles[r2Index]) {
-          markers.push({
-            time: candles[r2Index].time,
-            position: 'aboveBar',
-            color: '#f59e0b',
-            shape: 'circle',
-            text: d.type === 'bullish' ? 'Bull' : 'Bear'
-          });
-        }
-
-        // Guardamos para limpiar luego
-        if (markers.length) {
-          // Concatenar con marcadores existentes en RSI (si hay otros)
-          const existing = rsiDivergenceMarkersRef.current || [];
-          const merged = existing.concat(markers);
-          try {
-            rsiSeriesRef.current.setMarkers(merged);
-            rsiDivergenceMarkersRef.current = merged;
-          } catch (e) {
-            console.debug('[DIV] No se pudo setMarkers en RSI:', e.message);
+        if (rsiSeriesRef.current && (r1Index != null || r2Index != null)) {
+          const markers = [];
+          if (r1Index != null && candles[r1Index]) markers.push({ time: candles[r1Index].time, position: 'aboveBar', color: '#f59e0b', shape: 'circle', text: d.type === 'bullish' ? 'Bull' : 'Bear' });
+          if (r2Index != null && candles[r2Index]) markers.push({ time: candles[r2Index].time, position: 'aboveBar', color: '#f59e0b', shape: 'circle', text: d.type === 'bullish' ? 'Bull' : 'Bear' });
+          if (markers.length) {
+            const existing = rsiDivergenceMarkersRef.current || [];
+            const merged = existing.concat(markers);
+            try { rsiSeriesRef.current.setMarkers(merged); rsiDivergenceMarkersRef.current = merged; } catch (e) { console.debug('[DIV] setMarkers failed:', e?.message || e); }
           }
         }
+
+        // Si se desea, el profesor pedía opcionalmente una línea discontinua entre p1 y p2 en el precio.
+        // Mantendremos esto opcional y simple: solo dibujaremos la línea de precio si d.showPriceLine === true
+        if (d.showPriceLine && chartRef.current) {
+          try {
+            const color = d.type === 'bullish' ? 'rgba(16,185,129,0.9)' : 'rgba(220,38,38,0.9)';
+            const ls = chartRef.current.addLineSeries({ color, lineWidth: 2, lineStyle: 2, priceLineVisible: false });
+            ls.setData([
+              { time: p1.time, value: p1.high ?? p1.close },
+              { time: p2.time, value: p2.high ?? p2.close }
+            ]);
+            divergenceLineSeriesRefs.current.push(ls);
+          } catch (e) {
+            console.debug('[DIV] Error dibujando linea de precio (opcional):', e?.message || e);
+          }
+        }
+
+      } catch (e) {
+        console.debug('[DIV] error processing divergence', e?.message || e);
       }
     });
   };
+
 
   useEffect(() => {
     if (!chartContainerRef.current || chartRef.current) return;
@@ -509,6 +478,7 @@ export const useMarketCharts = ({
   }, [settings.macd]);
 
   // Sincronización bidireccional entre todos los gráficos
+    // Sincronización centralizada entre gráficos (evita loops y aplica rango solo si cambia)
   useEffect(() => {
     if (!chartRef.current) return;
 
@@ -522,42 +492,56 @@ export const useMarketCharts = ({
 
     const handlers = [];
 
-    // Crear manejadores de sincronización para cada gráfico
-    charts.forEach((sourceChart, sourceIndex) => {
-      const handler = () => {
+    // Handler que propaga el rango desde sourceChart al resto evitando recursión
+    const createHandler = (sourceChart) => {
+      return () => {
         try {
+          // Si ya estamos sincronizando por otra fuente, salir rápido
+          if (syncingRef.current) return;
+
           const range = sourceChart.timeScale().getVisibleRange();
           if (!range || range.from == null || range.to == null) return;
 
-          // Sincronizar todos los demás gráficos
-          charts.forEach((targetChart, targetIndex) => {
-            if (sourceIndex !== targetIndex && targetChart) {
-              try {
+          // Marcar que estamos sincronizando para bloquear reentradas
+          syncingRef.current = true;
+
+          charts.forEach((targetChart) => {
+            if (targetChart === sourceChart) return;
+            try {
+              const targetRange = targetChart.timeScale().getVisibleRange();
+              // Aplicar solo si realmente difiere (evita sets redundantes)
+              const sameFrom = targetRange && targetRange.from === range.from;
+              const sameTo = targetRange && targetRange.to === range.to;
+              if (!sameFrom || !sameTo) {
                 targetChart.timeScale().setVisibleRange(range);
-              } catch (e) {
-                // Ignorar errores de rango inválido o datos no listos
-                console.debug('[Sync] Error sincronizando:', e.message);
               }
+            } catch (e) {
+              // ignorar errores individuales por charts no listos
             }
           });
         } catch (e) {
-          // Ignorar errores al obtener el rango
-          console.debug('[Sync] Error obteniendo rango:', e.message);
+          console.debug('[Sync] Error propagando rango:', e?.message || e);
+        } finally {
+          // Liberar el bloqueo con un pequeño retardo para permitir que los charts procesen
+          setTimeout(() => { syncingRef.current = false; }, 50);
         }
       };
+    };
 
-      sourceChart.timeScale().subscribeVisibleTimeRangeChange(handler);
-      handlers.push({ chart: sourceChart, handler });
+    charts.forEach((sourceChart) => {
+      const handler = createHandler(sourceChart);
+      try {
+        sourceChart.timeScale().subscribeVisibleTimeRangeChange(handler);
+        handlers.push({ chart: sourceChart, handler });
+      } catch (e) {
+        console.debug('[Sync] No fue posible subscribir a timeScale:', e?.message || e);
+      }
     });
 
-    // Cleanup: desuscribir todos los manejadores
+    // Cleanup
     return () => {
       handlers.forEach(({ chart, handler }) => {
-        try {
-          chart.timeScale().unsubscribeVisibleTimeRangeChange(handler);
-        } catch (e) {
-          // El gráfico puede haber sido destruido
-        }
+        try { chart.timeScale().unsubscribeVisibleTimeRangeChange(handler); } catch (e) {}
       });
     };
   }, [chartRef.current, rsiChartRef.current, macdChartRef.current]);
@@ -761,6 +745,7 @@ export const useMarketCharts = ({
     macdHistogram,
   ]);
 
+
   return {
     chartContainerRef,
     rsiContainerRef,
@@ -772,6 +757,4 @@ export const useMarketCharts = ({
     candleSeriesRef: candleSeriesRef.current,
   };
 };
-
 export default useMarketCharts;
-

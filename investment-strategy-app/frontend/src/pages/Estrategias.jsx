@@ -10,7 +10,8 @@ import {
   describeIndicators,
   hydrateStrategyProfile,
 } from '../constants/strategyProfiles';
-
+import { INDICATOR_CONFIG } from '../constants/indicatorConfig';
+import IndicatorParamsForm from '../components/IndicatorParamsForm'; // <-- ¡NUEVO COMPONENTE!
 const FIELD_CONFIG = [
   { name: 'strategy_code', label: 'Código Estrategia', type: 'text', placeholder: 'STRAT-2025-001', required: true },
   { name: 'dataset_id', label: 'Dataset', as: 'select', options: [{ value: '', label: 'Selecciona dataset' }], required: true },
@@ -39,6 +40,8 @@ const FIELD_CONFIG = [
   { name: 'tags', label: 'Etiquetas', type: 'text', placeholder: 'coma,separadas,por,comas' },
   { name: 'description', label: 'Descripción', as: 'textarea', placeholder: 'Breve descripción' },
 ];
+
+
 
 const mergeIndicatorSettings = (value) => ({
   ...DEFAULT_INDICATOR_SETTINGS,
@@ -86,6 +89,7 @@ const blankForm = () => {
   base.indicator_settings = { ...DEFAULT_INDICATOR_SETTINGS };
   base.signal_config = { ...DEFAULT_SIGNAL_CONFIG };
   base.params_bag = {};
+  base.indicator_params = {}; // <-- NUEVO
   return base;
 };
 
@@ -122,6 +126,7 @@ const buildFormFromStrategy = (item) => {
   base.indicator_settings = mergeIndicatorSettings(indicatorSettings);
   base.signal_config = mergeSignalConfig(signalConfig);
   base.params_bag = paramsBag;
+  base.indicator_params = paramsBag.indicator_params || {}; // <-- NUEVO
   return base;
 };
 
@@ -138,6 +143,7 @@ const toISOOrNull = (v) => {
 
 const sanitizePayload = (form) => {
   const payload = {};
+  const indicatorParams = form.indicator_params || {}; // <-- NUEVO
   const paramsBag = {
     ...parseParamsBag(form.params_bag),
   };
@@ -169,6 +175,7 @@ const sanitizePayload = (form) => {
     ...paramsBag,
     indicator_settings: normalizedIndicatorSettings,
     signal_config: normalizedSignalConfig,
+    indicator_params: indicatorParams, // <-- NUEVO: Incluir los parámetros dinámicos
   };
   payload.params_json = JSON.stringify(nextParams);
 
@@ -184,6 +191,7 @@ const sanitizeSignalValue = (field, rawValue, previous = DEFAULT_SIGNAL_CONFIG[f
   if (field === 'rsiOversold' || field === 'rsiOverbought') {
     const bounded = Math.min(100, Math.max(0, num));
     return field === 'rsiOversold' ? Math.min(bounded, 100) : bounded;
+    base.indicator_params = paramsBag.indicator_params || {};
   }
   return num;
 };
@@ -259,6 +267,38 @@ const Estrategias = () => {
   const [datasets, setDatasets] = useState([]);
   const [datasetsLoading, setDatasetsLoading] = useState(false);
   const [datasetsError, setDatasetsError] = useState('');
+
+
+
+
+
+  /*--*/
+  const [selectedIndicator, setSelectedIndicator] = useState('RSI');
+  // Usaremos un estado local separado para los parámetros del indicador EN EL FORMULARIO DE CREACIÓN
+  const [indicatorParams, setIndicatorParams] = useState({});
+  /*--*/
+   const currentIndicatorConfig = useMemo(() => 
+    INDICATOR_CONFIG[selectedIndicator] || { name: 'Desconocido', properties: [] }, 
+    [selectedIndicator]
+  );
+  useEffect(() => {
+    const defaultParams = currentIndicatorConfig.properties.reduce((acc, prop) => {
+      // Usar Number para asegurar que los inputs de tipo 'number' funcionen bien con el valor 0
+      acc[prop.id] = String(prop.default); 
+      return acc;
+    }, {});
+    setIndicatorParams(defaultParams);
+  }, [selectedIndicator, currentIndicatorConfig.properties]); // Dependencia clave: solo se ejecuta al cambiar el indicador
+  
+  // Manejador para cambiar los valores de los parámetros dinámicos
+  const handleIndicatorParamChange = (id, value) => {
+    setIndicatorParams(prev => ({ ...prev, [id]: value }));
+   };
+
+
+
+
+
   const emptyState = useMemo(() => !loading && !items.length, [loading, items.length]);
   const datasetOptions = useMemo(() => {
     const baseOption = datasetsLoading
@@ -403,8 +443,13 @@ const Estrategias = () => {
     setSubmittingCreate(true);
     setMessage('');
     setError('');
+    
     try {
-      const payload = sanitizePayload(createForm);
+      const formWithParams = {
+        ...createForm,
+        indicator_params: indicatorParams, // <-- Fusión de los parámetros dinámicos
+      };
+      const payload = sanitizePayload(formWithParams);
       // Validar que TODOS los campos obligatorios tengan valor
       const requiredFields = ['strategy_code', 'dataset_id', 'period_start', 'period_end'];
       const missingFields = requiredFields.filter((f) => !payload[f] || String(payload[f]).trim() === '');
@@ -510,10 +555,26 @@ const Estrategias = () => {
           Refrescar
         </button>
       </section>
+      
+
+      
+
+
 
       {showCreate && (
         <form className="estrategia-form" onSubmit={handleCreate}>
           <h4>Nueva estrategia</h4>
+
+      {/* --- REEMPLAZO POR EL NUEVO COMPONENTE --- */}
+          <IndicatorParamsForm 
+            indicatorKey={selectedIndicator}
+            params={indicatorParams}
+            onParamChange={handleIndicatorParamChange}
+            onIndicatorChange={setSelectedIndicator} 
+            isEditing={false}
+          />
+          {/* --------------------------------------- */}
+
           <div className="form-grid">
             {FIELD_CONFIG.map(({ name, label, type, placeholder, step, as, options }) => {
               const isDatasetField = name === 'dataset_id';

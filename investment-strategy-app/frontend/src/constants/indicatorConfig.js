@@ -28,3 +28,30 @@ export const INDICATOR_CONFIG = {
       ]
     }
 };
+
+export const INDICATOR_TOGGLE_TO_CONFIG = {
+  rsi: 'RSI',
+  macd: 'MACD',
+  ema20: 'EMA',
+  ema50: 'EMA',
+  sma200: 'SMA',
+  volume: null,
+  signals: null,
+};
+
+const INDICATOR_DEFAULT_PARAMS_MAP = Object.values(INDICATOR_CONFIG).reduce(
+  (acc, config) => {
+    (config.properties || []).forEach((prop) => {
+      acc[prop.id] =
+        prop.default !== undefined && prop.default !== null
+          ? String(prop.default)
+          : '';
+    });
+    return acc;
+  },
+  {},
+);
+
+export const buildIndicatorDefaultParams = () => ({
+  ...INDICATOR_DEFAULT_PARAMS_MAP,
+});

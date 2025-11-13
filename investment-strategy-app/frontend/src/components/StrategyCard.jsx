@@ -1,6 +1,10 @@
-import React, { useMemo } from 'react'; // <-- Agregamos useMemo
-import IndicatorParamsForm from './IndicatorParamsForm.jsx'; // <-- NUEVO: Importamos el componente
-import { INDICATOR_CONFIG } from '../constants/indicatorConfig'; // <-- NUEVO: Importamos la config
+import React, { useMemo } from 'react';
+import IndicatorParamsForm from './IndicatorParamsForm.jsx';
+import {
+  INDICATOR_CONFIG,
+  INDICATOR_TOGGLE_TO_CONFIG,
+  buildIndicatorDefaultParams,
+} from '../constants/indicatorConfig';
 import {
   DEFAULT_INDICATOR_SETTINGS,
   DEFAULT_SIGNAL_CONFIG,
@@ -12,6 +16,7 @@ import {
 
 const ALL_INDICATOR_TOGGLE_KEYS = INDICATOR_TOGGLES.map(({ key }) => key);
 const DEFAULT_CONFIG_KEYS = Object.keys(INDICATOR_CONFIG);
+const DEFAULT_INDICATOR_PARAM_VALUES = buildIndicatorDefaultParams();
 
 const StrategyCard = ({
   item,
@@ -39,20 +44,13 @@ const StrategyCard = ({
     ...(editState.signal_config || {}),
   };
 
-  const currentIndicatorKey = useMemo(() => {
-    // Obtenemos todos los IDs de los parámetros guardados.
-    const paramIds = Object.keys(editState.indicator_params || {});
-    if (paramIds.length === 0) return 'RSI'; // Valor por defecto si no hay parámetros guardados
-
-    // Intentamos determinar el indicador basándonos en los prefijos de los IDs
-    for (const key of Object.keys(INDICATOR_CONFIG)) {
-      // Buscamos si algún ID de parámetro comienza con la clave del indicador (ej. 'RSI_')
-      if (paramIds.some(id => id.startsWith(key + '_'))) {
-        return key;
-      }
-    }
-    return 'RSI'; // Volvemos al default si no encontramos una coincidencia
-  }, [editState.indicator_params]);
+  const mergedIndicatorParams = useMemo(
+    () => ({
+      ...DEFAULT_INDICATOR_PARAM_VALUES,
+      ...(editState.indicator_params || {}),
+    }),
+    [editState.indicator_params],
+  );
 
   // Función para actualizar los parámetros del indicador en el estado de edición
   const handleEditIndicatorParamChange = (id, value) => {
@@ -95,10 +93,17 @@ const StrategyCard = ({
   const effectiveConfigKeys = allowedIndicatorConfigKeys?.length
     ? allowedIndicatorConfigKeys
     : DEFAULT_CONFIG_KEYS;
-  const safeIndicatorKey = useMemo(() => {
-    if (effectiveConfigKeys.includes(currentIndicatorKey)) return currentIndicatorKey;
-    return effectiveConfigKeys[0] || currentIndicatorKey;
-  }, [currentIndicatorKey, effectiveConfigKeys]);
+
+  const activeConfigKeys = useMemo(() => {
+    const settings = editState.indicator_settings || {};
+    const activeToggles = Object.entries(settings)
+      .filter(([, checked]) => !!checked)
+      .map(([key]) => INDICATOR_TOGGLE_TO_CONFIG[key])
+      .filter(Boolean);
+    const uniqueKeys = [...new Set(activeToggles)];
+    if (!effectiveConfigKeys.length) return uniqueKeys;
+    return uniqueKeys.filter((key) => effectiveConfigKeys.includes(key));
+  }, [editState.indicator_settings, effectiveConfigKeys]);
 
   return (
     <article className={`strategy-row${isExpanded ? ' expanded' : ''}`}>
@@ -246,13 +251,21 @@ const StrategyCard = ({
             </div>
 
             {/* 2. FORMULARIO DINÁMICO DE INDICADOR */}
-            <IndicatorParamsForm
-              indicatorKey={safeIndicatorKey}
-              params={editState.indicator_params || {}}
-              onParamChange={handleEditIndicatorParamChange}
-              isEditing={true}
-              allowedIndicators={effectiveConfigKeys}
-            />
+            {activeConfigKeys.length > 0 && (
+              <div className="strategy-config-block">
+                <h5>Parámetros de indicadores seleccionados</h5>
+                {activeConfigKeys.map((configKey) => (
+                  <IndicatorParamsForm
+                    key={configKey}
+                    indicatorKey={configKey}
+                    params={mergedIndicatorParams}
+                    onParamChange={handleEditIndicatorParamChange}
+                    isEditing={true}
+                    withContainer={false}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* 3. INDICADORES VINCULADOS */}
             <div className="strategy-config-block">

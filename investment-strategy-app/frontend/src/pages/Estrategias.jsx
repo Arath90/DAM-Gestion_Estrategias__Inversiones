@@ -10,7 +10,11 @@ import {
   describeIndicators,
   hydrateStrategyProfile,
 } from '../constants/strategyProfiles';
-import { INDICATOR_CONFIG } from '../constants/indicatorConfig';
+import {
+  INDICATOR_CONFIG,
+  INDICATOR_TOGGLE_TO_CONFIG,
+  buildIndicatorDefaultParams,
+} from '../constants/indicatorConfig';
 import IndicatorParamsForm from '../components/IndicatorParamsForm';
 import StrategyCard from '../components/StrategyCard'; // <-- mover import aquí
 const FIELD_CONFIG = [
@@ -41,6 +45,8 @@ const FIELD_CONFIG = [
   { name: 'tags', label: 'Etiquetas', type: 'text', placeholder: 'coma,separadas,por,comas' },
   { name: 'description', label: 'Descripción', as: 'textarea', placeholder: 'Breve descripción' },
 ];
+
+const DEFAULT_INDICATOR_PARAM_VALUES = buildIndicatorDefaultParams();
 
 
 
@@ -273,28 +279,14 @@ const Estrategias = () => {
 
 
 
-  /*--*/
-  const [selectedIndicator, setSelectedIndicator] = useState('RSI');
-  // Usaremos un estado local separado para los parámetros del indicador EN EL FORMULARIO DE CREACIÓN
-  const [indicatorParams, setIndicatorParams] = useState({});
-  /*--*/
-   const currentIndicatorConfig = useMemo(() => 
-    INDICATOR_CONFIG[selectedIndicator] || { name: 'Desconocido', properties: [] }, 
-    [selectedIndicator]
-  );
-  useEffect(() => {
-    const defaultParams = currentIndicatorConfig.properties.reduce((acc, prop) => {
-      // Usar Number para asegurar que los inputs de tipo 'number' funcionen bien con el valor 0
-      acc[prop.id] = String(prop.default); 
-      return acc;
-    }, {});
-    setIndicatorParams(defaultParams);
-  }, [selectedIndicator, currentIndicatorConfig.properties]); // Dependencia clave: solo se ejecuta al cambiar el indicador
-  
+  const [indicatorParams, setIndicatorParams] = useState(() => ({
+    ...DEFAULT_INDICATOR_PARAM_VALUES,
+  }));
+
   // Manejador para cambiar los valores de los parámetros dinámicos
   const handleIndicatorParamChange = (id, value) => {
-    setIndicatorParams(prev => ({ ...prev, [id]: value }));
-   };
+    setIndicatorParams((prev) => ({ ...prev, [id]: value }));
+  };
 
 
 
@@ -320,16 +312,6 @@ const Estrategias = () => {
     () => normalizeDatasetKey(createForm.dataset_id),
     [createForm.dataset_id],
   );
-
-  useEffect(() => {
-    const allowedConfigs = deriveAllowedConfigKeys(
-      datasetComponentsMap,
-      normalizedCreateDatasetId,
-    );
-    setSelectedIndicator((prev) =>
-      allowedConfigs.includes(prev) ? prev : allowedConfigs[0] || prev,
-    );
-  }, [datasetComponentsMap, normalizedCreateDatasetId]);
 
   useEffect(() => {
     const allowedKeys = deriveAllowedIndicatorKeys(datasetComponentsMap, normalizedCreateDatasetId);
@@ -471,10 +453,6 @@ const Estrategias = () => {
           deriveAllowedIndicatorKeys(datasetComponentsMap, value),
         ),
       }));
-      const allowedConfigs = deriveAllowedConfigKeys(datasetComponentsMap, value);
-      setSelectedIndicator((prev) =>
-        allowedConfigs.includes(prev) ? prev : allowedConfigs[0] || prev,
-      );
       return;
     }
     setCreateForm((prev) => ({ ...prev, [field]: value }));
@@ -492,6 +470,17 @@ const getEditSnapshot = (forms, id) =>
     () => deriveAllowedConfigKeys(datasetComponentsMap, normalizedCreateDatasetId),
     [datasetComponentsMap, normalizedCreateDatasetId],
   );
+
+  const activeIndicatorConfigKeysForCreate = useMemo(() => {
+    const settings = createForm.indicator_settings || {};
+    const activeToggles = Object.entries(settings)
+      .filter(([, checked]) => !!checked)
+      .map(([key]) => INDICATOR_TOGGLE_TO_CONFIG[key])
+      .filter(Boolean);
+    const uniqueKeys = [...new Set(activeToggles)];
+    if (!allowedConfigKeysForCreate.length) return uniqueKeys;
+    return uniqueKeys.filter((key) => allowedConfigKeysForCreate.includes(key));
+  }, [createForm.indicator_settings, allowedConfigKeysForCreate]);
 
   const createIndicatorToggleList = useMemo(() => {
     const allowed = allowedToggleKeysForCreate;
@@ -596,6 +585,7 @@ const getEditSnapshot = (forms, id) =>
       };
       setItems((prev) => [merged, ...prev]);
       setCreateForm(blankForm());
+      setIndicatorParams({ ...DEFAULT_INDICATOR_PARAM_VALUES });
       setMessage('Estrategia creada correctamente.');
       setShowCreate(false);
     } catch (err) {
@@ -692,15 +682,6 @@ const getEditSnapshot = (forms, id) =>
         <form className="estrategia-form" onSubmit={handleCreate}>
           <h4>Nueva estrategia</h4>
 
-          <IndicatorParamsForm
-            indicatorKey={selectedIndicator}
-            params={indicatorParams}
-            onParamChange={handleIndicatorParamChange}
-            onIndicatorChange={setSelectedIndicator}
-            isEditing={false}
-            allowedIndicators={allowedConfigKeysForCreate}
-          />
-
           <div className="form-grid">
             {FIELD_CONFIG.map(({ name, label, type, placeholder, step, as, options }) => {
               const isDatasetField = name === 'dataset_id';
@@ -767,6 +748,21 @@ const getEditSnapshot = (forms, id) =>
               ))}
             </div>
           </div>
+          {activeIndicatorConfigKeysForCreate.length > 0 && (
+            <div className="strategy-config-block">
+              <h5>Parámetros de indicadores seleccionados</h5>
+              {activeIndicatorConfigKeysForCreate.map((configKey) => (
+                <IndicatorParamsForm
+                  key={configKey}
+                  indicatorKey={configKey}
+                  params={indicatorParams}
+                  onParamChange={handleIndicatorParamChange}
+                  isEditing
+                  withContainer={false}
+                />
+              ))}
+            </div>
+          )}
           <div className="strategy-config-block">
             <h5>Configuración de señales</h5>
             <div className="config-grid">
@@ -850,15 +846,6 @@ export default Estrategias;
 
 // Eliminar duplicados y hooks fuera de componente, dejar solo constantes y helpers puros
 const MODEL_TYPE = 'DATASET_COMPONENTS';
-const INDICATOR_TOGGLE_TO_CONFIG = {
-  rsi: 'RSI',
-  macd: 'MACD',
-  ema20: 'EMA',
-  ema50: 'EMA',
-  sma200: 'SMA',
-  volume: null,
-  signals: null,
-};
 const ALL_INDICATOR_KEYS = INDICATOR_TOGGLES.map((item) => item.key);
 
 const parseLargeJSON = (value) => {

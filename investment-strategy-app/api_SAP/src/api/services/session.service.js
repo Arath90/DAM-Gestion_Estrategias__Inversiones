@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 
 // Servicio ultra ligero: guarda sesiones en memoria con un TTL configurable.
+//che pero que es un TTL? tiempo de vida we, osea el tiempo que dura la sesion antes de expirar, pero cuandoe expira?, cuando el usuario
 // Cada sesión conoce su token (lo enviamos al front), al usuario y la fecha de expiración.
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 1000 * 60 * 60 * 8); // default 8h
 const CLEANUP_INTERVAL_MS = Math.max(SESSION_TTL_MS / 2, 60_000); // evitamos barridos excesivos

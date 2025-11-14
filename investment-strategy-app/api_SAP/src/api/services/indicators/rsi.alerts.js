@@ -103,8 +103,8 @@ module.exports = { rsiAlerts };
 
 // | Tipo de alerta         | Condición                        | Significado                 |
 // | ---------------------- | -------------------------------- | --------------------------- |
-// | `rsi_overbought_enter` | `prev < high && cur >= high`     | RSI entra en sobrecompra    |
-// | `rsi_oversold_enter`   | `prev > low && cur <= low`       | RSI entra en sobreventa     |
-// | `rsi_pre_oversold`     | `prev > preLow && cur <= preLow` | Aviso temprano de debilidad |
-// | `rsi_cross_up_50`      | `prev < 50 && cur >= 50`         | Momentum se vuelve alcista  |
-// | `rsi_cross_down_50`    | `prev > 50 && cur <= 50`         | Momentum se vuelve bajista  |
+// | rsi_overbought_enter | prev < high && cur >= high     | RSI entra en sobrecompra    |
+// | rsi_oversold_enter   | prev > low && cur <= low       | RSI entra en sobreventa     |
+// | rsi_pre_oversold     | prev > preLow && cur <= preLow | Aviso temprano de debilidad |
+// | rsi_cross_up_50      | prev < 50 && cur >= 50         | Momentum se vuelve alcista  |
+// | rsi_cross_down_50    | prev > 50 && cur <= 50         | Momentum se vuelve bajista  |

@@ -1,33 +1,35 @@
-/* Icono del input de fecha/hora con color igual al menú lateral */
-.form-field input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-  filter: invert(70%) sepia(100%) saturate(500%) hue-rotate(120deg);
-  /* Si tu menú lateral usa otro color, ajusta el filtro o usa background/color directo */
-}
-.form-field input[type="datetime-local"]::-webkit-input-placeholder {
-  color: var(--project-color4);
-}
+/* === Inputs de fecha/hora === */
 .form-field input[type="datetime-local"] {
   color-scheme: dark;
 }
+.form-field input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(70%) sepia(100%) saturate(500%) hue-rotate(120deg);
+}
+.form-field input[type="datetime-local"]::placeholder {
+  color: var(--project-color4);
+}
+
+/* === Página Estrategias === */
 .page-estrategias {
   padding: 32px;
-  background: var(--project-color2);
-  color: var(--project-color1);
+  background: var(--project-color4); /* Fondo principal igual que instrumentos */
+  color: var(--project-color1);      /* Texto principal igual que instrumentos */
   font-family: var(--project-font);
 }
 
+/* === Header Estrategias === */
 .estrategias-header h2 {
   margin: 0;
   font-size: 28px;
-  color: var(--project-color3);
+  color: var(--project-colorTitle);  /* Texto principal igual que instrumentos */
 }
-
 .estrategias-header p {
   margin: 4px 0 24px;
-  color: var(--project-color4);
+  color: var(--project-color2);      /* Texto secundario igual que instrumentos */
   max-width: 640px;
 }
 
+/* === Acciones Estrategias === */
 .estrategias-actions {
   display: flex;
   gap: 12px;
@@ -36,8 +38,8 @@
   flex-wrap: wrap;
 }
 
-.toggle-create,
-.btn-secondary {
+/* === Botones secundarios y toggle === */
+.estrategias-actions button{
   background: var(--project-color3);
   color: var(--project-colorTitle);
   border: none;
@@ -53,31 +55,27 @@
   min-height: 0;
   line-height: 1.2;
 }
-.toggle-create:hover, .toggle-create:focus,
-.btn-secondary:hover, .btn-secondary:focus {
-  background: var(--project-color1);
-  color: var(--project-color4);
-}
-.btn-secondary {
-  background: rgba(255,255,255,0.08);
-  color: var(--project-color3);
-  border: 1px solid rgba(255,255,255,0.15);
+.estrategias-actions button:hover {
+  background: var(--project-color2);
+  color: var(--project-color5);
 }
 
+/* === Formulario Estrategia === */
 .estrategia-form {
   margin-top: 12px;
   padding: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--project-color3);    /* Bordes igual que instrumentos */
   border-radius: 12px;
-  background: rgba(0, 0, 0, 0.15);
-  color: var(--project-color4);
+  background: var(--project-color5);          /* Fondo igual que instrumentos */
+  color: var(--project-color1);               /* Texto principal igual que instrumentos */
 }
-
 .estrategia-form h4 {
   margin: 0 0 12px;
   font-size: 20px;
+  color: var(--project-colorTitle);           /* Igual que instrumentos */
 }
 
+/* === Grilla de formulario === */
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -85,68 +83,60 @@
   margin-bottom: 18px;
 }
 
+/* === Campos de formulario === */
 .form-field {
   display: flex;
   flex-direction: column;
   font-size: 14px;
   gap: 6px;
 }
-
 .form-field span {
   font-weight: 600;
 }
-
 .form-field input,
 .form-field select,
 .form-field textarea {
   padding: 8px 10px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(0, 0, 0, 0.35);
-  color: var(--project-color3);
+  border: 1px solid var(--project-color3) !important;
+  background: var(--project-color5) !important;
+  color: var(--project-color2) !important;
 }
-
 .form-field input::placeholder,
 .form-field select::placeholder,
 .form-field textarea::placeholder {
-  color: var(--project-color3);
+  color: var(--project-color2);
 }
-
-
 .form-field select:focus,
 .form-field input:focus {
-  transition: border-color 0.2s;
   border-color: var(--project-color3);
 }
-
-
 .form-field select:active {
-  transition: background 0.5s, color 0.2s, border-color 0.2s;
   background: var(--project-color2);
   color: var(--project-color2);
   border-color: var(--project-color3);
   outline: none;
 }
-
-/* Colores de las opciones (soporte limitado según navegador) */
 .form-field select option {
   background: var(--project-color2);
   color: var(--project-color3);
 }
-
-/* Quitar fondo del icono en IE/Edge si hace falta */
 .form-field select::-ms-expand {
   display: block;
   filter: none;
 }
-.form-field textarea { min-height: 80px; resize: vertical; }
+.form-field textarea {
+  min-height: 80px;
+  resize: vertical;
+}
 
+/* === Status Estrategias === */
 .estrategias-status {
   margin: 16px 0;
   padding: 12px 16px;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.25);
-  color : var(--project-color4);
+  color: var(--project-color4);
 }
 .estrategias-status.error {
   background: rgba(255, 82, 82, 0.2);
@@ -157,13 +147,14 @@
   border: 1px solid rgba(29, 209, 161, 0.6);
 }
 
+/* === Lista Estrategias === */
 .estrategias-list {
   display: flex;
   flex-direction: column;
   gap: 18px;
 }
 
-/* Card (alineado al look & feel de Instrumentos) */
+/* === Card Estrategia === */
 .strategy-row {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 14px;
@@ -197,14 +188,15 @@
 .strategy-toggle .title {
   font-size: 18px;
   font-weight: 700;
-  color: var(--project-color4);
+  color: var(--project-color2);
 }
 .strategy-toggle .meta {
   font-size: 14px;
   color: rgba(255,255,255,0.7);
 }
-.strategy-toggle .chevron { font-weight: 700; }
-
+.strategy-toggle .chevron {
+  font-weight: 700;
+}
 .btn-danger {
   border: none;
   background: rgba(255, 82, 82, 0.9);
@@ -215,14 +207,15 @@
   cursor: pointer;
   transition: opacity 0.2s;
 }
-.btn-danger:disabled { opacity: 0.6; cursor: default; }
-
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 .strategy-dropdown {
   padding: 0 18px 18px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(0, 0, 0, 0.15);
 }
-
 .strategy-details {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -241,17 +234,6 @@
   color: rgba(255,255,255,0.85);
 }
 
-button.primary {
-  background: var(--project-color3);
-  border: none;
-  border-radius: 8px;
-  color: #012f2c;
-  font-weight: 700;
-  padding: 10px 18px;
-  cursor: pointer;
-  transition: transform 0.2s;
-}
-button.primary:disabled { opacity: 0.6; cursor: default; }
 
 .selector-wrapper {
   position: relative;

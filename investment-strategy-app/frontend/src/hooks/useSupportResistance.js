@@ -46,34 +46,34 @@ export const useSupportResistance = (candles, chartRef) => {
 
       try {
         // 🔹 Soportes (líneas verdes)
-        supportLevels.forEach((level) => {
-          const lineSeries = chartRef.addLineSeries({
-            color: '#00FF00',
-            lineWidth: 2,
-            lineStyle: 2,
-            title: `Soporte ${level.toFixed(2)}`,
-          });
-          lineSeries.setData([
-            { time: candles[0].time, value: level },
-            { time: candles[candles.length - 1].time, value: level },
-          ]);
-          seriesRef.current.push(lineSeries);
+      supportLevels.forEach((level) => {
+        const lineSeries = chartRef.addLineSeries({
+          color: '#0a8f0cff',      // blanco
+          lineWidth: 1,          // delgada
+          lineStyle: 0,          // lineal
+          title: `Soporte ${level.toFixed(2)}`,
         });
+        lineSeries.setData([
+          { time: candles[0].time, value: level },
+          { time: candles[candles.length - 1].time, value: level },
+        ]);
+        seriesRef.current.push(lineSeries);
+      });
 
         // 🔹 Resistencias (líneas rojas)
-        resistanceLevels.forEach((level) => {
-          const lineSeries = chartRef.addLineSeries({
-            color: '#FF0000',
-            lineWidth: 2,
-            lineStyle: 2,
-            title: `Resistencia ${level.toFixed(2)}`,
-          });
-          lineSeries.setData([
-            { time: candles[0].time, value: level },
-            { time: candles[candles.length - 1].time, value: level },
-          ]);
-          seriesRef.current.push(lineSeries);
+      resistanceLevels.forEach((level) => {
+        const lineSeries = chartRef.addLineSeries({
+          color: 'rgba(255,0,0,0.4)', // rojo tenue
+          lineWidth: 1,                // grosor intermedio
+          lineStyle: 0,                // lineal
+          title: `Resistencia ${level.toFixed(2)}`,
         });
+        lineSeries.setData([
+          { time: candles[0].time, value: level },
+          { time: candles[candles.length - 1].time, value: level },
+        ]);
+        seriesRef.current.push(lineSeries);
+      });
 
         console.log('✅ Soportes:', supportLevels);
         console.log('✅ Resistencias:', resistanceLevels);

@@ -208,6 +208,14 @@ const Mercado = () => {
   // -------------------------------------------------------
   const candles1y = useMemo(() => filterCandlesLastYear(candles), [candles]);
 
+  const highLowPoints = useMemo(() => {
+    if (!candles1y || candles1y.length === 0) return { maxPrice: null, minPrice: null };
+    const highs = candles1y.map(c => c.high);
+    const lows = candles1y.map(c => c.low);
+    const maxPrice = Math.max(...highs);
+    const minPrice = Math.min(...lows);
+    return { maxPrice, minPrice };
+  }, [candles1y]);
   // -------------------------------------------------------
   // 8. PREPARAR INDICADORES EN FORMATOS SIMPLES PARA EVENTOS
   //    (arrays de valores alineados con índices de candles1y)

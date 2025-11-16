@@ -152,6 +152,8 @@ export const useMarketCharts = ({
   const rsiDivergenceMarkersRef = useRef([]);
   //Codigo agregado por Andrick y chat
   const syncingRef = useRef(false);
+  const maxLineSeriesRef = useRef(null);
+  const minLineSeriesRef = useRef(null);
 
   //Nuevo codigo de Andrick y chat
     // Convierte tus signals (desde useMarketData) en markers compatibles con lightweight-charts
@@ -238,6 +240,41 @@ export const useMarketCharts = ({
     });
   };
 
+  useEffect(() => {
+    if (!chartRef.current || !candles || candles.length === 0) return;
+
+    const highs = candles.map(c => c.high);
+    const lows = candles.map(c => c.low);
+    const maxPrice = Math.max(...highs);
+    const minPrice = Math.min(...lows);
+
+    if (!maxLineSeriesRef.current) {
+      maxLineSeriesRef.current = chartRef.current.addLineSeries({
+        color: '#ffea00',
+        lineWidth: 1,
+        lineStyle: 0,
+        priceLineVisible: false,
+      });
+    }
+    maxLineSeriesRef.current.setData([
+      { time: candles[0].time, value: maxPrice },
+      { time: candles[candles.length - 1].time, value: maxPrice },
+    ]);
+
+    if (!minLineSeriesRef.current) {
+      minLineSeriesRef.current = chartRef.current.addLineSeries({
+        color: '#ffea00',
+        lineWidth: 2,
+        lineStyle: 0,
+        priceLineVisible: false,
+      });
+    }
+    minLineSeriesRef.current.setData([
+      { time: candles[0].time, value: minPrice },
+      { time: candles[candles.length - 1].time, value: minPrice },
+    ]);
+
+  }, [candles]);
 
   useEffect(() => {
     if (!chartContainerRef.current || chartRef.current) return;

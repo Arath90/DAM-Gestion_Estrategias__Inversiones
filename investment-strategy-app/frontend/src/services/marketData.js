@@ -49,8 +49,17 @@ const pendingRequests = new Map();
 let lastRateLimitTime = 0;
 let rateLimitBackoffMs = 5000; // Empezar con 5 segundos
 
-export async function fetchCandles({ symbol, interval = '1hour', limit = 120, offset = 0 }) {
-  if (!symbol) throw new Error('symbol requerido');
+export async function fetchCandles({
+  symbol,
+  interval = '1hour',
+  limit = 120,
+  offset = 0,
+  datasetId,
+  strategyCode,
+  from,
+  to,
+}) {
+  if (!symbol && !datasetId && !strategyCode) throw new Error('symbol o dataset/strategy requerido');
   
   // Mapear intervalos personalizados a intervalos soportados por la API
   const intervalMapping = {
@@ -87,7 +96,7 @@ export async function fetchCandles({ symbol, interval = '1hour', limit = 120, of
     }
   }
   
-  const cacheKey = `${symbol}-${interval}-${limit}-${offset}`;
+  const cacheKey = `${symbol || 'auto'}-${datasetId || 'no-ds'}-${strategyCode || 'no-strat'}-${from || 'no-from'}-${to || 'no-to'}-${interval}-${limit}-${offset}`;
   
   // 1. Verificar si hay una petición en progreso
   if (pendingRequests.has(cacheKey)) {
@@ -117,6 +126,10 @@ export async function fetchCandles({ symbol, interval = '1hour', limit = 120, of
     interval: apiInterval, // Usar el intervalo mapeado
     limit: adjustedLimit,
     offset,
+    dataset_id: datasetId,
+    strategy_code: strategyCode,
+    from,
+    to,
   };
 
   const requestPromise = axios.get(buildUrl('/api/candles/prev'), {
@@ -180,6 +193,37 @@ export async function fetchCandles({ symbol, interval = '1hour', limit = 120, of
   pendingRequests.set(cacheKey, requestPromise);
   
   return requestPromise;
+}
+
+export async function fetchMacd({ symbol, interval = '1hour', limit = 120, fast = 12, slow = 26, signal = 9 }) {
+  if (!symbol) throw new Error('symbol requerido');
+
+  const params = {
+    symbol,
+    tf: interval,
+    limit,
+    fast,
+    slow,
+    signal,
+  };
+
+  const { data } = await axios.get(buildUrl('/api/indicators/macd'), { params, timeout: 20000 });
+
+  const mapSeries = (series = []) =>
+    Array.isArray(series)
+      ? series
+          .map((p) => ({
+            time: new Date(p.time || p.ts || 0).getTime() / 1000,
+            value: Number(p.value),
+          }))
+          .filter((p) => Number.isFinite(p.time) && Number.isFinite(p.value))
+      : [];
+
+  return {
+    macdLine: mapSeries(data?.macdLine || data?.macd || []),
+    macdSignal: mapSeries(data?.signalLine || data?.signal || []),
+    macdHistogram: mapSeries(data?.histogram || []),
+  };
 }
 
 export const DEFAULT_SYMBOLS = [

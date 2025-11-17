@@ -224,7 +224,41 @@ async function handleCandlesRead({ filter = {}, req, top, skip, orderby }) {
     req?.req?.query?.ib_conid ||
     req?.req?.query?.conid;
 
+  const datasetIdParam =
+    filter.dataset_id ||
+    req?.req?.query?.dataset_id ||
+    req?.req?.query?.datasetId;
+
+  const strategyParam =
+    filter.strategy_code ||
+    filter.strategy_id ||
+    req?.req?.query?.strategy_code ||
+    req?.req?.query?.strategyId;
+
   let instrument = null;
+  let dataset = null;
+  let strategy = null;
+
+  if (strategyParam) {
+    const findStrategy = mongoose.isValidObjectId(strategyParam)
+      ? { _id: strategyParam }
+      : { strategy_code: strategyParam };
+    strategy = await StrategiesModel.findOne(findStrategy).lean();
+  }
+
+  const effectiveDatasetId =
+    datasetIdParam ||
+    (strategy?.dataset_id &&
+      (strategy.dataset_id.ID ||
+        strategy.dataset_id._id ||
+        strategy.dataset_id));
+
+  if (effectiveDatasetId) {
+    const dsFilter = mongoose.isValidObjectId(effectiveDatasetId)
+      ? { _id: effectiveDatasetId }
+      : { name: effectiveDatasetId };
+    dataset = await MLDataset.findOne(dsFilter).lean();
+  }
 
   if (candidateInstrumentId) {
     if (mongoose.isValidObjectId(candidateInstrumentId)) {
@@ -250,6 +284,22 @@ async function handleCandlesRead({ filter = {}, req, top, skip, orderby }) {
     instrument = await Instrument.findOne({
       ib_conid: Number.isNaN(conidValue) ? candidateConid : conidValue,
     }).lean();
+  }
+
+  if (!instrument && dataset?.instrument_conid != null) {
+    const conv = Number(dataset.instrument_conid);
+    instrument = await Instrument.findOne({
+      ib_conid: Number.isNaN(conv) ? dataset.instrument_conid : conv,
+    }).lean();
+  }
+
+  if (
+    !instrument &&
+    dataset?.spec_json &&
+    (dataset.spec_json.symbol || dataset.spec_json.ticker)
+  ) {
+    const dsSymbol = dataset.spec_json.symbol || dataset.spec_json.ticker;
+    instrument = await Instrument.findOne({ symbol: dsSymbol }).lean();
   }
 
   if (!instrument) {
@@ -279,8 +329,14 @@ async function handleCandlesRead({ filter = {}, req, top, skip, orderby }) {
   const limit =
     Number.isFinite(topNum) && topNum > 0 ? topNum : DEFAULT_CANDLES_LIMIT;
   const offset = Number.isFinite(skipNum) && skipNum > 0 ? skipNum : 0;
-  const fromOverride = req?.req?.query?.from || req?.req?.query?.fromDate;
-  const toOverride = req?.req?.query?.to || req?.req?.query?.toDate;
+  const fromOverride =
+    req?.req?.query?.from ||
+    req?.req?.query?.fromDate ||
+    strategy?.period_start;
+  const toOverride =
+    req?.req?.query?.to ||
+    req?.req?.query?.toDate ||
+    strategy?.period_end;
 
   const instrumentIdStr = instrument._id?.toString
     ? instrument._id.toString()

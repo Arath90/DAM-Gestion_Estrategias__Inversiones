@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fetchCandles } from '../services/marketData';
+import { fetchCandles, fetchMacd } from '../services/marketData';
 import { DEFAULT_SIGNAL_CONFIG } from '../constants/strategyProfiles';
 import { DEFAULT_ALGORITHM_PARAMS, mergeAlgorithmParams } from '../constants/algorithmDefaults';
 
@@ -29,8 +29,7 @@ import { computeSignals } from '../utils/signals';
  *  - El hook exporta marketAnalyticsUtils para que otros modulos (tests, futuros
  *    pipelines ML) puedan reutilizar las formulas sin requerir React.
  *
- * TODO: integrar controles para parametrizar periodos desde la UI (actualmente fijos
- *  en EMA20/EMA50/SMA200/RSI14/MACD 12-26-9) y persistir las preferencias por usuario.
+ * 
  */
 
 
@@ -280,28 +279,39 @@ export const useMarketData = ({
   limit = 120,
   signalConfig = DEFAULT_SIGNAL_CONFIG,
   algoParams = DEFAULT_ALGORITHM_PARAMS,
+  datasetId,
+  strategyCode,
+  periodStart,
+  periodEnd,
 }) => {
   const [state, setState] = useState({
     candles: [],
     loading: false,
     error: '',
   });
+  const [macdBackend, setMacdBackend] = useState(null);
 
   useEffect(() => {
     let alive = true;
     let timeoutId;
-    // Debounce de 500ms para evitar múltiples requests (aumentado por rate limiting)
     timeoutId = setTimeout(() => {
       console.log(`📊 Solicitando ${limit} velas de ${symbol} en intervalo ${interval}`);
       setState((prev) => ({ ...prev, loading: true, error: '' }));
-      fetchCandles({ symbol, interval, limit })
+      fetchCandles({
+        symbol,
+        interval,
+        limit,
+        datasetId,
+        strategyCode,
+        from: periodStart,
+        to: periodEnd,
+      })
         .then(({ candles }) => {
           if (!alive) return;
           if (!candles || candles.length === 0) {
             setState({ candles: [], loading: false, error: 'No se encontraron datos para el intervalo seleccionado. Prueba con otro rango o instrumento.' });
             return;
           }
-          // Calcular período cubierto
           const firstTime = new Date(candles[0].time * 1000);
           const lastTime = new Date(candles[candles.length - 1].time * 1000);
           const daysCovered = (lastTime - firstTime) / (1000 * 60 * 60 * 24);
@@ -330,7 +340,29 @@ export const useMarketData = ({
       alive = false;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [symbol, interval, limit]);
+  }, [symbol, interval, limit, datasetId, strategyCode, periodStart, periodEnd]);
+
+  useEffect(() => {
+    let alive = true;
+    if (!state.candles.length || !symbol) {
+      setMacdBackend(null);
+      return undefined;
+    }
+
+    fetchMacd({ symbol, interval, limit })
+      .then((data) => {
+        if (!alive) return;
+        setMacdBackend(data);
+      })
+      .catch((err) => {
+        console.warn('[MACD backend] fallback a cálculo local:', err?.message || err);
+        if (alive) setMacdBackend(null);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [state.candles, symbol, interval, limit]);
 
 const analytics = useMemo(() => {
   const { candles } = state;
@@ -365,11 +397,13 @@ const analytics = useMemo(() => {
   const ema50 = calcEMA(candles, emaSlowPeriod);
   const sma200 = calcSMA(candles, smaLongPeriod);
   const rsi14 = calcRSI(candles, rsiPeriod);
-  const {
-    macdLine,
-    signalLine: macdSignal,
-    histogram: macdHistogram,
-  } = calcMACD(candles, macdFastPeriod, macdSlowPeriod, macdSignalPeriod);
+  const macdCalc = macdBackend && macdBackend.macdLine?.length
+    ? macdBackend
+    : calcMACD(candles, macdFastPeriod, macdSlowPeriod, macdSignalPeriod);
+
+  const macdLine = macdCalc.macdLine || [];
+  const macdSignal = macdCalc.signalLine || macdCalc.macdSignal || [];
+  const macdHistogram = macdCalc.macdHistogram || macdCalc.histogram || [];
 
   // --- Preparar series alineadas para detección de divergencias ---
   // price series: preferimos usar highs para detectar bearish peaks y lows para bullish

@@ -265,7 +265,8 @@ entity Strategies @cds.persistence.skip {
       capitalAllocated : Decimal(15,2);
       tags             : array of String;
       description      : LargeString;
-      params_json      : LargeString;
+      indicators       : LargeString;
+      indicator_params : LargeString;
       metrics_json     : LargeString;
       createdAt        : DateTime;
       updatedAt        : DateTime;

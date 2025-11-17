@@ -148,14 +148,70 @@ const toISOOrNull = (v) => {
   return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
 };
 
-const sanitizePayload = (form) => {
+const filterParamsByConfig = (indicatorParams = {}, allowedConfigKeys = []) => {
+  if (!allowedConfigKeys.length) return { ...indicatorParams };
+  const allowedPrefixes = new Set(allowedConfigKeys.map((k) => String(k).toUpperCase()));
+  const next = {};
+  Object.entries(indicatorParams || {}).forEach(([key, val]) => {
+    const prefix = String(key).split('_')[0]?.toUpperCase();
+    // Evitar duplicar umbrales RSI en indicator_params (ya viven en signal_config)
+    if (prefix === 'RSI' && (key.toLowerCase().includes('overbought') || key.toLowerCase().includes('oversold'))) {
+      return;
+    }
+    if (allowedPrefixes.has(prefix) && val !== '' && val != null) {
+      next[key] = val;
+    }
+  });
+  return next;
+};
+
+const buildFilteredSignalConfig = (rawSignalConfig = {}, indicatorSettings = {}) => {
+  const merged = mergeSignalConfig(rawSignalConfig);
+  const activeRSI = !!indicatorSettings.rsi;
+  const activeMACD = !!indicatorSettings.macd;
+  const activeEMA = !!indicatorSettings.ema20 && !!indicatorSettings.ema50;
+
+  const next = {};
+  // Flags según indicadores activos
+  next.useEMA = activeEMA ? merged.useEMA !== false : false;
+  next.useRSI = activeRSI ? merged.useRSI !== false : false;
+  next.useMACD = activeMACD ? merged.useMACD !== false : false;
+
+  // Valores específicos solo si aplica el indicador
+  if (activeRSI) {
+    next.rsiOversold = merged.rsiOversold;
+    next.rsiOverbought = merged.rsiOverbought;
+  }
+  if (activeMACD) {
+    next.macdHistogramThreshold = merged.macdHistogramThreshold;
+  }
+
+  // minReasons siempre útil para consistencia de señales
+  next.minReasons = merged.minReasons;
+
+  return next;
+};
+
+const sanitizePayload = (form, { allowedIndicatorKeys = ALL_INDICATOR_KEYS, allowedConfigKeys = [] } = {}) => {
   const payload = {};
-  const indicatorParams = form.indicator_params || {}; // <-- NUEVO
+  const indicatorParams = filterParamsByConfig(form.indicator_params || {}, allowedConfigKeys); // limpia params
   const paramsBag = {
     ...parseParamsBag(form.params_bag),
   };
-  const normalizedIndicatorSettings = mergeIndicatorSettings(form.indicator_settings);
-  const normalizedSignalConfig = mergeSignalConfig(form.signal_config);
+  const normalizedIndicatorSettings = clampIndicatorSettings(
+    mergeIndicatorSettings(form.indicator_settings),
+    allowedIndicatorKeys,
+  );
+  const normalizedSignalConfig = buildFilteredSignalConfig(form.signal_config, normalizedIndicatorSettings);
+  const mergedIndicatorParams = { ...indicatorParams };
+  // Enriquecer params con valores relevantes de señal (solo si el indicador está activo)
+  if (normalizedIndicatorSettings.rsi) {
+    mergedIndicatorParams.RSI_overbought = normalizedSignalConfig.rsiOverbought;
+    mergedIndicatorParams.RSI_oversold = normalizedSignalConfig.rsiOversold;
+  }
+  if (normalizedIndicatorSettings.macd && normalizedSignalConfig.macdHistogramThreshold != null) {
+    mergedIndicatorParams.MACD_histogram_threshold = normalizedSignalConfig.macdHistogramThreshold;
+  }
 
   Object.entries(form).forEach(([k, v]) => {
     if (v === '' || v == null) return;
@@ -180,11 +236,15 @@ const sanitizePayload = (form) => {
 
   const nextParams = {
     ...paramsBag,
-    indicator_settings: normalizedIndicatorSettings,
-    signal_config: normalizedSignalConfig,
-    indicator_params: indicatorParams, // <-- NUEVO: Incluir los parámetros dinámicos
+    indicators: normalizedIndicatorSettings,
+    indicator_params: mergedIndicatorParams,
   };
-  payload.params_json = JSON.stringify(nextParams);
+  payload.indicators = typeof normalizedIndicatorSettings === 'string'
+    ? normalizedIndicatorSettings
+    : JSON.stringify(normalizedIndicatorSettings);
+  payload.indicator_params = typeof mergedIndicatorParams === 'string'
+    ? mergedIndicatorParams
+    : JSON.stringify(mergedIndicatorParams);
 
   return payload;
 };
@@ -554,18 +614,24 @@ const getEditSnapshot = (forms, id) =>
     return 'STRAT-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
   };
 
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    setSubmittingCreate(true);
-    setMessage('');
-    setError('');
+const handleCreate = async (e) => {
+  e.preventDefault();
+  setSubmittingCreate(true);
+  setMessage('');
+  setError('');
     
     try {
-      const formWithParams = {
-        ...createForm,
-        indicator_params: indicatorParams, // <-- Fusión de los parámetros dinámicos
-      };
-      const payload = sanitizePayload(formWithParams);
+    const allowedIndicatorKeys = deriveAllowedIndicatorKeys(datasetComponentsMap, createForm.dataset_id);
+    const allowedConfigKeys = deriveAllowedConfigKeys(datasetComponentsMap, createForm.dataset_id);
+
+    const formWithParams = {
+      ...createForm,
+      indicator_params: indicatorParams, // <-- Fusión de los parámetros dinámicos
+    };
+    const payload = sanitizePayload(formWithParams, {
+      allowedIndicatorKeys,
+      allowedConfigKeys,
+    });
       // Validar que TODOS los campos obligatorios tengan valor
       const requiredFields = ['strategy_code', 'dataset_id', 'period_start', 'period_end'];
       const missingFields = requiredFields.filter((f) => !payload[f] || String(payload[f]).trim() === '');
@@ -581,7 +647,6 @@ const getEditSnapshot = (forms, id) =>
       const merged = {
         ...payload,
         ...created,
-        params_json: created?.params_json ?? payload.params_json,
       };
       setItems((prev) => [merged, ...prev]);
       setCreateForm(blankForm());
@@ -595,25 +660,26 @@ const getEditSnapshot = (forms, id) =>
     }
   };
 
-  const handleUpdate = async (e, id) => {
-    e.preventDefault();
-    const formState = editForms[id];
-    if (!formState) return;
-    setSubmittingId(id);
+const handleUpdate = async (e, id) => {
+  e.preventDefault();
+  const formState = editForms[id];
+  if (!formState) return;
+  setSubmittingId(id);
     setMessage('');
     setError('');
     try {
-      const payload = sanitizePayload(formState);
+    const allowedIndicatorKeys = deriveAllowedIndicatorKeys(datasetComponentsMap, formState.dataset_id);
+    const allowedConfigKeys = deriveAllowedConfigKeys(datasetComponentsMap, formState.dataset_id);
+    const payload = sanitizePayload(formState, { allowedIndicatorKeys, allowedConfigKeys });
       const updated = await updateStrategy(id, payload);
       const merged = {
         ...payload,
         ...updated,
-        params_json: updated?.params_json ?? payload.params_json,
       };
       setItems((prev) =>
         prev.map((it) => (it.ID === id ? { ...it, ...merged } : it)),
       );
-      const nextParamsBag = parseParamsBag(merged.params_json);
+      const nextParamsBag = {}; // params_json ya no se utiliza
       setEditForms((prev) => ({
         ...prev,
         [id]: {
@@ -785,9 +851,6 @@ const getEditSnapshot = (forms, id) =>
         {items.filter(item => !!item.ID).map((item, idx) => {
           const isExpanded = expandedId === item.ID;
           const formState = editForms[item.ID] || buildFormFromStrategy(item);
-          const datasetKey = normalizeDatasetKey(formState.dataset_id || item.dataset_id);
-          const allowedToggleKeys = deriveAllowedIndicatorKeys(datasetComponentsMap, datasetKey);
-          const allowedConfigKeys = deriveAllowedConfigKeys(datasetComponentsMap, datasetKey);
           return (
             <div key={item.ID || `estrategia-${idx}`} className="estrategia-card-wrapper">
               <StrategyCard
@@ -804,8 +867,8 @@ const getEditSnapshot = (forms, id) =>
                 FIELD_CONFIG={FIELD_CONFIG}
                 datasetOptions={datasetOptions}
                 datasetsLoading={datasetsLoading}
-                allowedIndicatorKeys={allowedToggleKeys}
-                allowedIndicatorConfigKeys={allowedConfigKeys}
+                datasetComponentsMap={datasetComponentsMap}
+                datasetKeyOverride={formState.dataset_id}
               />
               {/* Mostrar solo info de creado/actualizado si existen */}
               {isExpanded && (
@@ -828,7 +891,6 @@ const getEditSnapshot = (forms, id) =>
 
 export default Estrategias;
 
-// Eliminar duplicados y hooks fuera de componente, dejar solo constantes y helpers puros
 const MODEL_TYPE = 'DATASET_COMPONENTS';
 const ALL_INDICATOR_KEYS = INDICATOR_TOGGLES.map((item) => item.key);
 
@@ -866,7 +928,12 @@ const clampIndicatorSettings = (settings = {}, allowedKeys = ALL_INDICATOR_KEYS)
   const keys = allowedKeys.length ? allowedKeys : ALL_INDICATOR_KEYS;
   keys.forEach((key) => {
     const defaultValue = DEFAULT_INDICATOR_SETTINGS[key] ?? false;
-    next[key] = settings[key] ?? defaultValue;
+    // Solo conservar claves permitidas; evitar guardar ruido extra
+    if (settings[key] == null) {
+      next[key] = defaultValue;
+    } else {
+      next[key] = settings[key];
+    }
   });
   return next;
 };

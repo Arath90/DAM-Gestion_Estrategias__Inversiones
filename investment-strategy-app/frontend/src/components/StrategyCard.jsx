@@ -18,6 +18,36 @@ const ALL_INDICATOR_TOGGLE_KEYS = INDICATOR_TOGGLES.map(({ key }) => key);
 const DEFAULT_CONFIG_KEYS = Object.keys(INDICATOR_CONFIG);
 const DEFAULT_INDICATOR_PARAM_VALUES = buildIndicatorDefaultParams();
 
+const normalizeDatasetKey = (datasetValue) => {
+  if (!datasetValue) return '';
+  if (typeof datasetValue === 'object') {
+    return String(
+      datasetValue.ID ||
+        datasetValue.id ||
+        datasetValue._id ||
+        datasetValue.value ||
+        datasetValue.name ||
+        '',
+    );
+  }
+  return String(datasetValue);
+};
+
+const deriveAllowedIndicatorKeys = (componentsMap = {}, datasetIdRaw) => {
+  const datasetId = normalizeDatasetKey(datasetIdRaw);
+  if (!datasetId) return ALL_INDICATOR_TOGGLE_KEYS;
+  const entry = componentsMap[datasetId];
+  if (entry?.indicatorKeys?.length) return entry.indicatorKeys;
+  return ALL_INDICATOR_TOGGLE_KEYS;
+};
+
+const deriveAllowedConfigKeys = (componentsMap = {}, datasetIdRaw) => {
+  const toggleKeys = deriveAllowedIndicatorKeys(componentsMap, datasetIdRaw);
+  const configKeys = toggleKeys.map((key) => INDICATOR_TOGGLE_TO_CONFIG[key]).filter(Boolean);
+  const unique = [...new Set(configKeys)];
+  return unique.length ? unique : Object.keys(INDICATOR_CONFIG);
+};
+
 const StrategyCard = ({
   item,
   isExpanded,
@@ -32,8 +62,10 @@ const StrategyCard = ({
   FIELD_CONFIG,
   datasetOptions = [],
   datasetsLoading = false,
-  allowedIndicatorKeys = ALL_INDICATOR_TOGGLE_KEYS,
-  allowedIndicatorConfigKeys = DEFAULT_CONFIG_KEYS,
+  datasetComponentsMap = {},
+  datasetKeyOverride,
+  allowedIndicatorKeys,
+  allowedIndicatorConfigKeys,
 }) => {
   const indicatorSettings = {
     ...DEFAULT_INDICATOR_SETTINGS,
@@ -82,17 +114,25 @@ const StrategyCard = ({
     datasetValue ||
     '-';
 
-  const effectiveToggleKeys = allowedIndicatorKeys?.length
+  const derivedToggleKeys = deriveAllowedIndicatorKeys(
+    datasetComponentsMap,
+    datasetKeyOverride || editState.dataset_id || item.dataset_id,
+  );
+  const effectiveToggleKeys = (allowedIndicatorKeys && allowedIndicatorKeys.length
     ? allowedIndicatorKeys
-    : ALL_INDICATOR_TOGGLE_KEYS;
+    : derivedToggleKeys) || ALL_INDICATOR_TOGGLE_KEYS;
   const filteredToggleList = INDICATOR_TOGGLES.filter(({ key }) =>
     effectiveToggleKeys.includes(key),
   );
   const indicatorToggleList = filteredToggleList.length ? filteredToggleList : INDICATOR_TOGGLES;
 
-  const effectiveConfigKeys = allowedIndicatorConfigKeys?.length
+  const derivedConfigKeys = deriveAllowedConfigKeys(
+    datasetComponentsMap,
+    datasetKeyOverride || editState.dataset_id || item.dataset_id,
+  );
+  const effectiveConfigKeys = (allowedIndicatorConfigKeys && allowedIndicatorConfigKeys.length
     ? allowedIndicatorConfigKeys
-    : DEFAULT_CONFIG_KEYS;
+    : derivedConfigKeys) || DEFAULT_CONFIG_KEYS;
 
   const activeConfigKeys = useMemo(() => {
     const settings = editState.indicator_settings || {};
@@ -289,28 +329,9 @@ const StrategyCard = ({
               </div>
             </div>
 
-            {/* 4. CONFIGURACIÓN DE SEÑALES */}
-            <div className="strategy-config-block">
-              <h5>Configuración de señales</h5>
-              <div className="config-grid">
-                {STRATEGY_SIGNAL_FIELDS.map(({ key, label, step, min }) => (
-                  <label key={key}>
-                    <span>{label}</span>
-                    <input
-                      type="number"
-                      value={signalConfig[key] ?? ''}
-                      step={step ?? 'any'}
-                      min={min}
-                      onChange={(ev) =>
-                        onChangeSignalConfig(item.ID, key, ev.target.value)
-                      }
-                    />
-                  </label>
-                ))}
-              </div>
-            </div>
+            
 
-            {/* 5. BOTÓN DE SUBMIT */}
+            {/* 4. BOTÓN DE SUBMIT */}
             <button type="submit" className="primary" disabled={submittingId === item.ID}>
               {submittingId === item.ID ? 'Guardando...' : 'Actualizar'}
             </button>

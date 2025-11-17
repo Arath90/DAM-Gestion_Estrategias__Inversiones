@@ -21,7 +21,8 @@ const StrategySchema = new mongoose.Schema(
     description: String,
 
     // JSON flexibles
-    params_json: mongoose.Schema.Types.Mixed,
+    indicators: mongoose.Schema.Types.Mixed,        // indicador toggles activos
+    indicator_params: mongoose.Schema.Types.Mixed,  // parámetros de indicadores
     metrics_json: mongoose.Schema.Types.Mixed,
 
     // Auditoría

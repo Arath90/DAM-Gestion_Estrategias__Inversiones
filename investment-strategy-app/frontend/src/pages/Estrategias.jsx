@@ -159,7 +159,7 @@ const sanitizePayload = (form) => {
 
   Object.entries(form).forEach(([k, v]) => {
     if (v === '' || v == null) return;
-    if (['indicator_settings', 'signal_config', 'params_bag'].includes(k)) return;
+    if (['indicator_settings', 'signal_config', 'params_bag', 'indicator_params'].includes(k)) return;
     if (k === 'capitalAllocated') {
       const n = toNumberOrNull(v);
       if (n != null) payload[k] = n;
@@ -763,23 +763,7 @@ const getEditSnapshot = (forms, id) =>
               ))}
             </div>
           )}
-          <div className="strategy-config-block">
-            <h5>Configuración de señales</h5>
-            <div className="config-grid">
-              {STRATEGY_SIGNAL_FIELDS.map(({ key, label, step, min }) => (
-                <label key={key}>
-                  <span>{label}</span>
-                  <input
-                    type="number"
-                    value={createForm.signal_config?.[key] ?? ''}
-                    step={step ?? 'any'}
-                    min={min}
-                    onChange={(e) => handleCreateSignalConfigChange(key, e.target.value)}
-                  />
-                </label>
-              ))}
-            </div>
-          </div>
+          
           <button type="submit" className="primary" disabled={submittingCreate}>
             {submittingCreate ? 'Guardando...' : 'Crear estrategia'}
           </button>

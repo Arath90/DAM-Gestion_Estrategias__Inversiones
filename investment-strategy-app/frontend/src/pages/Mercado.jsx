@@ -190,6 +190,10 @@ const Mercado = () => {
     interval,
     limit,
     signalConfig,
+    datasetId: selectedStrategy?.dataset_id?.ID || selectedStrategy?.dataset_id?._id || selectedStrategy?.dataset_id,
+    strategyCode: selectedStrategy?.strategy_code,
+    periodStart: selectedStrategy?.period_start,
+    periodEnd: selectedStrategy?.period_end,
   });
 
   // -------------------------------------------------------

@@ -60,7 +60,7 @@ export async function fetchCandles({
   to,
 }) {
   if (!symbol && !datasetId && !strategyCode) throw new Error('symbol o dataset/strategy requerido');
-  
+ 
   // Mapear intervalos personalizados a intervalos soportados por la API
   const intervalMapping = {
     '15min': '15min',
@@ -126,10 +126,10 @@ export async function fetchCandles({
     interval: apiInterval, // Usar el intervalo mapeado
     limit: adjustedLimit,
     offset,
-    dataset_id: datasetId,
-    strategy_code: strategyCode,
-    from,
-    to,
+    ...(datasetId ? { dataset_id: datasetId } : {}),
+    ...(strategyCode ? { strategy_code: strategyCode } : {}),
+    ...(from ? { from } : {}),
+    ...(to ? { to } : {}),
   };
 
   const requestPromise = axios.get(buildUrl('/api/candles/prev'), {

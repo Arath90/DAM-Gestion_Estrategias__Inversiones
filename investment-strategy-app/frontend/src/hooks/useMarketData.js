@@ -344,7 +344,9 @@ export const useMarketData = ({
 
   useEffect(() => {
     let alive = true;
-    if (!state.candles.length || !symbol) {
+    const shouldFetchMacd = signalConfig?.useMACD;
+
+    if (!state.candles.length || !symbol || !shouldFetchMacd) {
       setMacdBackend(null);
       return undefined;
     }
@@ -362,7 +364,7 @@ export const useMarketData = ({
     return () => {
       alive = false;
     };
-  }, [state.candles, symbol, interval, limit]);
+  }, [state.candles, symbol, interval, limit, signalConfig?.useMACD]);
 
 const analytics = useMemo(() => {
   const { candles } = state;

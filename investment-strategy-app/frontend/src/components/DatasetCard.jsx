@@ -90,19 +90,17 @@ const DatasetCard = ({
               <strong>Spec</strong>
               <span title="JSON generado con los componentes">{specPreview(item.spec_json)}</span>
             </div>
-            <div className="dataset-meta-block">
-              <div>
-                <strong>Símbolo</strong>
-                <span title="Ticker o símbolo asociado">{specMeta.symbol || 'N/D'}</span>
-              </div>
-              <div>
-                <strong>Timeframe</strong>
-                <span title="Temporalidad objetivo del dataset">{specMeta.timeframe || 'N/D'}</span>
-              </div>
-              <div>
-                <strong>Objetivo</strong>
-                <span title="Variable objetivo/label">{specMeta.target || 'N/D'}</span>
-              </div>
+            <div>
+              <strong>Símbolo</strong>
+              <span title="Ticker o símbolo asociado">{specMeta.symbol || 'N/D'}</span>
+            </div>
+            <div>
+              <strong>Timeframe</strong>
+              <span title="Temporalidad objetivo del dataset">{specMeta.timeframe || 'N/D'}</span>
+            </div>
+            <div>
+              <strong>Objetivo</strong>
+              <span title="Variable objetivo/label">{specMeta.target || 'N/D'}</span>
             </div>
             <div>
               <strong>Componentes</strong>
@@ -129,6 +127,44 @@ const DatasetCard = ({
             <div>
               <strong>Actualizado</strong>
               <span>{prettyDate(item.updatedAt)}</span>
+            </div>
+          </div>
+
+          {/* Vista general del Dataset */}
+          <div className="dataset-visual-overview">
+            <h4>📊 Vista general del dataset</h4>
+            <p style={{ color: 'var(--project-color2)' }}>
+              Esta vista muestra de forma resumida todos los elementos aplicados en este dataset:
+              componentes, metadatos clave y configuración general.
+            </p>
+
+            <div className="overview-grid">
+              <div className="overview-item">
+                <h5>Componentes registrados</h5>
+                {specComponents.length ? (
+                  <ul>
+                    {specComponents.map((component) => (
+                      <li key={component.id}>
+                        <strong>{component.kind}</strong> → {component.alias || component.output_key || 'Sin alias'}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>Sin componentes declarados</p>
+                )}
+              </div>
+              <div className="overview-item">
+                <h5>Metadatos clave</h5>
+                <p><strong>Símbolo:</strong> {specMeta.symbol || 'N/D'}</p>
+                <p><strong>Timeframe:</strong> {specMeta.timeframe || 'N/D'}</p>
+                <p><strong>Objetivo:</strong> {specMeta.target || 'N/D'}</p>
+              </div>
+              <div className="overview-item">
+                <h5>Información general</h5>
+                <p><strong>Instrumento:</strong> {item.instrument_conid ? `CONID ${item.instrument_conid}` : 'Sin instrumento'}</p>
+                <p><strong>ID:</strong> {item.ID}</p>
+                <p><strong>Actualizado:</strong> {prettyDate(item.updatedAt)}</p>
+              </div>
             </div>
           </div>
 

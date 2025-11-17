@@ -65,9 +65,6 @@ import {
   getStrategyKey,
   getIntervalLabel,
   getLimitForInterval,
-  getSecondsPerCandle,
-  formatConfidence,
-  generateYearRange,
   filterCandlesLastYear
 } from '../utils/marketUtils';
 
@@ -163,11 +160,13 @@ const Mercado = () => {
   // Etiqueta amigable del intervalo (por ejemplo "1D", "1H")
   const intervalLabel = getIntervalLabel(interval);
 
-  // Cantidad máxima de velas a solicitar según el intervalo
-  const limit = useMemo(() => getLimitForInterval(interval), [interval]);
-  
-  // Rango temporal en segundos (from/to) usado para autoload hacia atrás
-  const [range, setRange] = useState(generateYearRange);
+  // Cantidad máxima de velas a solicitar según el intervalo (ajustable para autoload)
+  const [limit, setLimit] = useState(() => getLimitForInterval(interval));
+
+  // Recalcula límite cuando cambia el intervalo
+  useEffect(() => {
+    setLimit(getLimitForInterval(interval));
+  }, [interval]);
 
   // -------------------------------------------------------
   // 5. HOOK PRINCIPAL DE DATOS DE MERCADO
@@ -197,25 +196,19 @@ const Mercado = () => {
   // 6. FUNCIÓN PARA CARGAR MÁS VELAS HACIA ATRÁS (AUTOLOAD)
   // -------------------------------------------------------
   const loadMoreCandles = useCallback(() => {
-    setRange((prev) => ({
-      from: prev.from - limit * getSecondsPerCandle(interval),
-      to: prev.to,
-    }));
-  }, [limit, interval]);
+    setLimit((prev) => {
+      const increment = getLimitForInterval(interval);
+      const next = prev + increment;
+      // Cap para evitar pedir demasiadas velas de una sola vez
+      return Math.min(next, 10000);
+    });
+  }, [interval]);
 
   // -------------------------------------------------------
   // 7. FILTRO: SOLO VELAS DEL ÚLTIMO AÑO (PARA GRÁFICOS/EVENTOS)
   // -------------------------------------------------------
   const candles1y = useMemo(() => filterCandlesLastYear(candles), [candles]);
 
-  const highLowPoints = useMemo(() => {
-    if (!candles1y || candles1y.length === 0) return { maxPrice: null, minPrice: null };
-    const highs = candles1y.map(c => c.high);
-    const lows = candles1y.map(c => c.low);
-    const maxPrice = Math.max(...highs);
-    const minPrice = Math.min(...lows);
-    return { maxPrice, minPrice };
-  }, [candles1y]);
   // -------------------------------------------------------
   // 8. PREPARAR INDICADORES EN FORMATOS SIMPLES PARA EVENTOS
   //    (arrays de valores alineados con índices de candles1y)

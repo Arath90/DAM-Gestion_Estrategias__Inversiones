@@ -173,7 +173,7 @@ const StrategyCard = ({
           </div>
             <div className="strategy-visual-overview">
             <h4>Vista general de la estrategia</h4>
-            <p>
+            <p style={{ color: 'var(--project-color2)' }}>
               Esta vista muestra de forma resumida todos los elementos aplicados en la estrategia actual:
               indicadores, señales activas y líneas clave.
             </p>

@@ -544,7 +544,18 @@ const Mercado = () => {
       />
 
       {/* Tabla de eventos (divergencias, alertas RSI/MACD, etc.) */}
-      <EventsTable events={events} symbol={symbol} />
+      <EventsTable 
+        events={events} 
+        symbol={symbol} 
+        candles={candles1y} 
+        signalConfig={signalConfig}
+        settings={settings}
+        ema20={ema20}
+        ema50={ema50}
+        macdLine={macdLine}
+        macdSignal={macdSignal}
+        macdHistogram={macdHistogram}
+      />
 
       {/* Bandeja de notificaciones históricas de señales */}
       <NotificationTray

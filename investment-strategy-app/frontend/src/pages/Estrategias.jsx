@@ -159,7 +159,7 @@ const sanitizePayload = (form) => {
 
   Object.entries(form).forEach(([k, v]) => {
     if (v === '' || v == null) return;
-    if (['indicator_settings', 'signal_config', 'params_bag'].includes(k)) return;
+    if (['indicator_settings', 'signal_config', 'params_bag', 'indicator_params'].includes(k)) return;
     if (k === 'capitalAllocated') {
       const n = toNumberOrNull(v);
       if (n != null) payload[k] = n;
@@ -672,12 +672,6 @@ const getEditSnapshot = (forms, id) =>
           Refrescar
         </button>
       </section>
-      
-
-      
-
-
-
       {showCreate && (
         <form className="estrategia-form" onSubmit={handleCreate}>
           <h4>Nueva estrategia</h4>

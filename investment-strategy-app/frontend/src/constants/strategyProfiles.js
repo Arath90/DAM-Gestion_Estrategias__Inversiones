@@ -55,8 +55,8 @@ export const hydrateStrategyProfile = (strategy = null) => {
   );
 
   const indicatorsFromField = toObject(strategy?.indicators);
-  const baseIndicatorDefaults =
-    Object.keys(indicatorsFromField).length > 0 ? {} : DEFAULT_INDICATOR_SETTINGS;
+  // Si no hay indicadores persistidos, no activamos ninguno por defecto para evitar mostrar/usar indicadores no seleccionados.
+  const baseIndicatorDefaults = {};
 
   const indicatorSettings = {
     ...baseIndicatorDefaults,

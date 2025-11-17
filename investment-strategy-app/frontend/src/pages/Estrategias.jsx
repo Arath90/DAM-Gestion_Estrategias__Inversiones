@@ -51,7 +51,6 @@ const DEFAULT_INDICATOR_PARAM_VALUES = buildIndicatorDefaultParams();
 
 
 const mergeIndicatorSettings = (value) => ({
-  ...DEFAULT_INDICATOR_SETTINGS,
   ...(value || {}),
 });
 
@@ -93,7 +92,7 @@ const blankForm = () => {
     acc[field.name] = '';
     return acc;
   }, {});
-  base.indicator_settings = { ...DEFAULT_INDICATOR_SETTINGS };
+  base.indicator_settings = {};
   base.signal_config = { ...DEFAULT_SIGNAL_CONFIG };
   base.params_bag = {};
   base.indicator_params = {}; // <-- NUEVO
@@ -921,13 +920,8 @@ const clampIndicatorSettings = (settings = {}, allowedKeys = ALL_INDICATOR_KEYS)
   const next = {};
   const keys = allowedKeys.length ? allowedKeys : ALL_INDICATOR_KEYS;
   keys.forEach((key) => {
-    const defaultValue = DEFAULT_INDICATOR_SETTINGS[key] ?? false;
-    // Solo conservar claves permitidas; evitar guardar ruido extra
-    if (settings[key] == null) {
-      next[key] = defaultValue;
-    } else {
-      next[key] = settings[key];
-    }
+    // Solo conservar claves permitidas; por defecto desactivado
+    next[key] = !!settings[key];
   });
   return next;
 };

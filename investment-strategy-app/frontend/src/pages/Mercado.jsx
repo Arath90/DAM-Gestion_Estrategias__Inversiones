@@ -314,7 +314,7 @@ const Mercado = () => {
     console.log('[AutoLoad] Configurando listener de scroll/zoom para carga automática');
     
     // Suscribirse al cambio de rango visible en el eje de tiempo
-    const unsubscribe = chartRef.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+    const handler = (range) => {
       if (!candles.length || isAutoLoading) return;
       
       const minIndex = range?.from ?? 0;
@@ -337,7 +337,8 @@ const Mercado = () => {
           setTimeout(() => setIsAutoLoading(false), 2000);
         }, 1000);
       }
-    });
+    };
+    chartRef.timeScale().subscribeVisibleLogicalRangeChange(handler);
     
     // Limpieza al desmontar o cambiar dependencias
     return () => {
@@ -345,7 +346,9 @@ const Mercado = () => {
         if (autoLoadTimeoutRef.current) {
           clearTimeout(autoLoadTimeoutRef.current);
         }
-        unsubscribe();
+        if (chartRef?.timeScale?.()) {
+          chartRef.timeScale().unsubscribeVisibleLogicalRangeChange(handler);
+        }
       } catch (e) {
         console.debug('[AutoLoad] Error al desuscribirse:', e.message);
       }

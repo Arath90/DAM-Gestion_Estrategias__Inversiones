@@ -52,6 +52,10 @@ const calcEMA = (values, period, accessor = (v) => v.close) => {
   return ema;
 };
 
+// Contadores de ejecuciones para depuración
+let rsiExecCount = 0;
+let macdExecCount = 0;
+
 const calcSMA = (values, period) => {
   if (!Array.isArray(values) || !period) return [];
   const result = [];
@@ -67,6 +71,8 @@ const calcSMA = (values, period) => {
 };
 
 const calcRSI = (values, period = 14) => {
+  rsiExecCount += 1;
+  console.debug(`[Analytics] RSI exec #${rsiExecCount} (period=${period}, candles=${values?.length || 0})`);
   // RSI requiere al menos dos candles; si el historial es corto reducimos dinamicamente el periodo.
   if (!Array.isArray(values) || values.length < 2) return [];
   const effectivePeriod = Math.min(period, values.length - 1);
@@ -106,6 +112,10 @@ const calcRSI = (values, period = 14) => {
 };
 
 const calcMACD = (values, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) => {
+  macdExecCount += 1;
+  console.debug(
+    `[Analytics] MACD exec #${macdExecCount} (fast=${fastPeriod}, slow=${slowPeriod}, signal=${signalPeriod}, candles=${values?.length || 0})`,
+  );
   if (!Array.isArray(values) || values.length === 0) {
     return { macdLine: [], signalLine: [], histogram: [] };
   }
@@ -403,9 +413,15 @@ const analytics = useMemo(() => {
     ? macdBackend
     : calcMACD(candles, macdFastPeriod, macdSlowPeriod, macdSignalPeriod);
 
-  const macdLine = macdCalc.macdLine || [];
-  const macdSignal = macdCalc.signalLine || macdCalc.macdSignal || [];
-  const macdHistogram = macdCalc.macdHistogram || macdCalc.histogram || [];
+  let macdLine = macdCalc.macdLine || [];
+  let macdSignal = macdCalc.signalLine || macdCalc.macdSignal || [];
+  let macdHistogram = macdCalc.macdHistogram || macdCalc.histogram || [];
+
+  if (!signalConfig.useMACD) {
+    macdLine = [];
+    macdSignal = [];
+    macdHistogram = [];
+  }
 
   // --- Preparar series alineadas para detección de divergencias ---
   // price series: preferimos usar highs para detectar bearish peaks y lows para bullish

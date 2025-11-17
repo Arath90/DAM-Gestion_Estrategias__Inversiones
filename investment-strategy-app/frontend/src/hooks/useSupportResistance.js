@@ -89,7 +89,7 @@ const fetchResistanceLevelsFromApi = async (candles, signal) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     signal,
-  });
+    });
 
   if (!response.ok) {
     throw new Error(`API_SAP response ${response.status}`);

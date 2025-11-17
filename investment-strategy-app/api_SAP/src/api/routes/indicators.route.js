@@ -5,6 +5,16 @@ const { detectResistanceLevels } = require('../services/indicators/resistance.se
 const { computeMACD } = require('../services/indicators/macd.service');
 const { fetchCandlesForInstrument } = require('../services/candlesExternal.service'); // ya lo tienes
 
+// CORS headers defensivos para llamadas directas desde el front (Vite 5173)
+router.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, X-Session-Token, X-Session, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 router.use(express.json({ limit: '1mb' }));
 
 // GET /api/indicators/divergences?symbol=AAPL&tf=1D&period=14&swing=5&minDistance=5&rsiHigh=70&rsiLow=30&useZones=true

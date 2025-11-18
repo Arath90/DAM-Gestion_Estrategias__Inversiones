@@ -8,9 +8,10 @@ const cfg = require('../../config/dotenvXConfig');
  * - Usa la URL base definida en CANDLES_API_URL.
  * - Permite enviar llaves como query param (CANDLES_API_KEY_PARAM) o encabezado (CANDLES_API_KEY_HEADER).
  * - Permite enviar encabezados adicionales mediante CANDLES_API_EXTRA_HEADERS (formato "Header: valor;Otro: valor").
+ * - Normaliza distintos nombres de campos (o,h,l,c,ts...) para entregar un shape consistente a CAP.
  */
 
-/** Pequeño helper para seleccionar claves alternativas. */
+// Pequeño helper para seleccionar claves alternativas de manera defensiva.
 const pick = (source, keys, fallback) => {
   if (!source) return fallback;
   for (const key of keys) {
@@ -19,9 +20,7 @@ const pick = (source, keys, fallback) => {
   return fallback;
 };
 
-/**
- * Convierte timestamps provenientes del proveedor (string o epoch) a instancias Date ISO.
- */
+// Convierte timestamps provenientes del proveedor (string o epoch) a instancias Date.
 const parseTimestamp = (value) => {
   if (value == null) return null;
   if (value instanceof Date) return value;
@@ -50,7 +49,7 @@ const ensureDate = (value, fallback) => {
   return parsed || fallback;
 };
 
-/** Parsea encabezados adicionales definidos como "Header: valor;Otro: valor". */
+// Parsea encabezados adicionales definidos como "Header: valor;Otro: valor".
 function parseExtraHeaders(raw = '') {
   const headers = {};
   if (!raw || typeof raw !== 'string') return headers;
@@ -63,7 +62,7 @@ function parseExtraHeaders(raw = '') {
   return headers;
 }
 
-/** Obtiene la funcion fetch disponible (Node 18+ ya la expone globalmente). */
+// Obtiene la funcion fetch disponible (Node 18+ ya la expone globalmente).
 async function getFetch() {
   if (typeof fetch === 'function') return fetch.bind(globalThis);
   const err = new Error('El entorno no expone fetch (requiere Node 18+).');
@@ -71,7 +70,7 @@ async function getFetch() {
   throw err;
 }
 
-/** Formatea una fecha a YYYY-MM-DD requerido por varios proveedores (Polygon inclusive). */
+// Formatea una fecha a YYYY-MM-DD requerido por varios proveedores (Polygon inclusive).
 const formatDate = date => {
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, '0');
@@ -79,7 +78,7 @@ const formatDate = date => {
   return `${year}-${month}-${day}`;
 };
 
-/** Determina multiplier/timespan/duracion en ms a partir de un intervalo como 1min,5min,1h. */
+// Determina multiplier/timespan/duracion en ms a partir de un intervalo como 1min,5min,1h.
 function parseInterval(interval = '1min') {
   const match = String(interval).trim().match(/^(\d+)([a-zA-Z]+)/);
   if (!match) {
@@ -112,6 +111,7 @@ function parseInterval(interval = '1min') {
 /**
  * Llama al proveedor externo de velas segun la configuracion de entorno.
  * Soporta plantillas tipo Polygon (CANDLES_API_URL con placeholders {ticker},{multiplier},{timespan},{from},{to}).
+ * Devuelve el payload crudo del proveedor (arrays o {data/results}).
  */
 async function fetchFromProvider({ symbol, multiplier, timespan, from, to, limit }) {
   if (!cfg.CANDLES_API_URL) {
@@ -262,9 +262,7 @@ async function fetchFromProvider({ symbol, multiplier, timespan, from, to, limit
   return records;
 }
 
-/**
- * Normaliza un registro de vela del proveedor a la estructura expuesta por CAP.
- */
+// Normaliza un registro de vela del proveedor a la estructura expuesta por CAP.
 function normalizeCandleRecord(record, { instrumentId, interval }) {
   const tsValue = pick(record, ['ts', 't', 'timestamp', 'time', 'datetime', 'date', 'T', 'start'], null);
   const ts = parseTimestamp(tsValue);
@@ -302,6 +300,8 @@ function normalizeCandleRecord(record, { instrumentId, interval }) {
 
 /**
  * Obtiene velas normalizadas para un instrumento usando el proveedor externo.
+ * - Si la URL contiene `/prev`, retorna barras previas (sin rango).
+ * - Si no, calcula rango [from,to] en base al intervalo y limit/offset.
  */
 async function fetchCandlesForInstrument({ instrumentId, symbol, interval = '1min', limit = 60, offset = 0, from, to }) {
   const isPrevEndpoint = cfg.CANDLES_API_URL && cfg.CANDLES_API_URL.includes('/prev');

@@ -16,6 +16,7 @@
 /**
  * Calcula una EMA (Exponential Moving Average) sobre una serie de valores.
  * Usa como semilla la media simple de los primeros `period` valores no nulos.
+ * Devuelve null donde no hay datos suficientes para mantener la alineación temporal.
  *
  * @param {number[]} values - Serie numérica (p.ej. cierres o MACD line).
  * @param {number} period - Periodo de suavizado.
@@ -77,9 +78,9 @@ function computeEMA(values, period) {
  * @param {string} [options.source='close'] - Campo de la vela a usar (close por defecto).
  *
  * @returns {{
- *   macd:      Array<number|null>,
- *   signal:    Array<number|null>,
- *   histogram: Array<number|null>
+ *   macd:      Array<number|null>, // valor MACD por barra
+ *   signal:    Array<number|null>, // EMA del MACD
+ *   histogram: Array<number|null>  // momentum macd-signal
  * }}
  */
 function computeMACD(

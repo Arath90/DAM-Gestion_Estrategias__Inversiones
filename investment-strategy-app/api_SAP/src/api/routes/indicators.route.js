@@ -18,6 +18,7 @@ router.use((req, res, next) => {
 router.use(express.json({ limit: '1mb' }));
 
 // GET /api/indicators/divergences?symbol=AAPL&tf=1D&period=14&swing=5&minDistance=5&rsiHigh=70&rsiLow=30&useZones=true
+// Calcula divergencias RSI-Precio en servidor (usa provider externo para velas).
 router.get('/indicators/divergences', async (req, res) => {
   try {
     const {
@@ -44,6 +45,7 @@ router.get('/indicators/divergences', async (req, res) => {
 });
 
 // POST /api/indicators/resistances
+// Calcula niveles de resistencia locales a partir de velas aportadas por el cliente.
 router.post('/indicators/resistances', async (req, res) => {
   try {
     const { candles = [], swingLen = 1, limit = 3, precision = 4 } = req.body || {};
@@ -69,6 +71,7 @@ router.post('/indicators/resistances', async (req, res) => {
 });
 
 // GET /api/indicators/macd?symbol=AAPL&tf=1D&fast=12&slow=26&signal=9&limit=500
+// Devuelve MACD ya calculado para no sobrecargar al frontend; obtiene velas y aplica computeMACD.
 router.get('/indicators/macd', async (req, res) => {
   try {
     const {

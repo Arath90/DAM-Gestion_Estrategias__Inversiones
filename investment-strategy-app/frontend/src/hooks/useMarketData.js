@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fetchCandles, fetchMacd } from '../services/marketData';
+import { fetchCandles, fetchMacd, fetchAnalytics } from '../services/marketData';
 import { DEFAULT_SIGNAL_CONFIG } from '../constants/strategyProfiles';
 import { DEFAULT_ALGORITHM_PARAMS, mergeAlgorithmParams } from '../constants/algorithmDefaults';
 
@@ -34,6 +34,7 @@ import { computeSignals } from '../utils/signals';
 
 
 
+// EMA: suaviza la serie usando factor k; accessor permite reutilizarla sobre cualquier campo numérico.
 const calcEMA = (values, period, accessor = (v) => v.close) => {
   if (!Array.isArray(values) || values.length === 0) return [];
   const k = 2 / (period + 1);
@@ -56,6 +57,7 @@ const calcEMA = (values, period, accessor = (v) => v.close) => {
 let rsiExecCount = 0;
 let macdExecCount = 0;
 
+// SMA: media móvil simple de `period` barras para tener una referencia lenta de tendencia.
 const calcSMA = (values, period) => {
   if (!Array.isArray(values) || !period) return [];
   const result = [];
@@ -70,6 +72,7 @@ const calcSMA = (values, period) => {
   return result;
 };
 
+// RSI de Wilder con semilla dinámica: se acorta el periodo si hay pocas velas para no devolver vacío.
 const calcRSI = (values, period = 14) => {
   rsiExecCount += 1;
   console.debug(`[Analytics] RSI exec #${rsiExecCount} (period=${period}, candles=${values?.length || 0})`);
@@ -111,6 +114,7 @@ const calcRSI = (values, period = 14) => {
   return rsi;
 };
 
+// MACD clásico: EMA rápida - EMA lenta + señal/histograma; separa cálculo para poder reutilizar map de tiempos.
 const calcMACD = (values, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) => {
   macdExecCount += 1;
   console.debug(
@@ -148,6 +152,7 @@ const calcMACD = (values, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) =>
   return { macdLine, signalLine, histogram };
 };
 
+// Motor simple de señales: cruces EMA, umbrales RSI y cruces/umbral de MACD generan markers/events.
 const calcSignals = (candles, options = {}) => {
   const {
     emaShort = [],
@@ -299,6 +304,7 @@ export const useMarketData = ({
     loading: false,
     error: '',
   });
+  const [remoteAnalytics, setRemoteAnalytics] = useState(null);
   const [macdBackend, setMacdBackend] = useState(null);
 
   useEffect(() => {
@@ -352,6 +358,36 @@ export const useMarketData = ({
     };
   }, [symbol, interval, limit, datasetId, strategyCode, periodStart, periodEnd]);
 
+  // Solicitar analytics completos al backend (RSI/MACD/EMA/SMA/divergencias/señales)
+  useEffect(() => {
+    let alive = true;
+    const loadAnalytics = async () => {
+      if (!state.candles.length) {
+        setRemoteAnalytics(null);
+        return;
+      }
+      try {
+        const result = await fetchAnalytics({
+          candles: state.candles,
+          params: {
+            signalConfig,
+            algoParams,
+            symbol,
+            interval,
+          },
+        });
+        if (alive) {
+          setRemoteAnalytics(result);
+        }
+      } catch (e) {
+        console.debug('[Analytics] backend analytics failed, fallback local:', e?.message || e);
+        if (alive) setRemoteAnalytics(null);
+      }
+    };
+    loadAnalytics();
+    return () => { alive = false; };
+  }, [state.candles, signalConfig, algoParams, symbol, interval]);
+
   useEffect(() => {
     let alive = true;
     const shouldFetchMacd = signalConfig?.useMACD;
@@ -377,6 +413,11 @@ export const useMarketData = ({
   }, [state.candles, symbol, interval, limit, signalConfig?.useMACD]);
 
 const analytics = useMemo(() => {
+  // Preferir analytics entregados por backend
+  if (remoteAnalytics) {
+    return remoteAnalytics;
+  }
+
   const { candles } = state;
   const mergedAlgo = mergeAlgorithmParams(algoParams);
   if (!Array.isArray(candles) || candles.length === 0) {
@@ -497,7 +538,7 @@ const analytics = useMemo(() => {
       divergence: divergenceParams,
     },
   };
-}, [state.candles, signalConfig, symbol, interval, algoParams]);
+}, [state.candles, signalConfig, symbol, interval, algoParams, remoteAnalytics]);
 
   return {
     ...state,
@@ -505,6 +546,7 @@ const analytics = useMemo(() => {
   };
 };
 
+// Utils exportados para tests o consumidores no React.
 export const marketAnalyticsUtils = {
   calcEMA,
   calcSMA,

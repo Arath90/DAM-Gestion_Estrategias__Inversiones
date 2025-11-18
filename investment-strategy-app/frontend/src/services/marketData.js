@@ -4,8 +4,10 @@ const API_BASE =
   (import.meta?.env?.VITE_BACKEND_URL && String(import.meta.env.VITE_BACKEND_URL).trim()) ||
   'http://localhost:4004';
 
+// Construye URL absoluto respetando Vite env/localhost.
 const buildUrl = (path) => `${API_BASE.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
 
+// Serializa query params ignorando vacíos para no sobrecargar la URL.
 const serializeParams = (params = {}) => {
   const searchParams = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -15,6 +17,7 @@ const serializeParams = (params = {}) => {
   return searchParams.toString().replace(/\+/g, '%20');
 };
 
+// Normaliza payloads de velas provenientes del backend a la forma requerida por Lightweight Charts.
 const normalizeCandles = (payload) => {
   if (!payload) return [];
   const rows = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
@@ -49,6 +52,7 @@ const pendingRequests = new Map();
 let lastRateLimitTime = 0;
 let rateLimitBackoffMs = 5000; // Empezar con 5 segundos
 
+// Pide velas históricas al backend (CAP) aplicando mapeo de intervalos, cache y backoff anti-rate-limit.
 export async function fetchCandles({
   symbol,
   interval = '1hour',
@@ -195,6 +199,7 @@ export async function fetchCandles({
   return requestPromise;
 }
 
+// Solicita al backend la serie MACD calculada en servidor para evitar cálculo pesado en el client.
 export async function fetchMacd({ symbol, interval = '1hour', limit = 120, fast = 12, slow = 26, signal = 9 }) {
   if (!symbol) throw new Error('symbol requerido');
 
@@ -223,6 +228,52 @@ export async function fetchMacd({ symbol, interval = '1hour', limit = 120, fast 
     macdLine: mapSeries(data?.macdLine || data?.macd || []),
     macdSignal: mapSeries(data?.signalLine || data?.signal || []),
     macdHistogram: mapSeries(data?.histogram || []),
+  };
+}
+
+// Calcula analytics completos (EMA/RSI/MACD/divergencias/señales) en el backend; el hook hace fallback local si falla.
+export async function fetchAnalytics(payload = {}) {
+  const { candles = [], params = {} } = payload;
+  if (!Array.isArray(candles) || candles.length === 0) {
+    throw new Error('Se requieren velas para calcular analytics');
+  }
+
+  const { data } = await axios.post(buildUrl('/api/indicators/analytics'), { candles, params }, { timeout: 30000 });
+
+  const mapSeries = (series = []) =>
+    Array.isArray(series)
+      ? series
+          .map((p) => ({
+            time: new Date(p.time || p.ts || 0).getTime() / 1000,
+            value: Number(p.value),
+          }))
+          .filter((p) => Number.isFinite(p.time) && Number.isFinite(p.value))
+          .sort((a, b) => a.time - b.time)
+      : [];
+
+  const normalizeDivs = (divs = []) =>
+    Array.isArray(divs)
+      ? divs.map((d) => ({
+          ...d,
+          p1Index: d.p1Index,
+          p2Index: d.p2Index,
+          r1Index: d.r1Index,
+          r2Index: d.r2Index,
+        }))
+      : [];
+
+  return {
+    ema20: mapSeries(data?.ema20),
+    ema50: mapSeries(data?.ema50),
+    sma200: mapSeries(data?.sma200),
+    rsi14: mapSeries(data?.rsi14),
+    macdLine: mapSeries(data?.macdLine || data?.macd),
+    macdSignal: mapSeries(data?.macdSignal || data?.signalLine),
+    macdHistogram: mapSeries(data?.macdHistogram || data?.histogram),
+    divergences: normalizeDivs(data?.divergences),
+    signals: Array.isArray(data?.signals) ? data.signals : [],
+    tradeSignals: Array.isArray(data?.tradeSignals) ? data.tradeSignals : [],
+    appliedAlgoParams: data?.appliedAlgoParams || {},
   };
 }
 

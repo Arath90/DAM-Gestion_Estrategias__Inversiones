@@ -11,6 +11,7 @@ const StrategiesModel = require('../models/mongodb/Strategies');
 module.exports = function registerPublicCandlesRoute(app) {
   if (!app || typeof app.get !== 'function') return;
 
+  // Devuelve velas históricas crudas desde proveedor externo (sin autenticación de sesión).
   app.get('/api/candles/prev', async (req, res) => {
     const {
       symbol,
@@ -60,6 +61,7 @@ module.exports = function registerPublicCandlesRoute(app) {
       let resolvedInstrument = null;
       const numericLimit = Number(limit);
       const numericOffset = Number(offset);
+      // Resolve instrumento ya sea por símbolo o conid IB.
       const picker = async (sym, conid) => {
         if (sym) {
           const inst = await Instrument.findOne({ symbol: sym }).lean();
@@ -92,6 +94,7 @@ module.exports = function registerPublicCandlesRoute(app) {
         });
       }
 
+      // Llama al servicio externo normalizando fechas/intervalos.
       const candles = await fetchCandlesForInstrument({
         instrumentId: resolvedInstrument?._id || symbol,
         symbol: resolvedInstrument?.symbol || symbol,

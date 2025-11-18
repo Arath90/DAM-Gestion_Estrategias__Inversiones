@@ -56,7 +56,7 @@ async function analyzeRSIAndDivergences(
   { persist = true, instrument_id = null } = {}
 ) {
   // -----------------------------------------------------------
-  // 1️⃣ Calcula RSI y divergencias
+  // 1️⃣ Calcula RSI y divergencias (sobre serie completa)
   // -----------------------------------------------------------
   // detectRSIDivergences devuelve:
   //  { rsi: <array de RSI>, signals: <divergencias encontradas> }
@@ -64,7 +64,7 @@ async function analyzeRSIAndDivergences(
   const { rsi, signals } = detectRSIDivergences(candles, opts);
 
   // -----------------------------------------------------------
-  // 2️⃣ Genera alertas RSI por niveles
+  // 2️⃣ Genera alertas RSI por niveles (sobrecompra/sobreventa/cruce 50)
   // -----------------------------------------------------------
   // Usa los valores configurables, con defaults de 80/20/30.
   // Devuelve un array de alertas con índice y tipo.
@@ -78,7 +78,7 @@ async function analyzeRSIAndDivergences(
   });
 
   // -----------------------------------------------------------
-  // 3️⃣ Guardado opcional de señales (persistencia)
+  // 3️⃣ Guardado opcional de señales (persistencia en Mongo Signals)
   // -----------------------------------------------------------
   // Si `persist` está activo y existe el modelo Signals,
   // se almacenan todas las divergencias detectadas como

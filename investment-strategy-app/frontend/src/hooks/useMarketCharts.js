@@ -150,8 +150,11 @@ export const useMarketCharts = ({
 
   const divergenceLineSeriesRefs = useRef([]);
   const rsiDivergenceMarkersRef = useRef([]);
+  const rsiTrendLineRefs = useRef([]);
   //Codigo agregado por Andrick y chat
   const syncingRef = useRef(false);
+  const maxLineSeriesRef = useRef(null);
+  const minLineSeriesRef = useRef(null);
 
   //Nuevo codigo de Andrick y chat
     // Convierte tus signals (desde useMarketData) en markers compatibles con lightweight-charts
@@ -238,6 +241,414 @@ export const useMarketCharts = ({
     });
   };
 
+// ----------------- Helpers para detectar picos reales (crestas) -----------------
+// Detecta picos locales en el array de highs y devuelve [{ index, value }]
+function findLocalHighPeaks(highs = [], windowSize = 3, minDistance = 4) {
+  const n = highs.length;
+  if (!n) return [];
+  const peaks = [];
+  for (let i = windowSize; i < n - windowSize; i++) {
+    const val = highs[i];
+    if (!Number.isFinite(val)) continue;
+    let isPeak = true;
+    for (let j = i - windowSize; j <= i + windowSize; j++) {
+      if (j === i) continue;
+      const other = highs[j];
+      if (!Number.isFinite(other) || other >= val) { isPeak = false; break; }
+    }
+    if (isPeak) peaks.push({ index: i, value: val });
+  }
+  // filtrar picos demasiado cercanos (conservar el mayor)
+  const filtered = [];
+  for (const p of peaks) {
+    if (!filtered.length) { filtered.push(p); continue; }
+    const last = filtered[filtered.length - 1];
+    if (p.index - last.index < minDistance) {
+      if (p.value > last.value) filtered[filtered.length - 1] = p;
+    } else filtered.push(p);
+  }
+  return filtered;
+}
+
+// Construye líneas de resistencia a partir de picos (dos crestas reales)
+function buildResistancesFromHighPeaks(candles = [], opts = {}) {
+  const highs = candles.map(c => c.high);
+  const peakWindow = opts.peakWindow || 3;
+  const minDistance = opts.minDistance || 6;
+  const maxPairs = opts.maxPairs || 6;
+
+  const peaks = findLocalHighPeaks(highs, peakWindow, minDistance);
+  const lines = [];
+  for (let a = 0; a < peaks.length - 1 && lines.length < maxPairs; a++) {
+    for (let b = a + 1; b < peaks.length && lines.length < maxPairs; b++) {
+      const p1 = peaks[a];
+      const p2 = peaks[b];
+      if (!p1 || !p2) continue;
+      // crear linea usando las crestas reales (highs de las velas)
+      const t1 = candles[p1.index].time;
+      const t2 = candles[p2.index].time;
+      const v1 = p1.value; // crest real
+      const v2 = p2.value;
+      // función lineal simple para evaluaciones posteriores (breakouts)
+      const func = (t) => {
+        if (t2 === t1) return v1;
+        const m = (v2 - v1) / (t2 - t1);
+        return v1 + m * (t - t1);
+      };
+
+      lines.push({ type: 'resistance', p1Index: p1.index, p2Index: p2.index, startTime: t1, endTime: t2, startValue: v1, endValue: v2, func });
+    }
+  }
+  return lines;
+}
+
+// ----------------- useEffect: dibujar resistencias usando crestas reales (highs) -----------------
+useEffect(() => {
+  // habilitar via settings: settings.trendlines === true
+  if (!chartRef.current || !Array.isArray(candles) || candles.length === 0) return;
+  if (!settings || !settings.trendlines) {
+    // limpiar cualquier series anteriores si existieran
+    if (divergenceLineSeriesRefs.current && divergenceLineSeriesRefs.current.length) {
+      divergenceLineSeriesRefs.current.forEach(s => { try { s.remove(); } catch (e) {} });
+      divergenceLineSeriesRefs.current = [];
+    }
+    return;
+  }
+
+  // parámetros (ajustables desde settings si quieres)
+  const peakWindow = (settings.peakWindow && Number(settings.peakWindow)) || 3;
+  const minDistance = (settings.minPeakDistance && Number(settings.minPeakDistance)) || 6;
+  const maxPairs = (settings.maxTrendlinePairs && Number(settings.maxTrendlinePairs)) || 6;
+
+  // construir resistencias a partir de highs reales
+  const resistances = buildResistancesFromHighPeaks(candles, { peakWindow, minDistance, maxPairs });
+
+  // limpiar series previas (reusar divergenceLineSeriesRefs para tendencia simple)
+  if (divergenceLineSeriesRefs.current && divergenceLineSeriesRefs.current.length) {
+    divergenceLineSeriesRefs.current.forEach(s => { try { s.remove(); } catch (e) {} });
+    divergenceLineSeriesRefs.current = [];
+  }
+
+  // dibujar cada linea usando los HIGH reales de las velas (no valores intermedios)
+  resistances.forEach((ln) => {
+    try {
+      const p1 = candles[ln.p1Index];
+      const p2 = candles[ln.p2Index];
+      if (!p1 || !p2) return;
+      const ls = chartRef.current.addLineSeries({ color: 'rgba(220,38,38,0.9)', lineWidth: 2, lineStyle: 2, priceLineVisible: false });
+      ls.setData([
+        { time: p1.time, value: p1.high },
+        { time: p2.time, value: p2.high },
+      ]);
+      // almacenar para cleanup
+      divergenceLineSeriesRefs.current.push(ls);
+    } catch (e) {
+      console.debug('[TrendRes] error dibujando resistencia:', e?.message || e);
+    }
+  });
+
+  // cleanup al desmontar o cuando cambien candles/settings
+  return () => {
+    if (divergenceLineSeriesRefs.current && divergenceLineSeriesRefs.current.length) {
+      divergenceLineSeriesRefs.current.forEach(s => { try { s.remove(); } catch (e) {} });
+      divergenceLineSeriesRefs.current = [];
+    }
+  };
+
+}, [candles, settings && settings.trendlines, settings && settings.peakWindow, settings && settings.minPeakDistance, settings && settings.maxTrendlinePairs]);
+
+// ----------------- Helpers RSI: detectar valles locales (mínimos) -----------------
+function findLocalLowPeaks(values = [], windowSize = 3, minDistance = 4) {
+  const n = values.length;
+  if (!n) return [];
+  const troughs = [];
+  for (let i = windowSize; i < n - windowSize; i++) {
+    const val = values[i];
+    if (!Number.isFinite(val)) continue;
+    let isTrough = true;
+    for (let j = i - windowSize; j <= i + windowSize; j++) {
+      if (j === i) continue;
+      const other = values[j];
+      if (!Number.isFinite(other) || other <= val) { isTrough = false; break; }
+    }
+    if (isTrough) troughs.push({ index: i, value: val });
+  }
+  // Filtrar valles demasiado cercanos (conservar el más bajo)
+  const filtered = [];
+  for (const p of troughs) {
+    if (!filtered.length) { filtered.push(p); continue; }
+    const last = filtered[filtered.length - 1];
+    if (p.index - last.index < minDistance) {
+      if (p.value < last.value) filtered[filtered.length - 1] = p;
+    } else filtered.push(p);
+  }
+  return filtered;
+}
+
+// ----------------- useEffect: dibujar diagonales blancas en el panel RSI (opcion C - truncado y etiqueta) -----------------
+useEffect(() => {
+  // Requisitos: rsiChartRef y rsiSeriesRef deben existir y rsi14 tener datos
+  if (!rsiChartRef.current || !rsiSeriesRef.current || !Array.isArray(rsi14) || rsi14.length === 0) return;
+  if (!Array.isArray(candles) || candles.length === 0) return;
+
+  // parámetros ajustables desde settings
+  const peakWindow = (settings && Number(settings.rsiPeakWindow)) || 3;
+  const minDistance = (settings && Number(settings.rsiMinPeakDistance)) || 6;
+  const maxLines = (settings && Number(settings.rsiMaxTrendLines)) || 2;
+  const highFilter = (settings && Number(settings.rsiHighFilter)) || 70; // para máximos relevantes
+  const lowFilter = (settings && Number(settings.rsiLowFilter)) || 30;   // para mínimos relevantes
+  const forwardWindow = (settings && Number(settings.rsiForwardWindow)) || 100; // barras a buscar ruptura
+  const breakoutTolerance = (settings && Number(settings.rsiBreakoutTolerance)) || 0.002; // tolerancia relativa
+  const requireConfirmationCandles = (settings && Number(settings.rsiConfirmationCandles)) || 1; // cuantas velas confirman ruptura
+  const allowWickBreak = (settings && typeof settings.allowWickBreak === 'boolean') ? settings.allowWickBreak : true;
+
+  // preparar array simple de valores RSI alineado con candles
+  const values = rsi14.map(p => (p && typeof p === 'object' ? p.value : p));
+
+  // detectar máximos y mínimos locales en el RSI
+  const rsiHighs = findLocalHighPeaks(values, peakWindow, minDistance); // devuelve {index, value}
+  const rsiLows = findLocalLowPeaks(values, peakWindow, minDistance);
+
+  // convertir índices a puntos { time, value }
+  const rsiPoints = rsi14.map(p => ({ time: p.time, value: p.value }));
+  const candidateHighs = rsiHighs.map(p => ({ index: p.index, time: rsiPoints[p.index]?.time, value: p.value })).filter(p => p.time != null && p.value != null && p.value >= highFilter);
+  const candidateLows = rsiLows.map(p => ({ index: p.index, time: rsiPoints[p.index]?.time, value: p.value })).filter(p => p.time != null && p.value != null && p.value <= lowFilter);
+
+  // limpiar series previas
+  if (rsiTrendLineRefs.current && rsiTrendLineRefs.current.length) {
+    rsiTrendLineRefs.current.forEach(s => { try { s.remove(); } catch (e) {} });
+    rsiTrendLineRefs.current = [];
+  }
+
+  // limpiar marcadores RSI previos (mantener marcadores de divergencias si existen)
+  try {
+    if (rsiSeriesRef.current) {
+      // No borrar markers de divergencias que establece renderDivergences; solo agregaremos nuevos markers al final
+      const existing = rsiSeriesRef.current.getMarkers ? rsiSeriesRef.current.getMarkers() : (rsiDivergenceMarkersRef.current || []);
+      rsiDivergenceMarkersRef.current = existing || [];
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // Helper: crear linea entre dos puntos en RSI y (opcional) truncarla hasta breakIndex
+  const drawTruncatedRSILine = (p1, p2, breakIndex, label) => {
+    try {
+      let p2Point = p2;
+      if (typeof breakIndex === 'number' && rsiPoints[breakIndex]) {
+        p2Point = { index: breakIndex, time: rsiPoints[breakIndex].time, value: rsiPoints[breakIndex].value };
+      }
+
+      const ls = rsiChartRef.current.addLineSeries({ color: '#ffffff', lineWidth: 3, priceLineVisible: false });
+      ls.setData([
+        { time: p1.time, value: p1.value },
+        { time: p2Point.time, value: p2Point.value },
+      ]);
+      rsiTrendLineRefs.current.push(ls);
+
+      // agregar marker/etiqueta en punto de ruptura si existe
+      if (typeof breakIndex === 'number' && rsiPoints[breakIndex]) {
+        try {
+          const marker = { time: rsiPoints[breakIndex].time, position: 'aboveBar', color: '#ffffff', shape: 'square', text: label };
+          const prev = rsiSeriesRef.current.getMarkers ? rsiSeriesRef.current.getMarkers() : [];
+          const merged = (prev || []).concat([marker]);
+          rsiSeriesRef.current.setMarkers(merged);
+          // mantener en memoria para limpieza si es necesario
+          rsiDivergenceMarkersRef.current = merged;
+        } catch (e) { console.debug('[RSItrend] set marker error', e?.message || e); }
+      }
+
+    } catch (e) {
+      console.debug('[RSItrend] error dibujando linea truncada', e?.message || e);
+    }
+  };
+
+  // función para evaluar precio en la línea definida por dos picos de price (usando highs/low reales de candles)
+  const lineFuncFromPricePeaks = (pIdx1, pIdx2) => {
+    const c1 = candles[pIdx1];
+    const c2 = candles[pIdx2];
+    if (!c1 || !c2) return null;
+    const t1 = c1.time;
+    const t2 = c2.time;
+    const v1 = c1.high; // usar high para resistencias
+    const v2 = c2.high;
+    if (t2 === t1) return (t) => v1;
+    const m = (v2 - v1) / (t2 - t1);
+    return (t) => v1 + m * (t - t1);
+  };
+
+  // Buscar ruptura en precio: para resistencia (candidateHighs) buscamos vela roja que cierre por debajo de la linea de precio
+  const findBreakoutIndexForResistance = (pIdx1, pIdx2) => {
+    const func = lineFuncFromPricePeaks(pIdx1, pIdx2);
+    if (!func) return null;
+    const start = Math.max(pIdx2 + 1, pIdx1 + 1);
+    const limit = Math.min(candles.length, start + forwardWindow);
+    for (let k = start; k < limit; k++) {
+      const c = candles[k];
+      if (!c) continue;
+      const priceOnLine = func(c.time);
+      if (typeof priceOnLine !== 'number' || !isFinite(priceOnLine)) continue;
+      const tol = Math.abs(priceOnLine) * breakoutTolerance;
+      const closeBreak = (c.close < priceOnLine - tol && c.close < c.open); // vela roja que cierre por debajo
+      const wickBreak = (allowWickBreak && c.low < priceOnLine + tol);
+      if (closeBreak || wickBreak) {
+        // confirmar si se piden varias velas de confirmacion
+        if (requireConfirmationCandles <= 1) return k;
+        let ok = true;
+        for (let s = 0; s < requireConfirmationCandles; s++) {
+          const idx = k + s;
+          if (idx >= candles.length) { ok = false; break; }
+          const cc = candles[idx];
+          const pOn = func(cc.time);
+          if (!(cc && typeof pOn === 'number' && cc.close < pOn - tol)) { ok = false; break; }
+        }
+        if (ok) return k;
+      }
+    }
+    return null;
+  };
+
+  // Para soportes (candidateLows) buscamos vela verde que cierre por encima de la linea de precio
+  const findBreakoutIndexForSupport = (pIdx1, pIdx2) => {
+    const func = lineFuncFromPricePeaks(pIdx1, pIdx2); // reuse but will use lows if needed; we will use lows p1/p2
+    if (!func) return null;
+    const start = Math.max(pIdx2 + 1, pIdx1 + 1);
+    const limit = Math.min(candles.length, start + forwardWindow);
+    for (let k = start; k < limit; k++) {
+      const c = candles[k];
+      if (!c) continue;
+      const priceOnLine = func(c.time);
+      if (typeof priceOnLine !== 'number' || !isFinite(priceOnLine)) continue;
+      const tol = Math.abs(priceOnLine) * breakoutTolerance;
+      const closeBreak = (c.close > priceOnLine + tol && c.close > c.open); // vela verde que cierre por encima
+      const wickBreak = (allowWickBreak && c.high > priceOnLine - tol);
+      if (closeBreak || wickBreak) {
+        if (requireConfirmationCandles <= 1) return k;
+        let ok = true;
+        for (let s = 0; s < requireConfirmationCandles; s++) {
+          const idx = k + s;
+          if (idx >= candles.length) { ok = false; break; }
+          const cc = candles[idx];
+          const pOn = func(cc.time);
+          if (!(cc && typeof pOn === 'number' && cc.close > pOn + tol)) { ok = false; break; }
+        }
+        if (ok) return k;
+      }
+    }
+    return null;
+  };
+
+  // Dibujar diagonales truncadas en RSI solo si existe ruptura en el precio posterior
+  try {
+    // Resistencias (divergencia bajista): usar candidateHighs; p1 = earlier, p2 = later
+    if (candidateHighs.length >= 2) {
+      // iterar pares de los 2 últimos (más reciente)
+      const lastTwo = candidateHighs.slice(-2);
+      const p1 = lastTwo[0];
+      const p2 = lastTwo[1];
+      // encontrar indices de candles asociados
+      const p1Idx = p1.index;
+      const p2Idx = p2.index;
+      // buscar ruptura en precio usando las crestas reales (highs)
+      const breakoutIdx = findBreakoutIndexForResistance(p1Idx, p2Idx);
+      if (breakoutIdx != null) {
+        // dibujar RSI desde p1 hasta el RSI en breakoutIdx
+        drawTruncatedRSILine(p1, p2, breakoutIdx, 'Venta');
+        // opcional: dibujar pequeña linea blanca en precio (truncada) para ayudar a ver ruptura
+        try {
+          const func = lineFuncFromPricePeaks(p1Idx, p2Idx);
+          if (func && chartRef.current) {
+            const startTime = candles[p1Idx].time;
+            const breakTime = candles[breakoutIdx].time;
+            const startVal = candles[p1Idx].high;
+            const breakVal = func(breakTime);
+            const ls = chartRef.current.addLineSeries({ color: '#ffffff', lineWidth: 3, priceLineVisible: false });
+            ls.setData([{ time: startTime, value: startVal }, { time: breakTime, value: breakVal }]);
+            divergenceLineSeriesRefs.current.push(ls);
+          }
+        } catch (e) { /* ignore */ }
+      }
+    }
+
+    // Soportes (divergencia alcista): usar candidateLows
+    if (candidateLows.length >= 2) {
+      const lastTwo = candidateLows.slice(-2);
+      const p1 = lastTwo[0];
+      const p2 = lastTwo[1];
+      const p1Idx = p1.index;
+      const p2Idx = p2.index;
+      const breakoutIdx = findBreakoutIndexForSupport(p1Idx, p2Idx);
+      if (breakoutIdx != null) {
+        drawTruncatedRSILine(p1, p2, breakoutIdx, 'Compra');
+        try {
+          const func = lineFuncFromPricePeaks(p1Idx, p2Idx);
+          if (func && chartRef.current) {
+            const startTime = candles[p1Idx].time;
+            const breakTime = candles[breakoutIdx].time;
+            const startVal = candles[p1Idx].low; // para soporte usar low
+            const breakVal = func(breakTime);
+            const ls = chartRef.current.addLineSeries({ color: '#ffffff', lineWidth: 3, priceLineVisible: false });
+            ls.setData([{ time: startTime, value: startVal }, { time: breakTime, value: breakVal }]);
+            divergenceLineSeriesRefs.current.push(ls);
+          }
+        } catch (e) { /* ignore */ }
+      }
+    }
+  } catch (e) {
+    console.debug('[RSItrend] error main drawing', e?.message || e);
+  }
+
+  // cleanup
+  return () => {
+    if (rsiTrendLineRefs.current && rsiTrendLineRefs.current.length) {
+      rsiTrendLineRefs.current.forEach(s => { try { s.remove(); } catch (e) {} });
+      rsiTrendLineRefs.current = [];
+    }
+    // no remover marcadores de divergencias originales; solo limpiar los que agregamos
+    try {
+      if (rsiSeriesRef.current && rsiDivergenceMarkersRef.current) {
+        rsiSeriesRef.current.setMarkers(rsiDivergenceMarkersRef.current || []);
+      }
+    } catch (e) {}
+  };
+
+}, [rsi14, candles, settings && settings.rsi, settings && settings.rsiPeakWindow, settings && settings.rsiMinPeakDistance, settings && settings.rsiHighFilter, settings && settings.rsiLowFilter, settings && settings.rsiForwardWindow]);
+
+  useEffect(() => {
+    if (!chartRef.current || !candles || candles.length === 0) return;
+
+    const highs = candles.map(c => c.high);
+    const lows = candles.map(c => c.low);
+    const maxPrice = Math.max(...highs);
+    const minPrice = Math.min(...lows);
+
+    if (!maxLineSeriesRef.current) {
+      maxLineSeriesRef.current = chartRef.current.addLineSeries({
+        color: '#ffea00',
+        lineWidth: 1,
+        lineStyle: 0,
+        priceLineVisible: false,
+      });
+    }
+    maxLineSeriesRef.current.setData([
+      { time: candles[0].time, value: maxPrice },
+      { time: candles[candles.length - 1].time, value: maxPrice },
+    ]);
+
+    if (!minLineSeriesRef.current) {
+      minLineSeriesRef.current = chartRef.current.addLineSeries({
+        color: '#ffea00',
+        lineWidth: 2,
+        lineStyle: 0,
+        priceLineVisible: false,
+      });
+    }
+    minLineSeriesRef.current.setData([
+      { time: candles[0].time, value: minPrice },
+      { time: candles[candles.length - 1].time, value: minPrice },
+    ]);
+
+  }, [candles]);
 
   useEffect(() => {
     if (!chartContainerRef.current || chartRef.current) return;

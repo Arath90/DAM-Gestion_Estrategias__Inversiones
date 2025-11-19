@@ -1,102 +1,138 @@
 // src/api/services/indicators.service.js
-// -----------------------------------------------------------
-// Servicio: Análisis combinado RSI + Divergencias + Alertas
-// -----------------------------------------------------------
+// ============================================================================
+// Servicio de indicadores técnicos
+// ----------------------------------------------------------------------------
+// Este módulo funciona como *capa de orquestación* para los indicadores:
 //
-// Este módulo es el *coordinador central* de análisis técnico.
-// Combina los resultados de los servicios individuales:
+//   • RSI + Divergencias precio–RSI
+//   • Alertas basadas en niveles del RSI
+//   • MACD (línea, señal, histograma) + alertas MACD
 //
-//   • detectRSIDivergences → identifica divergencias entre precio y RSI
-//   • rsiAlerts            → genera alertas por cruces de niveles del RSI
+// Expone dos funciones públicas:
 //
-// Opcionalmente puede persistir las señales detectadas en la colección `Signals`
-// de MongoDB para registro o backtesting.
+//   1) analyzeRSIAndDivergences(candles, opts, extra)
+//      - Pensada para flujos centrados únicamente en RSI/divergencias.
+//      - Se usa también desde la acción OData DetectDivergences.
 //
-// Flujo general:
-//  1. Calcula el RSI y las divergencias usando las velas (candles).
-//  2. Genera alertas de niveles RSI (sobrecompra/sobreventa, cruces 50).
-//  3. Si `persist` es true, guarda las señales en la base de datos.
+//   2) analyzeIndicators(candles, opts, extra)
+//      - Endpoint “completo” que combina RSI + Divergencias + MACD
+//        y devuelve todo en formato amigable para el frontend (series {time,value}).
+//      - Es lo que consume /api/indicators/analytics.
 //
-// -----------------------------------------------------------
+// Ambos pueden opcionalmente persistir señales en Mongo (colección `Signals`),
+// pero en el flujo de analytics se está usando `persist: false` para no escribir.
+// ============================================================================
 
-// Importa los servicios de análisis técnico
-const { detectRSIDivergences } = require('./indicators/divergence.service'); // divergencias RSI-precio
-const { rsiAlerts } = require('./indicators/rsi.alerts');                    // alertas RSI por niveles
-const { computeMACD } = require('./indicators/macd.service');
-const { macdAlerts } = require('./indicators/macd.alerts');
+// --- Servicios de análisis técnico de bajo nivel (cálculo puro) -------------
+const { detectRSIDivergences } = require('./indicators/divergence.service'); // divergencias precio–RSI
+const { rsiAlerts }            = require('./indicators/rsi.alerts');         // alertas por niveles RSI
+const { computeMACD }          = require('./indicators/macd.service');       // cálculo MACD
+const { macdAlerts }           = require('./indicators/macd.alerts');        // eventos MACD (cruces, etc.)
 
-// Modelo opcional para guardar señales en la base de datos (Mongo)
+// Modelo opcional de MongoDB para persistir señales
 const Signals = require('../models/mongodb/Signal');
 
+// ============================================================================
+// 1) analyzeRSIAndDivergences
+//    – Enfoque exclusivo en RSI y divergencias
+// ============================================================================
+
 /**
- * Analiza una serie de velas en busca de divergencias y alertas RSI.
+ * Analiza una serie de velas buscando divergencias precio–RSI
+ * y generando alertas de niveles RSI (sobrecompra/sobreventa/cruces de 50).
  *
- * @param {Array<Object>} candles - Serie de velas (debe incluir campos como close, ts/time, etc.).
- * @param {Object} opts - Opciones de configuración para el análisis técnico.
- * @param {number} [opts.period=14] - Periodo RSI.
- * @param {number} [opts.swingLen=5] - Ventana de pivotes (para divergencias).
- * @param {number} [opts.minDistance=5] - Separación mínima entre pivotes consecutivos.
- * @param {number} [opts.rsiHighAlert=80] - Umbral superior de sobrecompra para alertas.
- * @param {number} [opts.rsiLowAlert=20] - Umbral inferior de sobreventa para alertas.
- * @param {number} [opts.rsiPreLow=30] - Nivel intermedio de sobreventa.
- * @param {boolean}[opts.useZones=false] - Exigir zonas altas/bajas para divergencias.
+ * ⚙️ Parámetros de entrada:
+ * @param {Array<Object>} candles
+ *   Serie de velas en orden cronológico.
+ *   Se espera que cada vela tenga, al menos:
+ *     - close (precio de cierre)
+ *     - opcionalmente ts/time/datetime para timestamp.
  *
- * @param {Object} optionsExtra - Configuración adicional del servicio.
- * @param {boolean}[optionsExtra.persist=false] - Si true, guarda las señales en MongoDB.
- * @param {string} [optionsExtra.instrument_id=null] - ID del instrumento asociado.
+ * @param {Object} opts
+ *   Opciones específicas del análisis RSI/divergencias:
+ *   @param {number} [opts.period=14]
+ *     Periodo del RSI (por defecto 14).
+ *   @param {number} [opts.swingLen=5]
+ *     Ventana de pivotes para detectar máximos/mínimos locales.
+ *   @param {number} [opts.minDistance=5]
+ *     Separación mínima en número de velas entre pivotes consecutivos.
+ *   @param {number} [opts.rsiHighAlert=80]
+ *     Umbral de sobrecompra para alertas RSI.
+ *   @param {number} [opts.rsiLowAlert=20]
+ *     Umbral de sobreventa para alertas RSI.
+ *   @param {number} [opts.rsiPreLow=30]
+ *     Nivel “previo” de sobreventa (ej. 30 para avisar antes del 20).
+ *   @param {boolean} [opts.useZones=false]
+ *     Si es true, las divergencias exigen que el RSI esté en zona alta/baja.
  *
- * @returns {Promise<Object>} 
- *   {
- *     rsi: Array<number>,       // serie completa RSI
- *     signals: Array<Object>,   // divergencias detectadas
- *     alerts: Array<Object>     // alertas RSI
- *   }
+ * @param {Object} optionsExtra
+ *   Configuración extra del servicio:
+ *   @param {boolean} [optionsExtra.persist=false]
+ *     Si true, persiste las señales en MongoDB (colección `Signals`).
+ *   @param {string|null} [optionsExtra.instrument_id=null]
+ *     Identificador del instrumento para enlazar las señales persistidas.
+ *
+ * 🧾 Respuesta:
+ * @returns {Promise<{
+ *   rsi: number[],
+ *   signals: Array<object>,
+ *   alerts: Array<object>
+ * }>}
+ *   - rsi: serie numérica completa del RSI (alineada 1:1 con candles).
+ *   - signals: divergencias detectadas (bearish/bullish) con idx1/idx2.
+ *   - alerts: eventos de niveles RSI (sobrecompra/sobreventa/cruce 50, etc.).
  */
 async function analyzeRSIAndDivergences(
   candles,
   opts = {},
-  { persist = true, instrument_id = null } = {}
+  { persist = true, instrument_id = null } = {},
 ) {
-  // -----------------------------------------------------------
-  // 1️⃣ Calcula RSI y divergencias (sobre serie completa)
-  // -----------------------------------------------------------
-  // detectRSIDivergences devuelve:
-  //  { rsi: <array de RSI>, signals: <divergencias encontradas> }
-  // -----------------------------------------------------------
+  // --------------------------------------------------------------------------
+  // 1️⃣ Calcular RSI + Divergencias
+  // --------------------------------------------------------------------------
+  // detectRSIDivergences encapsula:
+  //   - computeRSI
+  //   - findPivots
+  //   - lógica HH/LL vs LH/HL para divergencias.
   const { rsi, signals } = detectRSIDivergences(candles, opts);
 
-  // -----------------------------------------------------------
-  // 2️⃣ Genera alertas RSI por niveles (sobrecompra/sobreventa/cruce 50)
-  // -----------------------------------------------------------
-  // Usa los valores configurables, con defaults de 80/20/30.
-  // Devuelve un array de alertas con índice y tipo.
-  // -----------------------------------------------------------
+  // --------------------------------------------------------------------------
+  // 2️⃣ Generar alertas RSI por niveles (sobrecompra/sobreventa/cruces)
+  // --------------------------------------------------------------------------
   const alerts = rsiAlerts(rsi, {
-    high: opts.rsiHighAlert ?? 80,
-    low:  opts.rsiLowAlert  ?? 20,
-    preLow: opts.rsiPreLow ?? 30,
+    high:   opts.rsiHighAlert ?? 80,
+    low:    opts.rsiLowAlert  ?? 20,
+    preLow: opts.rsiPreLow    ?? 30,
     usePreLow: true,
-    watch50: true
+    watch50:  true,
   });
 
-  // -----------------------------------------------------------
-  // 3️⃣ Guardado opcional de señales (persistencia en Mongo Signals)
-  // -----------------------------------------------------------
-  // Si `persist` está activo y existe el modelo Signals,
-  // se almacenan todas las divergencias detectadas como
-  // registros individuales en la colección Mongo.
-  // -----------------------------------------------------------
+  // --------------------------------------------------------------------------
+  // 3️⃣ Persistencia opcional de señales de divergencia en MongoDB
+  // --------------------------------------------------------------------------
   if (persist && Signals && signals.length) {
     if (!instrument_id) {
-      console.warn('[analyzeRSIAndDivergences] Persist requested without instrument_id, skipping save.');
+      console.warn(
+        '[analyzeRSIAndDivergences] Persist requested without instrument_id, skipping save.',
+      );
     } else {
       const now = new Date();
+
       const docs = signals.map((s) => {
+        // Se toma la vela idx2 como referencia temporal (pivote más reciente)
         const candle = candles[s.idx2] || candles[s.idx1] || {};
         const tsRaw = candle.ts || candle.time || candle.datetime || Date.now();
         const ts = tsRaw instanceof Date ? tsRaw : new Date(tsRaw);
-        const action = s.type === 'bullish_divergence' ? 'BUY' : 'SELL';
-        const confidence = Number.isFinite(s.strength) ? Math.min(Math.max(s.strength, 0), 1) : 0.5;
+
+        const action =
+          s.type === 'bullish_divergence'
+            ? 'BUY'
+            : 'SELL';
+
+        // Normalizar fuerza en rango [0,1]
+        const confidence = Number.isFinite(s.strength)
+          ? Math.min(Math.max(s.strength, 0), 1)
+          : 0.5;
 
         return {
           strategy_code: 'RSI_DIVERGENCE',
@@ -108,36 +144,82 @@ async function analyzeRSIAndDivergences(
           features_json: {
             divergence: s,
             candle,
-            options: opts
+            options: opts,
           },
-          rationale: action === 'BUY'
-            ? 'Bullish RSI divergence detected.'
-            : 'Bearish RSI divergence detected.',
+          rationale:
+            action === 'BUY'
+              ? 'Bullish RSI divergence detected.'
+              : 'Bearish RSI divergence detected.',
           createdAt: now,
-          updatedAt: now
+          updatedAt: now,
         };
       });
 
       try {
         await Signals.insertMany(docs, { ordered: false });
       } catch (err) {
-        console.error('[analyzeRSIAndDivergences] Failed to persist RSI signals', err);
+        console.error(
+          '[analyzeRSIAndDivergences] Failed to persist RSI signals',
+          err,
+        );
       }
     }
   }
 
-  // -----------------------------------------------------------
-  // 4️⃣ Devuelve resultados para visualización o análisis posterior
-  // -----------------------------------------------------------
+  // --------------------------------------------------------------------------
+  // 4️⃣ Resultado para consumo externo (ej. acción OData o servicios internos)
+  // --------------------------------------------------------------------------
   return { rsi, signals, alerts };
 }
 
-// Exporta la función principal del servicio
-module.exports = { analyzeRSIAndDivergences };
+// ============================================================================
+// 2) analyzeIndicators
+//    – RSI + Divergencias + MACD para /api/indicators/analytics
+// ============================================================================
 
 /**
- * Analiza RSI + divergencias + MACD en un solo paso.
- * Se usa desde /api/indicators/analytics.
+ * Analiza de forma combinada:
+ *   • RSI + divergencias precio–RSI
+ *   • Eventos/alertas basados en RSI
+ *   • MACD (línea, señal, histograma) + alertas MACD
+ *
+ * Este es el servicio que usa el endpoint HTTP:
+ *   POST /api/indicators/analytics
+ *
+ * y devuelve las series normalizadas { time, value } listas para el frontend.
+ *
+ * @param {Array<Object>} candles
+ *   Velas normalizadas (el endpoint ya las pasa con `time` en segundos).
+ *
+ * @param {Object} opts
+ *   Configuración de indicadores y umbrales:
+ *   @param {number} [opts.rsiPeriod=14]      Periodo del RSI.
+ *   @param {number} [opts.rsiHighAlert=80]   Umbral RSI sobrecompra.
+ *   @param {number} [opts.rsiLowAlert=20]    Umbral RSI sobreventa.
+ *   @param {number} [opts.rsiPreLow=30]      Nivel previo de sobreventa.
+ *   @param {Object} [opts.rsiOptions={}]     Opciones extra para divergencias RSI.
+ *   @param {number} [opts.macdFast=12]       EMA rápida MACD.
+ *   @param {number} [opts.macdSlow=26]       EMA lenta MACD.
+ *   @param {number} [opts.macdSignal=9]      Periodo signal line MACD.
+ *   @param {string} [opts.macdSource='close'] Campo de precio a usar para MACD.
+ *
+ * @param {Object} extra
+ *   Parámetros extra de ejecución:
+ *   @param {boolean} [extra.persist=false]
+ *     Si true, persiste algunas señales MACD en `Signals` (opcional).
+ *   @param {string|null} [extra.instrument_id=null]
+ *     Instrumento asociado a las señales persistidas.
+ *
+ * @returns {Promise<{
+ *   rsi14: Array<{time:number,value:number}>,
+ *   divergences: Array<object>,
+ *   macdLine: Array<{time:number,value:number}>,
+ *   macdSignal: Array<{time:number,value:number}>,
+ *   macdHistogram: Array<{time:number,value:number}>,
+ *   signals: Array<object>,
+ *   tradeSignals: Array<object>,
+ *   appliedAlgoParams: Object
+ * }>}
  */
 async function analyzeIndicators(
   candles,
@@ -145,17 +227,19 @@ async function analyzeIndicators(
   { persist = false, instrument_id = null } = {},
 ) {
   const {
-    rsiPeriod = 14,
+    rsiPeriod   = 14,
     rsiHighAlert = 80,
-    rsiLowAlert = 20,
-    rsiPreLow = 30,
-    rsiOptions = {},
-    macdFast = 12,
-    macdSlow = 26,
+    rsiLowAlert  = 20,
+    rsiPreLow    = 30,
+    rsiOptions   = {},
+
+    macdFast   = 12,
+    macdSlow   = 26,
     macdSignal = 9,
     macdSource = 'close',
   } = opts || {};
 
+  // Guardrail mínimo: sin suficientes velas no vale la pena calcular nada.
   if (!Array.isArray(candles) || candles.length < 10) {
     return {
       rsi14: [],
@@ -169,20 +253,23 @@ async function analyzeIndicators(
     };
   }
 
-  // --- RSI + divergencias ---
+  // --------------------------------------------------------------------------
+  // 1️⃣ RSI + Divergencias + Eventos RSI
+  // --------------------------------------------------------------------------
   const { rsi, signals: rsiDivs } = detectRSIDivergences(candles, {
     period: rsiPeriod,
     ...rsiOptions,
   });
 
   const rsiEvents = rsiAlerts(rsi, {
-    high: rsiHighAlert,
-    low: rsiLowAlert,
+    high:   rsiHighAlert,
+    low:    rsiLowAlert,
     preLow: rsiPreLow,
     usePreLow: true,
-    watch50: true,
+    watch50:  true,
   });
 
+  // Serie RSI convertida a { time, value } respetando el índice de la vela.
   const rsiSeries = rsi
     .map((v, i) => {
       if (!Number.isFinite(v)) return null;
@@ -192,33 +279,39 @@ async function analyzeIndicators(
     })
     .filter(Boolean);
 
-  // --- MACD ---
+  // --------------------------------------------------------------------------
+  // 2️⃣ MACD (línea, señal, histograma) + eventos
+  // --------------------------------------------------------------------------
   const { macd, signal, histogram } = computeMACD(candles, {
-    fastPeriod: macdFast,
-    slowPeriod: macdSlow,
+    fastPeriod:   macdFast,
+    slowPeriod:   macdSlow,
     signalPeriod: macdSignal,
-    source: macdSource,
+    source:       macdSource,
   });
 
   const macdEvents = macdAlerts({
-    macdLine: macd,
+    macdLine:   macd,
     signalLine: signal,
     histogram,
     candles,
   });
 
+  // Normalizar eventos RSI para tener un campo index consistente
   const normalizedRsiEvents = (rsiEvents || []).map((ev) => ({
     ...ev,
     index: ev.index ?? ev.i ?? ev.timeIndex,
   }));
 
+  // Normalizar eventos MACD
   const normalizedMacdEvents = (macdEvents || []).map((ev) => ({
     ...ev,
     index: ev.index,
   }));
 
+  // Mezcla todas las “señales” de evento (no son órdenes de trading, solo eventos técnicos)
   const allSignals = [...normalizedRsiEvents, ...normalizedMacdEvents];
 
+  // Helper: mapear cualquier array numérico a serie { time, value }
   const mapSeries = (arr) =>
     arr
       .map((v, i) => {
@@ -229,19 +322,30 @@ async function analyzeIndicators(
       })
       .filter(Boolean);
 
-  const macdLineSeries = mapSeries(macd);
-  const macdSignalSeries = mapSeries(signal);
+  const macdLineSeries      = mapSeries(macd);
+  const macdSignalSeries    = mapSeries(signal);
   const macdHistogramSeries = mapSeries(histogram);
 
+  // --------------------------------------------------------------------------
+  // 3️⃣ Normalización de divergencias para el frontend
+  // --------------------------------------------------------------------------
   const divergences = rsiDivs.map((d) => {
     const priceDeltaPct =
-      d.price && Number.isFinite(d.price.p1) && d.price.p1 !== 0 && Number.isFinite(d.price.p2)
+      d.price &&
+      Number.isFinite(d.price.p1) &&
+      d.price.p1 !== 0 &&
+      Number.isFinite(d.price.p2)
         ? ((d.price.p2 - d.price.p1) / Math.abs(d.price.p1)) * 100
         : null;
+
     const indDeltaPct =
-      d.rsi && Number.isFinite(d.rsi.r1) && d.rsi.r1 !== 0 && Number.isFinite(d.rsi.r2)
+      d.rsi &&
+      Number.isFinite(d.rsi.r1) &&
+      d.rsi.r1 !== 0 &&
+      Number.isFinite(d.rsi.r2)
         ? ((d.rsi.r2 - d.rsi.r1) / Math.abs(d.rsi.r1)) * 100
         : null;
+
     return {
       type: d.type || (d.kind?.includes('bullish') ? 'bullish' : 'bearish'),
       p1Index: d.idx1,
@@ -254,20 +358,32 @@ async function analyzeIndicators(
     };
   });
 
+  // Por ahora devolvemos todos los eventos como `signals`
   const signals = allSignals;
+
+  // tradeSignals se reservaría para órdenes reales simuladas o ejecutadas
   const tradeSignals = [];
 
+  // --------------------------------------------------------------------------
+  // 4️⃣ Persistencia opcional de eventos MACD como señales de trading
+  // --------------------------------------------------------------------------
   if (persist && Signals) {
     const mergedEvents = [...normalizedMacdEvents];
     for (const ev of mergedEvents) {
-      const ts = candles[ev.index]?.time || candles[ev.index]?.ts || new Date();
+      const idx = ev.index;
+      if (idx == null || !candles[idx]) continue;
+
+      const ts = candles[idx]?.time || candles[idx]?.ts || new Date();
+
       const action =
         ev.type === 'macd_cross_up' || ev.type === 'macd_zero_up'
           ? 'BUY'
           : ev.type === 'macd_cross_down' || ev.type === 'macd_zero_down'
           ? 'SELL'
           : null;
+
       if (!action) continue;
+
       const doc = await Signals.create({
         strategy_code: 'MACD_CORE',
         instrument_id,
@@ -276,16 +392,20 @@ async function analyzeIndicators(
         confidence: 0.5,
         meta: { ...ev },
       });
+
       tradeSignals.push(doc);
     }
   }
 
+  // --------------------------------------------------------------------------
+  // 5️⃣ Resultado completo para /api/indicators/analytics
+  // --------------------------------------------------------------------------
   return {
-    rsi14: rsiSeries,
+    rsi14:          rsiSeries,
     divergences,
-    macdLine: macdLineSeries,
-    macdSignal: macdSignalSeries,
-    macdHistogram: macdHistogramSeries,
+    macdLine:       macdLineSeries,
+    macdSignal:     macdSignalSeries,
+    macdHistogram:  macdHistogramSeries,
     signals,
     tradeSignals,
     appliedAlgoParams: {
@@ -299,4 +419,8 @@ async function analyzeIndicators(
   };
 }
 
-module.exports.analyzeIndicators = analyzeIndicators;
+// Export público del módulo
+module.exports = {
+  analyzeRSIAndDivergences,
+  analyzeIndicators,
+};

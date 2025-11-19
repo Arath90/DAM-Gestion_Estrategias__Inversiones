@@ -1,4 +1,26 @@
 //src/api/controllers/catalog-controller.js
+
+// ============================================================================
+// CatalogController
+// ---------------------------------------------------------------------------
+// Servicio principal de CAP que expone el "catálogo" de entidades de trading
+// (Instrumentos, Datasets, Estrategias, Velas, etc.) a través de OData.
+// 
+// La filosofía es:
+//   - CAP maneja el protocolo OData / HTTP.
+//   - Mongoose maneja la persistencia en MongoDB.
+//   - Este controlador traduce entre ambos mundos:
+//       * Normaliza query params ($filter, $orderby, $top, $skip).
+//       * Decide a qué modelo de Mongo delegar.
+//       * Envuelve todas las operaciones en una bitácora uniforme (BITACORA).
+//       * Centraliza manejo de errores y códigos HTTP (wrapAndRespond).
+//
+// Para la mayoría de entidades, el CRUD real lo construye makeCrudHandlers()
+// y aquí solo se registran los handlers generados.
+// Las velas (Candles) son especiales: se leen desde un proveedor externo.
+// Además se define una acción personalizada: DetectDivergences.
+// ============================================================================
+
 const cds = require("@sap/cds");
 const mongoose = require("mongoose");
 const {
@@ -12,7 +34,8 @@ const { makeCrudHandlers } = require("../services/crud.service");
 const { analyzeRSIAndDivergences } = require('../services/indicators.service');
 const { fetchCandlesForInstrument } = require('../services/candlesExternal.service');
 
-// === Mongoose models expuestos a traves del servicio OData ===
+// === Modelos Mongoose expuestos a través del servicio OData ===============
+
 const Instrument = require("../models/mongodb/Instrument");
 const MLDataset = require("../models/mongodb/MLDataset");
 const Execution = require("../models/mongodb/Execution");
@@ -32,23 +55,28 @@ const StrategiesModel = require("../models/mongodb/Strategies");
 const AlgorithmSetting = require("../models/mongodb/AlgorithmSetting");
 
 // ============================================================================
-// Helper utilities reutilizados por todos los handlers
+// Helpers generales reutilizados por todos los handlers
 // ============================================================================
 
+// Si STRICT_HTTP_ERRORS está activo, se intenta devolver errores
+// formateados como CAP (req.error). Si no, se responde con FAIL(bitacora).
 const isStrict = ["true", "1", "yes", "on"].includes(
   String(process.env.STRICT_HTTP_ERRORS || "").toLowerCase()
 );
 
 /**
- * Determina el usuario logueado a partir de distintos lugares del request.
- * CAP puede entregar el usuario en req.data mientras que el middleware Express
- * lo expone en req.req (que corresponde al Request original de Express).
+ * Obtiene el usuario actual desde diferentes orígenes posibles:
+ *   - Query param LoggedUser (usado por el frontend).
+ *   - req.req.sessionUser.email (inyectado por middleware Express).
+ *   - Encabezado x-logged-user.
+ *   - Datos de CAP (req.data).
+ * Si no hay nadie, se usa "anonymous".
  */
 function readUser(req) {
   return (
     req?.req?.query?.LoggedUser ||
-    req?.req?.sessionUser?.email || // inyectado por sessionAuth (Express layer)
-    req?.sessionUser?.email || // fallback directo si viene sin el wrapper
+    req?.req?.sessionUser?.email || // inyectado por sesión en capa Express
+    req?.sessionUser?.email ||       // fallback si CAP monta sessionUser directo
     req?.req?.headers?.["x-logged-user"] ||
     req?.data?.LoggedUser ||
     req?.data?.loggedUser ||
@@ -56,7 +84,10 @@ function readUser(req) {
   );
 }
 
-/** Normaliza la bandera de base de datos para delegar a Mongo o HANA. */
+/**
+ * Normaliza el origen de base de datos (Mongo vs HANA).
+ * Por ahora la implementación real solo usa Mongo, pero se deja el switch.
+ */
 function normalizeDb(value = "MongoDB") {
   const normalized = String(value).trim().toLowerCase();
   if (["mongodb", "mongo", "mongo-db"].includes(normalized)) return "mongo";
@@ -64,7 +95,10 @@ function normalizeDb(value = "MongoDB") {
   return "mongo";
 }
 
-/** Extrae el ID suministrado por CAP/Express (params, query o body). */
+/**
+ * Extrae un ID de la request (tanto CAP como Express).
+ * CAP monta los datos en req.data, Express usa params/query.
+ */
 function extractId(req) {
   return (
     req?.data?.ID ||
@@ -76,7 +110,10 @@ function extractId(req) {
   );
 }
 
-/** Lee parametros $top y $skip de CAP (se encuentran en req._query). */
+/**
+ * Lee parámetros $top y $skip que CAP coloca en req._query.
+ * Si no vienen, se asume 0.
+ */
 function readQueryBounds(req) {
   return {
     top: Number(req._query?.$top ?? 0),
@@ -84,6 +121,7 @@ function readQueryBounds(req) {
   };
 }
 
+// Parámetros de control que NO deben convertirse en filtros Mongo.
 const CONTROL_PARAMS = new Set([
   "ProcessType",
   "LoggedUser",
@@ -94,10 +132,17 @@ const CONTROL_PARAMS = new Set([
   "db",
 ]);
 
+// Defaults para lectura de velas externas.
 const DEFAULT_CANDLES_INTERVAL = process.env.CANDLES_DEFAULT_INTERVAL || "1min";
 const DEFAULT_CANDLES_LIMIT = Number(process.env.CANDLES_DEFAULT_LIMIT || 60);
 
-/** Intenta transformar valores literales a booleanos/numero/null cuando provienen de filtros. */
+/**
+ * Intenta convertir un literal de texto a:
+ *   - boolean (true/false)
+ *   - null / undefined
+ *   - number (si es numérico limpio)
+ * En otro caso, regresa el string original.
+ */
 function parseLiteral(raw = "") {
   const value = raw.trim();
   if (!value.length) return value;
@@ -110,15 +155,25 @@ function parseLiteral(raw = "") {
   return value;
 }
 
-/** Convierte nombres con sufijo _ID en su version camelCase utilizada en Mongo (_id). */
+/**
+ * Convierte nombres con sufijo "ID" o "_ID" al formato usado en Mongo:
+ *   - "ID"        => "_id"
+ *   - "instrument_ID" => "instrument_id"
+ * (para luego mapear a ObjectId si el modelo lo requiere).
+ */
 function normalizeFieldName(field = "") {
   if (field === "ID") return "_id";
   return field.replace(/_ID$/g, "_id");
 }
 
 /**
- * Analiza expresiones $filter simples (eq/ne y contains) y las traduce a criterios Mongo.
- * No soporta toda la gramatic OData; solo los patrones usados por el frontend.
+ * Traduce expresiones $filter simples (eq/ne y contains) a un objeto
+ * de filtro compatible con Mongo:
+ *
+ *   $filter=field eq 'valor'
+ *   $filter=contains(tolower(name),'abc')
+ *
+ * No es un parser OData completo; solo cubre los casos que el frontend usa.
  */
 function parseODataFilter(expr = "") {
   const result = {};
@@ -128,6 +183,7 @@ function parseODataFilter(expr = "") {
     .filter(Boolean);
 
   for (const part of parts) {
+    // contains(tolower(field),'value')
     let match = part.match(
       /^contains\s*\(\s*tolower\(\s*([\w.]+)\s*\)\s*,\s*'([^']*)'\s*\)\s*$/i
     );
@@ -137,6 +193,7 @@ function parseODataFilter(expr = "") {
       continue;
     }
 
+    // contains(field,'value')
     match = part.match(/^contains\s*\(\s*([\w.]+)\s*,\s*'([^']*)'\s*\)\s*$/i);
     if (match) {
       const [, field, value] = match;
@@ -144,6 +201,7 @@ function parseODataFilter(expr = "") {
       continue;
     }
 
+    // field eq/ne value
     match = part.match(/^([\w.]+)\s+(eq|ne)\s+(.+)$/i);
     if (match) {
       const [, field, op, rawValue] = match;
@@ -158,7 +216,11 @@ function parseODataFilter(expr = "") {
   return result;
 }
 
-/** Traduce expresiones $orderby a un objeto { campo: direccion } compatible con Mongo. */
+/**
+ * Convierte la cadena $orderby de OData a un objeto:
+ *   $orderby=field1 asc,field2 desc
+ *   => { field1: 1, field2: -1 }
+ */
 function parseOrderBy(raw = "") {
   const clauses = {};
   const parts = String(raw)
@@ -176,13 +238,20 @@ function parseOrderBy(raw = "") {
   return Object.keys(clauses).length ? clauses : null;
 }
 
+/** Helper para leer $orderby desde CAP o desde Express. */
 function readOrderBy(req) {
   const raw = req?._query?.$orderby ?? req?.req?.query?.$orderby;
   if (!raw) return null;
   return parseOrderBy(raw);
 }
 
-/** Construye un filtro Mongo a partir de los query params OData. */
+/**
+ * Construye un filtro Mongo combinando:
+ *   - $filter (expresión OData) -> parseODataFilter
+ *   - cualquier otro query param (transformado con parseLiteral)
+ *
+ * Se ignoran params de control (ProcessType, dbServer, etc.).
+ */
 function buildFilter(query = {}) {
   const filter = {};
 
@@ -203,9 +272,20 @@ function buildFilter(query = {}) {
 }
 
 /**
- * Obtiene velas desde el proveedor externo para el instrumento solicitado.
+ * Obtiene velas desde el proveedor externo para un instrumento.
+ *
+ * La identificación del instrumento intenta varias fuentes:
+ *   - instrument_ID / instrument_id
+ *   - symbol / ticker
+ *   - conid / ib_conid
+ *   - dataset asociado a una estrategia (dataset.instrument_conid, dataset.spec_json.symbol)
+ *
+ * Si no se encuentra, responde 404.
+ * Si el instrumento no tiene símbolo, responde 400.
  */
 async function handleCandlesRead({ filter = {}, req, top, skip, orderby }) {
+  // --- 1. Resolver el instrumento a partir de los filtros / query params ----
+
   const candidateInstrumentId =
     filter.instrument_id ||
     filter.instrument_ID ||
@@ -225,6 +305,7 @@ async function handleCandlesRead({ filter = {}, req, top, skip, orderby }) {
     req?.req?.query?.ib_conid ||
     req?.req?.query?.conid;
 
+  // dataset y estrategia se usan para inferir el instrumento
   const datasetIdParam =
     filter.dataset_id ||
     req?.req?.query?.dataset_id ||
@@ -240,6 +321,7 @@ async function handleCandlesRead({ filter = {}, req, top, skip, orderby }) {
   let dataset = null;
   let strategy = null;
 
+  // Si llega una estrategia, cargarla para extraer dataset_id / periodo
   if (strategyParam) {
     const findStrategy = mongoose.isValidObjectId(strategyParam)
       ? { _id: strategyParam }
@@ -261,6 +343,12 @@ async function handleCandlesRead({ filter = {}, req, top, skip, orderby }) {
     dataset = await MLDataset.findOne(dsFilter).lean();
   }
 
+  // Prioridad de resolución de instrumento:
+  //   1) instrument_ID explícito
+  //   2) symbol
+  //   3) conid
+  //   4) dataset.instrument_conid
+  //   5) dataset.spec_json.symbol / ticker
   if (candidateInstrumentId) {
     if (mongoose.isValidObjectId(candidateInstrumentId)) {
       instrument = await Instrument.findById(candidateInstrumentId).lean();
@@ -303,6 +391,7 @@ async function handleCandlesRead({ filter = {}, req, top, skip, orderby }) {
     instrument = await Instrument.findOne({ symbol: dsSymbol }).lean();
   }
 
+  // Como último recurso, si al menos hay symbol, se construye un "instrumento virtual"
   if (!instrument) {
     if (candidateSymbol) {
       instrument = { _id: candidateSymbol, symbol: candidateSymbol };
@@ -323,17 +412,23 @@ async function handleCandlesRead({ filter = {}, req, top, skip, orderby }) {
     throw err;
   }
 
+  // --- 2. Parámetros de rango e intervalo para la consulta externa ----------
+
   const interval =
     filter.bar_size || req?.req?.query?.bar_size || DEFAULT_CANDLES_INTERVAL;
+
   const topNum = Number(top);
   const skipNum = Number(skip);
+
   const limit =
     Number.isFinite(topNum) && topNum > 0 ? topNum : DEFAULT_CANDLES_LIMIT;
   const offset = Number.isFinite(skipNum) && skipNum > 0 ? skipNum : 0;
+
   const fromOverride =
     req?.req?.query?.from ||
     req?.req?.query?.fromDate ||
     strategy?.period_start;
+
   const toOverride =
     req?.req?.query?.to ||
     req?.req?.query?.toDate ||
@@ -342,6 +437,8 @@ async function handleCandlesRead({ filter = {}, req, top, skip, orderby }) {
   const instrumentIdStr = instrument._id?.toString
     ? instrument._id.toString()
     : String(instrument._id);
+
+  // --- 3. Llamada al proveedor externo de velas -----------------------------
 
   const candles = await fetchCandlesForInstrument({
     instrumentId: instrumentIdStr,
@@ -353,11 +450,13 @@ async function handleCandlesRead({ filter = {}, req, top, skip, orderby }) {
     to: toOverride,
   });
 
+  // Orden opcional por ts si el $orderby era desc
   const sorted = Array.isArray(candles) ? candles.slice() : [];
   if (orderby && orderby.ts === -1) {
     sorted.sort((a, b) => new Date(b.ts) - new Date(a.ts));
   }
 
+  // Normalizar al formato OData de la entidad Candles
   return sorted.map((candle) => {
     const ts = candle.ts instanceof Date ? candle.ts : new Date(candle.ts);
     return {
@@ -378,9 +477,14 @@ async function handleCandlesRead({ filter = {}, req, top, skip, orderby }) {
   });
 }
 
+// Mapea ProcessType a código HTTP recomendado.
 const statusByMethod = (method) =>
   ({ CREATE: 201, READ: 200, UPDATE: 200, DELETE: 200 }[method] || 200);
 
+/**
+ * Intenta fijar el código HTTP en la respuesta Express subyacente.
+ * CAP envuelve la respuesta, por eso se usan req._.res o req.res.
+ */
 function setHttpStatus(req, code) {
   const res = req?._?.res || req?.res;
   if (res && !res.headersSent && typeof res.status === "function")
@@ -388,7 +492,15 @@ function setHttpStatus(req, code) {
 }
 
 /**
- * Envueltorios de bitacora y manejo de errores uniformes para cada operacion CRUD.
+ * Envoltorio estándar para TODAS las operaciones CRUD:
+ *   - Crea BITACORA y DATA.
+ *   - Resuelve parámetros base (usuario, base de datos, id, filtros, etc.).
+ *   - Ejecuta la función de negocio fn(...).
+ *   - Registra éxito o error en bitácora.
+ *   - Devuelve respuesta OK/FAIL homogénea.
+ *
+ * Si isStrict está activo, también intenta propagar el error como req.error
+ * para que CAP genere una respuesta OData estándar.
  */
 async function wrapAndRespond(req, method, api, process, fn) {
   const bitacora = BITACORA();
@@ -411,6 +523,7 @@ async function wrapAndRespond(req, method, api, process, fn) {
   bitacora.process = process;
 
   try {
+    // Todas las operaciones OData deben indicar ProcessType.
     if (!ProcessType) {
       const err = new Error("Missing query param: ProcessType");
       err.status = 400;
@@ -418,6 +531,7 @@ async function wrapAndRespond(req, method, api, process, fn) {
       throw err;
     }
 
+    // fn es la función de negocio real (handlers.READ, CREATE, etc.)
     const result = await fn({
       req,
       db,
@@ -465,6 +579,7 @@ async function wrapAndRespond(req, method, api, process, fn) {
 
     AddMSG(bitacora, data, "FAIL", status, true);
 
+    // Modo estricto: generamos error CAP (req.error) si es posible.
     if (isStrict && typeof req.error === "function") {
       try {
         req.error({
@@ -477,7 +592,7 @@ async function wrapAndRespond(req, method, api, process, fn) {
         });
         return;
       } catch (_) {
-        // Si CAP falla al generar el error, continuamos con la respuesta generica.
+        // Si CAP falla al construir el error, continuamos con FAIL genérico.
       }
     }
 
@@ -489,11 +604,15 @@ async function wrapAndRespond(req, method, api, process, fn) {
 /**
  * CatalogController
  *
- * Expone entidades OData y delega la logica CRUD a makeCrudHandlers (Mongo/HANA).
- * wrapAndRespond centraliza bitacoras, mensajes y manejo de errores.
+ * Extiende cds.ApplicationService para:
+ *   - Registrar todas las entidades CDS (this.entities).
+ *   - Conectar cada entidad con su modelo Mongo (registerEntity).
+ *   - Aplicar reglas de unicidad / permisos por entidad.
+ *   - Exponer la acción DetectDivergences.
  */
 class CatalogController extends cds.ApplicationService {
   async init() {
+    // Extrae referencias a las entidades CDS definidas en el modelo.
     const {
       Instruments,
       MLDatasets,
@@ -515,6 +634,17 @@ class CatalogController extends cds.ApplicationService {
       AlgorithmSettings,
     } = this.entities;
 
+    // ========================================================================
+    // Helpers específicos para AlgorithmSettings (preferencias de usuario)
+    // ========================================================================
+
+    /**
+     * Garantiza que:
+     *   - El usuario esté autenticado.
+     *   - scope_type / scope_ref estén definidos (strategy o instrument).
+     *   - user_email se asigne al registro.
+     *   - En UPDATE, el owner no pueda ser otro usuario.
+     */
     const ensureAlgorithmScope = async (req) => {
       const email = readUser(req);
       if (!email || email === "anonymous") {
@@ -526,6 +656,8 @@ class CatalogController extends cds.ApplicationService {
       req.data = req.data || {};
       let existing = null;
       const targetId = extractId(req);
+
+      // En UPDATE/DELETE, validar ownership del documento
       if (targetId) {
         existing = await AlgorithmSetting.findById(targetId).lean();
         if (existing && existing.user_email && existing.user_email !== email) {
@@ -535,12 +667,14 @@ class CatalogController extends cds.ApplicationService {
         }
       }
 
+      // Determinar scope_type (strategy | instrument)
       const scopeType =
         req.data.scope_type ||
         req?.req?.query?.scope_type ||
         existing?.scope_type ||
         (req.data.strategy_id ? "strategy" : "instrument");
 
+      // Determinar scope_ref (id de estrategia o clave de instrumento)
       let scopeRef =
         req.data.scope_ref ||
         req?.req?.query?.scope_ref ||
@@ -562,6 +696,7 @@ class CatalogController extends cds.ApplicationService {
         throw err;
       }
 
+      // Completar campos de ownership / scope
       req.data.user_email = email;
       req.data.scope_type = scopeType;
       req.data.scope_ref = scopeRef;
@@ -585,9 +720,13 @@ class CatalogController extends cds.ApplicationService {
         }
       }
 
+      // En CREATE, si no hay params_json, se inicializa vacío
       if (!targetId && req.data.params_json == null) req.data.params_json = {};
     };
 
+    /**
+     * Filtro de lectura: un usuario solo ve sus propias configuraciones.
+     */
     const restrictAlgorithmRead = async (ctx) => {
       const email = readUser(ctx.req);
       if (!email || email === "anonymous") {
@@ -605,6 +744,9 @@ class CatalogController extends cds.ApplicationService {
       }
     };
 
+    /**
+     * Antes de borrar una configuración, valida que pertenezca al usuario.
+     */
     const ensureAlgorithmOwnershipOnDelete = async (ctx) => {
       const email = readUser(ctx.req);
       if (!email || email === "anonymous") {
@@ -613,11 +755,13 @@ class CatalogController extends cds.ApplicationService {
         throw err;
       }
       if (!ctx.id) return;
+
       const doc =
         (await AlgorithmSetting.findById(ctx.id).lean()) ||
         (await AlgorithmSetting.findOne({
           $expr: { $eq: [{ $toString: '$_id' }, ctx.id] },
         }).lean());
+
       if (doc && doc.user_email && doc.user_email !== email) {
         const err = new Error("No autorizado a eliminar esta configuracion.");
         err.status = 403;
@@ -625,11 +769,16 @@ class CatalogController extends cds.ApplicationService {
       }
     };
 
+    // ========================================================================
+    // Helper para registrar una entidad CDS mapeada a un modelo Mongoose
+    // ========================================================================
+
     /**
-     * Helper para registrar cada entidad.
-     * makeCrudHandlers crea los handlers CRUD especificos para el modelo Mongo.
+     * Registra handlers CRUD para una entidad CDS delegando en makeCrudHandlers.
+     * Opcionalmente recibe:
+     *   - uniqueCheck: función async(r) para validar duplicados en CREATE.
+     *   - beforeCreate / beforeUpdate / beforeRead / beforeDelete: hooks de dominio.
      */
-    // Registra handlers CRUD para una entidad CDS traduciendo a Mongo mediante makeCrudHandlers.
     const registerEntity = (Entity, Model, opts) => {
       if (!Entity) return;
       const handlers = makeCrudHandlers(Entity, Model, opts || {});
@@ -672,8 +821,12 @@ class CatalogController extends cds.ApplicationService {
       );
     };
 
-    // Reglas de unicidad por entidad (evitan duplicados frecuentes).
+    // ========================================================================
+    // Registro de entidades + reglas de unicidad
+    // ========================================================================
+
     registerEntity(Instruments, Instrument, {
+      // Un instrumento se considera único por ib_conid.
       uniqueCheck: async (r) => {
         if (!r?.data?.ib_conid) return;
         const found = await Instrument.findOne({ ib_conid: r.data.ib_conid });
@@ -681,7 +834,7 @@ class CatalogController extends cds.ApplicationService {
       },
     });
 
-    // MLDatasets: `name` funciona como slug único que el frontend usa para relacionar estrategias.
+    // MLDatasets: el nombre funciona como slug único.
     registerEntity(MLDatasets, MLDataset, {
       uniqueCheck: async (r) => {
         if (!r?.data?.name) return;
@@ -699,6 +852,7 @@ class CatalogController extends cds.ApplicationService {
     });
 
     registerEntity(DailyPnls, DailyPnl, {
+      // Un DailyPnl se identifica por (account, date).
       uniqueCheck: async (r) => {
         const { account, date } = r.data || {};
         if (!account || !date) return;
@@ -718,6 +872,7 @@ class CatalogController extends cds.ApplicationService {
     });
 
     registerEntity(Positions, Position, {
+      // Una Position es única por (account, instrument_id).
       uniqueCheck: async (r) => {
         const { account, instrument_id } = r.data || {};
         if (!account || !instrument_id) return;
@@ -727,6 +882,7 @@ class CatalogController extends cds.ApplicationService {
     });
 
     registerEntity(Signals, Signal, {
+      // Evita duplicar señales idénticas para la misma estrategia/instrumento/tiempo/acción.
       uniqueCheck: async (r) => {
         const { strategy_code, instrument_id, ts, action } = r.data || {};
         if (!strategy_code || !instrument_id || !ts || !action) return;
@@ -739,9 +895,8 @@ class CatalogController extends cds.ApplicationService {
         if (found) r.reject(409, "Signal duplicada");
       },
     });
-    //registerEntity toma dos argumentos: la entidad CDS y el modelo Mongoose.
-    // El tercer argumento es un objeto de opciones, donde se puede definir reglas de unicidad, validaciones, etc.
-    // en este caso  se define una constante que tiene como parametros el codigo de la estrategia, el id del dataset, el periodo de inicio y el periodo de fin.
+
+    // Backtests: combinación de (strategy_code, dataset_id, period_start, period_end).
     registerEntity(Backtests, Backtest, {
       uniqueCheck: async (r) => {
         const { strategy_code, dataset_id, period_start, period_end } =
@@ -758,8 +913,12 @@ class CatalogController extends cds.ApplicationService {
       },
     });
 
+    // ========================================================================
+    // Entidad especial: Candles (solo lectura, datos externos)
+    // ========================================================================
+
     if (Candles) {
-      // Las velas ahora se consultan en un proveedor externo y son de solo lectura.
+      // Las velas se consultan a un proveedor externo y no se guardan en Mongo.
       const rejectCandlesWrite = async () => {
         const err = new Error("Candles es de solo lectura (datos externos).");
         err.status = 405;
@@ -776,6 +935,7 @@ class CatalogController extends cds.ApplicationService {
         )
       );
 
+      // Cualquier intento de CREATE/UPDATE/DELETE regresará 405.
       ["CREATE", "UPDATE", "DELETE"].forEach((method) => {
         this.on(method, Candles, (req) =>
           wrapAndRespond(
@@ -788,6 +948,10 @@ class CatalogController extends cds.ApplicationService {
         );
       });
     }
+
+    // ========================================================================
+    // Resto de entidades "normales"
+    // ========================================================================
 
     registerEntity(MLModels, MLModel);
 
@@ -839,7 +1003,7 @@ class CatalogController extends cds.ApplicationService {
       },
     });
 
-    // Strategies: se identifica por `code` (human readable) además del ObjectId.
+    // Strategies: se identifica además por `code` human-readable.
     registerEntity(Strategies, StrategiesModel, {
       uniqueCheck: async (r) => {
         if (!r?.data?.code) return;
@@ -848,19 +1012,45 @@ class CatalogController extends cds.ApplicationService {
       }
     });
 
+    // AlgorithmSettings: preferencias por usuario/estrategia/instrumento
     registerEntity(AlgorithmSettings, AlgorithmSetting, {
       beforeCreate: ensureAlgorithmScope,
       beforeUpdate: ensureAlgorithmScope,
-      beforeRead: restrictAlgorithmRead,
+      beforeRead:   restrictAlgorithmRead,
       beforeDelete: ensureAlgorithmOwnershipOnDelete,
     });
 
-    // Acción DetectDivergences (actualizada con validaciones y valores por defecto)
+    // ========================================================================
+    // Acción personalizada: DetectDivergences
+    // ========================================================================
+    // Permite al front solicitar divergencias RSI vs Precio para un símbolo,
+    // sin tener que pasar por todo el motor de estrategias.
+    //
+    // Request (OData Action):
+    //   {
+    //     symbol: 'I:NDX',
+    //     tf: '1day',
+    //     period: 14,
+    //     swing: 5,
+    //     minDistance: 5,
+    //     rsiHigh: 70,
+    //     rsiLow: 30,
+    //     useZones: true/false
+    //   }
+    //
+    // Response:
+    //   [
+    //     { type: 'bearish_divergence', idx1, idx2, strength },
+    //     ...
+    //   ]
     this.on('DetectDivergences', async req => {
       const { symbol, tf, period, swing, minDistance, rsiHigh, rsiLow, useZones } = req.data;
       if (!symbol) return req.error(400, 'symbol requerido');
 
+      // 1) Descargar velas del proveedor externo
       const candles = await fetchCandlesForInstrument({ symbol, tf, limit: 1000 });
+
+      // 2) Ejecutar análisis RSI + divergencias
       const { signals } = await analyzeRSIAndDivergences(candles, {
         period: +period || 14,
         swingLen: +swing || 5,
@@ -870,6 +1060,7 @@ class CatalogController extends cds.ApplicationService {
         useZones: !!useZones
       });
 
+      // 3) Responder solo los campos relevantes para el cliente
       return signals.map(s => ({
         type: s.type,
         idx1: s.idx1,
@@ -878,6 +1069,7 @@ class CatalogController extends cds.ApplicationService {
       }));
     });
 
+    // Llamar al init original de cds.ApplicationService
     return super.init();
   }
 }

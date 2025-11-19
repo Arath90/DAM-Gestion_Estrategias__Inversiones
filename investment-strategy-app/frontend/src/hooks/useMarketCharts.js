@@ -770,7 +770,11 @@ export const useMarketCharts = ({
       try {
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         // Renderizar siempre divergencias en ambos paneles
+=======
+        // Siempre renderizar divergencias; ya vienen filtradas desde useMarketData
+>>>>>>> Stashed changes
 =======
         // Siempre renderizar divergencias; ya vienen filtradas desde useMarketData
 >>>>>>> Stashed changes

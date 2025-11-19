@@ -4,11 +4,13 @@ const mongoose = require('mongoose');
 const isValidObjectId = (id) =>
   typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id) && mongoose.isValidObjectId(id);
 
+// Convierte documento Mongo en shape esperado por CAP (ID string, sin _id/__v).
 const mapOut = (doc) => {
   const o = doc?.toObject ? doc.toObject() : doc;
   const { _id, __v, ...rest } = o || {};
   return { ID: _id?.toString?.(), ...rest };
 };
+// Hace lo inverso: quita ID virtual para poder guardarlo en Mongo.
 const mapIn = (data) => { const { ID, ...rest } = data || {}; return rest; };
 
 // Mapea errores típicos de Mongo a HTTP legibles
@@ -23,6 +25,10 @@ function normalizeMongoError(err) {
   return err;
 }
 
+/**
+ * Genera handlers CRUD compatibles con CAP para una entidad y modelo Mongo dado.
+ * Se usa por registerEntity para derivar `READ/CREATE/UPDATE/DELETE`.
+ */
 function makeCrudHandlers(cdsEntity, Model, opts = {}) {
   const { uniqueCheck, beforeCreate, beforeUpdate, beforeRead, beforeDelete } = opts;
   const { SELECT, INSERT, UPDATE, DELETE } = cds;

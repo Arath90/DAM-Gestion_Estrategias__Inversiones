@@ -1,3 +1,4 @@
+//src/api/controllers/catalog-controller.js
 const cds = require("@sap/cds");
 const mongoose = require("mongoose");
 const {
@@ -628,6 +629,7 @@ class CatalogController extends cds.ApplicationService {
      * Helper para registrar cada entidad.
      * makeCrudHandlers crea los handlers CRUD especificos para el modelo Mongo.
      */
+    // Registra handlers CRUD para una entidad CDS traduciendo a Mongo mediante makeCrudHandlers.
     const registerEntity = (Entity, Model, opts) => {
       if (!Entity) return;
       const handlers = makeCrudHandlers(Entity, Model, opts || {});
@@ -679,6 +681,7 @@ class CatalogController extends cds.ApplicationService {
       },
     });
 
+    // MLDatasets: `name` funciona como slug único que el frontend usa para relacionar estrategias.
     registerEntity(MLDatasets, MLDataset, {
       uniqueCheck: async (r) => {
         if (!r?.data?.name) return;
@@ -736,7 +739,9 @@ class CatalogController extends cds.ApplicationService {
         if (found) r.reject(409, "Signal duplicada");
       },
     });
-
+    //registerEntity toma dos argumentos: la entidad CDS y el modelo Mongoose.
+    // El tercer argumento es un objeto de opciones, donde se puede definir reglas de unicidad, validaciones, etc.
+    // en este caso  se define una constante que tiene como parametros el codigo de la estrategia, el id del dataset, el periodo de inicio y el periodo de fin.
     registerEntity(Backtests, Backtest, {
       uniqueCheck: async (r) => {
         const { strategy_code, dataset_id, period_start, period_end } =
@@ -834,6 +839,7 @@ class CatalogController extends cds.ApplicationService {
       },
     });
 
+    // Strategies: se identifica por `code` (human readable) además del ObjectId.
     registerEntity(Strategies, StrategiesModel, {
       uniqueCheck: async (r) => {
         if (!r?.data?.code) return;

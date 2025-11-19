@@ -1,6 +1,7 @@
 // src/services/odata.js
 import api from '../config/apiClient';
 
+// Construye clave OData v2, CAP espera `(ID='...')`.
 const keyV2 = (id) => `(ID='${encodeURIComponent(id)}')`;
 
 const collectDataRes = (node) => {
@@ -19,6 +20,7 @@ const collectDataRes = (node) => {
   return bucket;
 };
 
+// Algunos endpoints devuelven value/dataRes; esta función aplana a arrays simples.
 const normalize = (data) => {
   if (Array.isArray(data?.value)) {
     const collected = data.value.flatMap(collectDataRes);
@@ -40,6 +42,7 @@ const unwrapSingle = (data) => {
   return Array.isArray(normalized) ? normalized[0] ?? null : normalized;
 };
 
+// CAP exige indicar contra qué backend (Mongo) hablamos.
 const BASE_PARAMS = { dbServer: 'MongoDB' };
 
 const buildReadParams = (opts = {}, overrides = {}) => {
@@ -67,6 +70,10 @@ const buildQueryString = (params = {}) => {
   return qp.toString().replace(/\+/g, '%20');
 };
 
+/**
+ * Factoría de clientes CRUD OData para entidades CAP (Instruments, Datasets, etc.).
+ * Cada operación agrega ProcessType adecuado para que el backend rote a Mongo.
+ */
 const createCrudApiService = (entity) => ({
   list: async ({ top = 20, skip = 0, filter, orderby, params: extraParams } = {}) => {
     const params = buildReadParams({ top, skip, filter, orderby }, extraParams);

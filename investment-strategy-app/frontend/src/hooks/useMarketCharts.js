@@ -230,6 +230,19 @@ export const useMarketCharts = ({
             const merged = existing.concat(markers);
             try { rsiSeriesRef.current.setMarkers(merged); rsiDivergenceMarkersRef.current = merged; } catch (e) { console.debug('[DIV] setMarkers failed:', e?.message || e); }
           }
+          // trazar línea de divergencia en el RSI
+          if (r1Index != null && r2Index != null && rsiChartRef.current && rsi14[r1Index] && rsi14[r2Index]) {
+            try {
+              const lsRsi = rsiChartRef.current.addLineSeries({ color: d.type === 'bullish' ? '#16a34a' : '#dc2626', lineWidth: 2, lineStyle: 2, priceLineVisible: false });
+              lsRsi.setData([
+                { time: rsi14[r1Index].time, value: rsi14[r1Index].value },
+                { time: rsi14[r2Index].time, value: rsi14[r2Index].value },
+              ]);
+              divergenceRsiLineRefs.current.push(lsRsi);
+            } catch (e) {
+              console.debug('[DIV] Error dibujando linea RSI:', e?.message || e);
+            }
+          }
         }
 
         // Siempre dibujar línea de divergencia en precio, de punto a punto (p1->p2)
@@ -755,7 +768,11 @@ export const useMarketCharts = ({
 
       // Divergencias
       try {
+<<<<<<< Updated upstream
         // Renderizar siempre divergencias en ambos paneles
+=======
+        // Siempre renderizar divergencias; ya vienen filtradas desde useMarketData
+>>>>>>> Stashed changes
         renderDivergences(divergences || [], validCandles);
       } catch (e) {
         console.debug('[Divergencias] Error al renderizar:', e.message);

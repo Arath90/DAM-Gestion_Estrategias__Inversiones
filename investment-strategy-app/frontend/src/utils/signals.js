@@ -1,4 +1,14 @@
 // src/utils/signals.js
+
+/**
+ * Motor de reglas discreto que transforma indicadores en BUY/SELL.
+ * Documentamos cada bloque para que el flujo sea trazable desde los hooks.
+ *
+ * @param {Array<Object>} candles  Serie OHLC normalizada.
+ * @param {Object} indicators      Conjunto de series alineadas por indice.
+ * @param {Array<Object>} divergences Lista de divergencias precalculadas.
+ * @param {Object} options         Umbrales por indicador.
+ */
 export function computeSignals(candles, indicators, divergences = [], options = {}) {
   // candles: array with { time, open, high, low, close, volume }
   // indicators: { rsi, bb: {upper, mid, lower}, macd: {macd, signal, hist}, ema20, ema50 }
@@ -7,19 +17,19 @@ export function computeSignals(candles, indicators, divergences = [], options = 
     rsiOverbought = 70,
     macdHistogramThreshold = 0.1,
     minReasons = 1
-  } = options;
+  } = options; // Mismos defaults utilizados en el backend/front.
 
-  const signals = [];
+  const signals = []; // Respuesta agregada.
   const n = candles.length;
 
   // Precompute maps of divergences by index for quick lookup
-  const divergencesByIndex = new Map();
+  const divergencesByIndex = new Map(); // Lookup rapido por indice final (p2Index).
   divergences.forEach(d => {
     divergencesByIndex.set(d.p2Index, d); // mark by p2Index (the later peak)
   });
 
   for (let i = 1; i < n; i++) {
-    const reasons = [];
+    const reasons = []; // Lista textual de reglas cumplidas.
     let confidence = 0;
 
     const close = candles[i].close;
@@ -73,7 +83,7 @@ export function computeSignals(candles, indicators, divergences = [], options = 
     }
 
     // Divergence
-    const div = divergencesByIndex.get(i);
+    const div = divergencesByIndex.get(i); // Solo se marca cuando la vela corresponde al segundo pivote.
     if (div) {
       reasons.push(`Divergencia ${div.type}`);
       confidence += 0.45;
@@ -81,8 +91,9 @@ export function computeSignals(candles, indicators, divergences = [], options = 
 
     if (reasons.length >= minReasons) {
       // decide action: if any bearish reason present mark SELL, else BUY
-      const isBearish = reasons.some(r => /bearish|overbought|rejection|sell|top/i.test(r));
+      const isBearish = reasons.some(r => /bearish|overbought|rejection|sell|top/i.test(r)); // Heuristica textual a partir de los motivos.
       const action = isBearish ? 'SELL' : 'BUY';
+      // Payload auto-descriptivo para la UI y para cualquier persistencia futura.
       signals.push({
         id: `${candles[i].time}_${action}`,
         time: candles[i].time,
@@ -95,5 +106,5 @@ export function computeSignals(candles, indicators, divergences = [], options = 
     }
   }
 
-  return signals;
+  return signals; // Cada elemento representa una recomendacion contextualizada.
 }

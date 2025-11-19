@@ -240,15 +240,40 @@ export async function fetchAnalytics(payload = {}) {
 
   const { data } = await axios.post(buildUrl('/api/indicators/analytics'), { candles, params }, { timeout: 30000 });
 
-  const mapSeries = (series = []) =>
-    Array.isArray(series)
-      ? series
-          .map((p) => ({
-            time: new Date(p.time || p.ts || 0).getTime() / 1000,
-            value: Number(p.value),
-          }))
-          .filter((p) => Number.isFinite(p.time) && Number.isFinite(p.value))
-          .sort((a, b) => a.time - b.time)
+const normalizeTime = (raw) => {
+  if (raw == null) return NaN;
+
+  // ISO string
+  if (typeof raw === 'string') {
+    const ms = Date.parse(raw);
+    if (!Number.isFinite(ms)) return NaN;
+    return Math.floor(ms / 1000);
+  }
+
+  if (typeof raw === 'number') {
+    // If very large, likely ms -> convert to seconds
+    if (raw > 1e12) {
+      return Math.floor(raw / 1000);
+    }
+    // Typical epoch seconds range
+    if (raw > 1e8) {
+      return raw;
+    }
+  }
+
+  return NaN;
+};
+
+const mapSeries = (series = []) =>
+  Array.isArray(series)
+    ? series
+        .map((p) => {
+          const t = normalizeTime(p.time ?? p.ts ?? null);
+          const v = Number(p.value);
+          return { time: t, value: v };
+        })
+        .filter((p) => Number.isFinite(p.time) && Number.isFinite(p.value))
+        .sort((a, b) => a.time - b.time)
       : [];
 
   const normalizeDivs = (divs = []) =>

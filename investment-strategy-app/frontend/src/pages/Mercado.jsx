@@ -243,12 +243,15 @@ const Mercado = () => {
       candles: candles1y,
       indicators: indicatorsForEvents,
       divergences,
-      cfg: { 
-        rsiOversold:  signalConfig.rsiOversold, 
-        rsiOverbought: signalConfig.rsiOverbought 
-      }
+      signals,
+      cfg: {
+        rsiOversold: signalConfig.rsiOversold,
+        rsiOverbought: signalConfig.rsiOverbought,
+        confirmBars: 1,
+        cooldownBars: 5,
+      },
     });
-  }, [candles1y, indicatorsForEvents, divergences, signalConfig]);
+  }, [candles1y, indicatorsForEvents, divergences, signals, signalConfig]);
 
   // -------------------------------------------------------
   // 10. RENDERIZADO DE ERROR DESTACADO (SI LO HAY)

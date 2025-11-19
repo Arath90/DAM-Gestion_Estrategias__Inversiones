@@ -1,5 +1,6 @@
 const express = require('express');
-const router  = express.Router();
+const router = express.Router();
+const { analytics } = require('../controllers/indicators.controller');
 const { analyzeRSIAndDivergences } = require('../services/indicators.service');
 const { detectResistanceLevels } = require('../services/indicators/resistance.service');
 const { computeMACD } = require('../services/indicators/macd.service');
@@ -16,6 +17,10 @@ router.use((req, res, next) => {
 });
 
 router.use(express.json({ limit: '1mb' }));
+
+// POST /api/indicators/analytics
+// Devuelve RSI, MACD y divergencias listas para graficar.
+router.post('/indicators/analytics', analytics);
 
 // GET /api/indicators/divergences?symbol=AAPL&tf=1D&period=14&swing=5&minDistance=5&rsiHigh=70&rsiLow=30&useZones=true
 // Calcula divergencias RSI-Precio en servidor (usa provider externo para velas).

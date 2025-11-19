@@ -118,6 +118,43 @@ const resetSeries = (...seriesRefs) => {
   });
 };
 
+// De una lista de divergencias, conserva solo la más fuerte por ancla (p1Index)
+// y opcionalmente filtra por score mínimo.
+const collapseDivergencesByAnchor = (
+  divs = [],
+  { minScore = 0, maxPerType = 100 } = {},
+) => {
+  if (!Array.isArray(divs) || !divs.length) return [];
+
+  const byAnchor = new Map();
+
+  for (const d of divs) {
+    if (!d) continue;
+    const score = Number(d.score ?? 0);
+    if (!Number.isFinite(score) || score < minScore) continue;
+
+    const key = `${d.type}-${d.p1Index}`;
+    const prev = byAnchor.get(key);
+
+    // Nos quedamos con la de mayor score para cada (tipo, p1Index)
+    if (!prev || score > Number(prev.score ?? 0)) {
+      byAnchor.set(key, d);
+    }
+  }
+
+  const collapsed = Array.from(byAnchor.values());
+
+  // Ordenamos por índice de inicio para que el render sea estable
+  collapsed.sort((a, b) => (a.p1Index ?? 0) - (b.p1Index ?? 0));
+
+  // Protección por si en algún momento se llena demasiado
+  if (collapsed.length > maxPerType) {
+    return collapsed.slice(-maxPerType);
+  }
+
+  return collapsed;
+};
+
 export const useMarketCharts = ({
   candles,
   ema20,
@@ -178,112 +215,168 @@ export const useMarketCharts = ({
   };
 
   // Renderiza lineas punteadas (divergencias) en el chart principal y marcadores en el RSI.
-  const renderDivergences = (divergences = [], candles = []) => {
+  const renderDivergences = (divergences = [], candles = [], rsiSeriesData = []) => {
+    // 1) Limpieza de series y markers previos
     try {
-      // limpiar series de lineas dibujadas en precio
-      if (divergenceLineSeriesRefs.current && divergenceLineSeriesRefs.current.length) {
-        divergenceLineSeriesRefs.current.forEach(s => { try { s.remove(); } catch (e) {} });
+      if (divergenceLineSeriesRefs.current?.length) {
+        divergenceLineSeriesRefs.current.forEach((s) => {
+          try { s.remove(); } catch (e) {}
+        });
         divergenceLineSeriesRefs.current = [];
       }
-      // limpiar lineas de divergencia en RSI
-      if (divergenceRsiLineRefs.current && divergenceRsiLineRefs.current.length) {
-        divergenceRsiLineRefs.current.forEach(s => { try { s.remove(); } catch (e) {} });
+      if (divergenceRsiLineRefs.current?.length) {
+        divergenceRsiLineRefs.current.forEach((s) => {
+          try { s.remove(); } catch (e) {}
+        });
         divergenceRsiLineRefs.current = [];
       }
-      // limpiar marcadores en RSI
       if (rsiSeriesRef.current) {
         try { rsiSeriesRef.current.setMarkers([]); } catch (e) {}
         rsiDivergenceMarkersRef.current = [];
       }
     } catch (e) {
-      console.debug('[DIV] cleanup error:', e?.message || e);
+      console.debug('[DIV] Error limpiando series de divergencias:', e?.message || e);
     }
 
-    if (!Array.isArray(divergences) || divergences.length === 0) return;
-    if (!Array.isArray(candles) || candles.length === 0) return;
+    if (!Array.isArray(divergences) || !divergences.length) return;
+    if (!Array.isArray(candles) || !candles.length) return;
 
-    // Mapa de valores RSI por time para alinearlo con velas
-    const rsiByTime = new Map((rsi14 || []).map((p) => [p.time, p.value]));
+    const total = candles.length;
+    const rsiByTime = new Map((rsiSeriesData || []).map((p) => [p.time, p.value]));
 
-    // Simplemente colocar markers en RSI y trazar líneas 1 a 1 (evitar duplicados)
+    // 2) Quedarnos solo con la divergencia más fuerte por ancla (p1Index) y filtrar ruido
+    const effectiveDivs = collapseDivergencesByAnchor(divergences, {
+      minScore: 0.03,
+      maxPerType: 100,
+    });
+
     const seenPairs = new Set();
-    divergences.forEach((d) => {
-      try {
-        const p1 = candles[d.p1Index];
-        const p2 = candles[d.p2Index];
-        if (!p1 || !p2) return;
+    const allMarkers = [];
 
-        const pairKey = `${d.type}-${d.p1Index}-${d.p2Index}-${d.r1Index ?? 'x'}-${d.r2Index ?? 'x'}`;
-        if (seenPairs.has(pairKey)) return;
-        seenPairs.add(pairKey);
+    effectiveDivs.forEach((d) => {
+      if (!d) return;
 
-        // marcar picos en el RSI (si existen índices)
-        const r1Index = d.r1Index;
-        const r2Index = d.r2Index;
+      // 3) Esperar confirmación: no usar divergencias cuya segunda pata sea la última vela
+      if (typeof d.p2Index !== 'number' || d.p2Index >= total - 1) {
+        return;
+      }
 
-        if (rsiSeriesRef.current && (r1Index != null || r2Index != null)) {
-          const markers = [];
-          if (r1Index != null && candles[r1Index]) markers.push({ time: candles[r1Index].time, position: 'aboveBar', color: '#f59e0b', shape: 'circle', text: d.type === 'bullish' ? 'Bull' : 'Bear' });
-          if (r2Index != null && candles[r2Index]) markers.push({ time: candles[r2Index].time, position: 'aboveBar', color: '#f59e0b', shape: 'circle', text: d.type === 'bullish' ? 'Bull' : 'Bear' });
-          if (markers.length) {
-            const existing = rsiDivergenceMarkersRef.current || [];
-            const merged = existing.concat(markers);
-            try { rsiSeriesRef.current.setMarkers(merged); rsiDivergenceMarkersRef.current = merged; } catch (e) { console.debug('[DIV] setMarkers failed:', e?.message || e); }
-          }
-          // trazar línea de divergencia en el RSI
-          if (r1Index != null && r2Index != null && rsiChartRef.current && rsi14[r1Index] && rsi14[r2Index]) {
-            try {
-              const lsRsi = rsiChartRef.current.addLineSeries({ color: d.type === 'bullish' ? '#16a34a' : '#dc2626', lineWidth: 2, lineStyle: 2, priceLineVisible: false });
-              lsRsi.setData([
-                { time: rsi14[r1Index].time, value: rsi14[r1Index].value },
-                { time: rsi14[r2Index].time, value: rsi14[r2Index].value },
-              ]);
-              divergenceRsiLineRefs.current.push(lsRsi);
-            } catch (e) {
-              console.debug('[DIV] Error dibujando linea RSI:', e?.message || e);
-            }
-          }
-        }
+      const p1 = candles[d.p1Index];
+      const p2 = candles[d.p2Index];
+      if (!p1 || !p2) return;
 
-        // Siempre dibujar línea de divergencia en precio, de punto a punto (p1->p2)
-        if (chartRef.current) {
-          try {
-            const color = '#ffffff';
-            const ls = chartRef.current.addLineSeries({ color, lineWidth: 2, lineStyle: 0, priceLineVisible: false });
-            const pts = [
+      const pairKey = `${d.type}-${d.p1Index}-${d.p2Index}-${d.r1Index ?? 'x'}-${d.r2Index ?? 'x'}`;
+      if (seenPairs.has(pairKey)) return;
+      seenPairs.add(pairKey);
+
+      // --- LÍNEA EN PRECIO (blanca sólida) ---
+      if (chartRef.current) {
+        try {
+          const ls = chartRef.current.addLineSeries({
+            color: '#ffffff',
+            lineWidth: 2,
+            lineStyle: 0,
+            priceLineVisible: false,
+          });
+          ls.setData(
+            [
               { time: p1.time, value: p1.high ?? p1.close },
-              { time: p2.time, value: p2.high ?? p2.close }
-            ].sort((a, b) => a.time - b.time);
-            ls.setData(pts);
-            divergenceLineSeriesRefs.current.push(ls);
+              { time: p2.time, value: p2.high ?? p2.close },
+            ].sort((a, b) => a.time - b.time),
+          );
+          divergenceLineSeriesRefs.current.push(ls);
+        } catch (e) {
+          console.debug('[DIV] Error dibujando línea de precio:', e?.message || e);
+        }
+      }
+
+      // --- MARCADORES EN RSI ---
+      if (rsiSeriesRef.current && (d.r1Index != null || d.r2Index != null)) {
+        const label = d.type === 'bullish' ? 'Bull' : 'Bear';
+        if (d.r1Index != null && candles[d.r1Index]) {
+          allMarkers.push({
+            time: candles[d.r1Index].time,
+            position: 'aboveBar',
+            color: '#f59e0b',
+            shape: 'circle',
+            text: label,
+          });
+        }
+        if (d.r2Index != null && candles[d.r2Index]) {
+          allMarkers.push({
+            time: candles[d.r2Index].time,
+            position: 'aboveBar',
+            color: '#f59e0b',
+            shape: 'circle',
+            text: label,
+          });
+        }
+      }
+
+      // --- LÍNEA EN RSI ---
+      if (
+        d.r1Index != null && d.r2Index != null &&
+        rsiChartRef.current &&
+        candles[d.r1Index] &&
+        candles[d.r2Index]
+      ) {
+        const t1 = candles[d.r1Index].time;
+        const t2 = candles[d.r2Index].time;
+        const v1 = rsiByTime.get(t1);
+        const v2 = rsiByTime.get(t2);
+
+        if (typeof v1 === 'number' && typeof v2 === 'number') {
+          try {
+            const lsRsi = rsiChartRef.current.addLineSeries({
+              color: '#ffffff',
+              lineWidth: 2,
+              lineStyle: 0,
+              priceLineVisible: false,
+            });
+            lsRsi.setData(
+              [
+                { time: t1, value: v1 },
+                { time: t2, value: v2 },
+              ].sort((a, b) => a.time - b.time),
+            );
+            divergenceRsiLineRefs.current.push(lsRsi);
           } catch (e) {
-            console.debug('[DIV] Error dibujando linea de precio:', e?.message || e);
+            console.debug('[DIV] Error dibujando línea RSI:', e?.message || e);
           }
         }
-
-        // Dibujar línea de divergencia en el RSI (punto a punto) usando tiempos de las velas y valores RSI alineados
-        if (r1Index != null && r2Index != null && rsiChartRef.current && candles[r1Index] && candles[r2Index]) {
-          const v1 = rsiByTime.get(candles[r1Index].time);
-          const v2 = rsiByTime.get(candles[r2Index].time);
-          if (typeof v1 === 'number' && typeof v2 === 'number') {
-            try {
-              const lsRsi = rsiChartRef.current.addLineSeries({ color: '#ffffff', lineWidth: 2, lineStyle: 0, priceLineVisible: false });
-              const ptsRsi = [
-                { time: candles[r1Index].time, value: v1 },
-                { time: candles[r2Index].time, value: v2 },
-              ].sort((a, b) => a.time - b.time);
-              lsRsi.setData(ptsRsi);
-              divergenceRsiLineRefs.current.push(lsRsi);
-            } catch (e) {
-              console.debug('[DIV] Error dibujando linea RSI:', e?.message || e);
-            }
-          }
-        }
-
-      } catch (e) {
-        console.debug('[DIV] error processing divergence', e?.message || e);
       }
     });
+
+    // 4) Aplicar markers ordenados por tiempo
+    if (rsiSeriesRef.current && allMarkers.length) {
+      try {
+        allMarkers.sort((a, b) => a.time - b.time);
+        rsiSeriesRef.current.setMarkers(allMarkers);
+        rsiDivergenceMarkersRef.current = allMarkers;
+      } catch (e) {
+        console.debug('[DIV] setMarkers failed:', e?.message || e);
+      }
+    }
+  };
+
+  const syncRsiRange = (series = []) => {
+    try {
+      if (!rsiSeriesRef.current) return;
+      const vals = (series || []).map((p) => p?.value).filter((v) => Number.isFinite(v));
+      if (!vals.length) return;
+      const min = Math.min(...vals);
+      const max = Math.max(...vals);
+      if (!Number.isFinite(min) || !Number.isFinite(max)) return;
+      const lower = Math.min(0, min - 5);
+      const upper = Math.max(100, max + 5);
+      const scale = rsiSeriesRef.current.priceScale();
+      if (scale) {
+        scale.applyOptions({ autoScale: false, scaleMargins: { top: 0.1, bottom: 0.1 } });
+        scale.setPriceRange({ min: lower, max: upper });
+      }
+    } catch (e) {
+      console.log('[RSI] Error sincronizando rango:', e?.message || e);
+    }
   };
 
   useEffect(() => {
@@ -768,20 +861,8 @@ export const useMarketCharts = ({
 
       // Divergencias
       try {
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-        // Renderizar siempre divergencias en ambos paneles
-=======
         // Siempre renderizar divergencias; ya vienen filtradas desde useMarketData
->>>>>>> Stashed changes
-=======
-        // Siempre renderizar divergencias; ya vienen filtradas desde useMarketData
->>>>>>> Stashed changes
-=======
-        // Siempre renderizar divergencias; ya vienen filtradas desde useMarketData
->>>>>>> Stashed changes
-        renderDivergences(divergences || [], validCandles);
+        renderDivergences(divergences || [], validCandles, rsi14);
       } catch (e) {
         console.debug('[Divergencias] Error al renderizar:', e.message);
       }
@@ -790,8 +871,10 @@ export const useMarketCharts = ({
       try {
         if (settings.rsi && rsiSeriesRef.current) {
           rsiSeriesRef.current.setData(rsi14);
+          syncRsiRange(rsi14);
         } else if (rsiSeriesRef.current) {
           rsiSeriesRef.current.setData([]);
+          rsiSeriesRef.current.setMarkers([]);
         }
       } catch (e) {
         console.debug('[Charts] Error estableciendo RSI:', e.message);

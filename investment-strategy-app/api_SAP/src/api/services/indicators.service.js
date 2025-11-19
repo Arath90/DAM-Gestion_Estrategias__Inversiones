@@ -22,6 +22,8 @@
 // Importa los servicios de análisis técnico
 const { detectRSIDivergences } = require('./indicators/divergence.service'); // divergencias RSI-precio
 const { rsiAlerts } = require('./indicators/rsi.alerts');                    // alertas RSI por niveles
+const { computeMACD } = require('./indicators/macd.service');
+const { macdAlerts } = require('./indicators/macd.alerts');
 
 // Modelo opcional para guardar señales en la base de datos (Mongo)
 const Signals = require('../models/mongodb/Signal');
@@ -132,3 +134,169 @@ async function analyzeRSIAndDivergences(
 
 // Exporta la función principal del servicio
 module.exports = { analyzeRSIAndDivergences };
+
+/**
+ * Analiza RSI + divergencias + MACD en un solo paso.
+ * Se usa desde /api/indicators/analytics.
+ */
+async function analyzeIndicators(
+  candles,
+  opts = {},
+  { persist = false, instrument_id = null } = {},
+) {
+  const {
+    rsiPeriod = 14,
+    rsiHighAlert = 80,
+    rsiLowAlert = 20,
+    rsiPreLow = 30,
+    rsiOptions = {},
+    macdFast = 12,
+    macdSlow = 26,
+    macdSignal = 9,
+    macdSource = 'close',
+  } = opts || {};
+
+  if (!Array.isArray(candles) || candles.length < 10) {
+    return {
+      rsi14: [],
+      divergences: [],
+      macdLine: [],
+      macdSignal: [],
+      macdHistogram: [],
+      signals: [],
+      tradeSignals: [],
+      appliedAlgoParams: {},
+    };
+  }
+
+  // --- RSI + divergencias ---
+  const { rsi, signals: rsiDivs } = detectRSIDivergences(candles, {
+    period: rsiPeriod,
+    ...rsiOptions,
+  });
+
+  const rsiEvents = rsiAlerts(rsi, {
+    high: rsiHighAlert,
+    low: rsiLowAlert,
+    preLow: rsiPreLow,
+    usePreLow: true,
+    watch50: true,
+  });
+
+  const rsiSeries = rsi
+    .map((v, i) => {
+      if (!Number.isFinite(v)) return null;
+      const t = candles[i]?.time ?? candles[i]?.ts ?? candles[i]?.datetime;
+      if (!t) return null;
+      return { time: t, value: v };
+    })
+    .filter(Boolean);
+
+  // --- MACD ---
+  const { macd, signal, histogram } = computeMACD(candles, {
+    fastPeriod: macdFast,
+    slowPeriod: macdSlow,
+    signalPeriod: macdSignal,
+    source: macdSource,
+  });
+
+  const macdEvents = macdAlerts({
+    macdLine: macd,
+    signalLine: signal,
+    histogram,
+    candles,
+  });
+
+  const normalizedRsiEvents = (rsiEvents || []).map((ev) => ({
+    ...ev,
+    index: ev.index ?? ev.i ?? ev.timeIndex,
+  }));
+
+  const normalizedMacdEvents = (macdEvents || []).map((ev) => ({
+    ...ev,
+    index: ev.index,
+  }));
+
+  const allSignals = [...normalizedRsiEvents, ...normalizedMacdEvents];
+
+  const mapSeries = (arr) =>
+    arr
+      .map((v, i) => {
+        if (!Number.isFinite(v)) return null;
+        const t = candles[i]?.time ?? candles[i]?.ts ?? candles[i]?.datetime;
+        if (!t) return null;
+        return { time: t, value: v };
+      })
+      .filter(Boolean);
+
+  const macdLineSeries = mapSeries(macd);
+  const macdSignalSeries = mapSeries(signal);
+  const macdHistogramSeries = mapSeries(histogram);
+
+  const divergences = rsiDivs.map((d) => {
+    const priceDeltaPct =
+      d.price && Number.isFinite(d.price.p1) && d.price.p1 !== 0 && Number.isFinite(d.price.p2)
+        ? ((d.price.p2 - d.price.p1) / Math.abs(d.price.p1)) * 100
+        : null;
+    const indDeltaPct =
+      d.rsi && Number.isFinite(d.rsi.r1) && d.rsi.r1 !== 0 && Number.isFinite(d.rsi.r2)
+        ? ((d.rsi.r2 - d.rsi.r1) / Math.abs(d.rsi.r1)) * 100
+        : null;
+    return {
+      type: d.type || (d.kind?.includes('bullish') ? 'bullish' : 'bearish'),
+      p1Index: d.idx1,
+      p2Index: d.idx2,
+      r1Index: d.r1Idx,
+      r2Index: d.r2Idx,
+      priceDeltaPct,
+      indDeltaPct,
+      score: d.strength ?? 0,
+    };
+  });
+
+  const signals = allSignals;
+  const tradeSignals = [];
+
+  if (persist && Signals) {
+    const mergedEvents = [...normalizedMacdEvents];
+    for (const ev of mergedEvents) {
+      const ts = candles[ev.index]?.time || candles[ev.index]?.ts || new Date();
+      const action =
+        ev.type === 'macd_cross_up' || ev.type === 'macd_zero_up'
+          ? 'BUY'
+          : ev.type === 'macd_cross_down' || ev.type === 'macd_zero_down'
+          ? 'SELL'
+          : null;
+      if (!action) continue;
+      const doc = await Signals.create({
+        strategy_code: 'MACD_CORE',
+        instrument_id,
+        ts,
+        signal: action,
+        confidence: 0.5,
+        meta: { ...ev },
+      });
+      tradeSignals.push(doc);
+    }
+  }
+
+  return {
+    rsi14: rsiSeries,
+    divergences,
+    macdLine: macdLineSeries,
+    macdSignal: macdSignalSeries,
+    macdHistogram: macdHistogramSeries,
+    signals,
+    tradeSignals,
+    appliedAlgoParams: {
+      rsiPeriod,
+      rsiHighAlert,
+      rsiLowAlert,
+      macdFast,
+      macdSlow,
+      macdSignal,
+    },
+  };
+}
+
+module.exports.analyzeIndicators = analyzeIndicators;

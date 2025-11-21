@@ -7,8 +7,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import '../assets/css/Instrumentos.css';
 // Estilos globales compartidos por toda la aplicación
 import '../assets/globalAssets.css';
-// Cliente HTTP configurado (axios) para hacer peticiones al backend
-import axios from '../config/apiClient';
+// Servicios HTTP especializados para instrumentos
+import {
+  fetchInstruments,
+  createInstrument,
+  updateInstrument,
+  deleteInstrument,
+} from '../services/instrumentApi';
 
 // ============================================================================
 // CONFIGURACIÓN DE CAMPOS DEL FORMULARIO
@@ -205,209 +210,6 @@ const sanitizePayload = (formState) => {
 };
 
 // ============================================================================
-// CONFIGURACIÓN BASE PARA PETICIONES HTTP
-// ============================================================================
-
-/**
- * BASE_PARAMS
- * Parámetros que se envían en cada petición al backend.
- * dbServer indica qué base de datos usar (MongoDB en este caso).
- */
-const BASE_PARAMS = { dbServer: 'MongoDB' };
-
-/**
- * keyFor
- * Genera la clave OData para identificar un registro por ID.
- * Formato OData: (ID='valor')
- * 
- * @param {string} id - ID del instrumento
- * @returns {string} Clave OData formateada
- * 
- * Ejemplo: keyFor('abc123') → "(ID='abc123')"
- */
-const keyFor = (id) => `(ID='${encodeURIComponent(id)}')`;
-
-// ============================================================================
-// FUNCIONES PARA NORMALIZAR RESPUESTAS DEL BACKEND
-// ============================================================================
-
-/**
- * collectDataRes
- * Función recursiva que busca arrays 'dataRes' en la respuesta del backend.
- * El backend puede devolver datos anidados, esta función los "aplana".
- * 
- * @param {Object} node - Nodo de la respuesta a inspeccionar
- * @returns {Array} Array con todos los datos encontrados
- * 
- * Lógica:
- * 1. Si el nodo no es un objeto, retornar array vacío
- * 2. Buscar propiedad 'dataRes' (array u objeto) y agregarla al bucket
- * 3. Si hay propiedad 'data' que es array, procesar cada elemento recursivamente
- */
-const collectDataRes = (node) => {
-  if (!node || typeof node !== 'object') return []; // Validar entrada
-  const bucket = []; // Array acumulador
-
-  // Si existe dataRes y es array, agregar todos sus elementos
-  if (Array.isArray(node.dataRes)) bucket.push(...node.dataRes);
-  // Si dataRes es objeto único, agregarlo
-  else if (node.dataRes && typeof node.dataRes === 'object') bucket.push(node.dataRes);
-
-  // Si existe data y es array, procesar recursivamente cada elemento
-  if (Array.isArray(node.data)) {
-    node.data.forEach((entry) => {
-      bucket.push(...collectDataRes(entry)); // Agregar resultados de recursión
-    });
-  }
-  
-  return bucket;
-};
-
-/**
- * normalizeResponse
- * Normaliza diferentes estructuras de respuesta del backend a un array consistente.
- * El backend puede responder en varios formatos, esta función los unifica.
- * 
- * @param {any} payload - Respuesta del backend
- * @returns {Array} Array normalizado con los datos
- * 
- * Lógica por prioridad:
- * 1. Si no hay payload, retornar array vacío
- * 2. Si tiene propiedad 'value' (estándar OData), intentar colectar dataRes
- * 3. Intentar colectar dataRes del payload directamente
- * 4. Si el payload ya es array, retornarlo
- * 5. Si tiene propiedad 'data', procesar recursivamente
- * 6. Como último recurso, envolver el payload en array
- */
-const normalizeResponse = (payload) => {
-  if (!payload) return []; // Si no hay payload, retornar vacío
-  
-  // Caso OData estándar: { value: [...] }
-  if (Array.isArray(payload.value)) {
-    const collected = payload.value.flatMap(collectDataRes); // Colectar de cada elemento
-    return collected.length ? collected : payload.value; // Si hay dataRes usarlo, si no usar value
-  }
-  
-  // Intentar colectar dataRes del payload directamente
-  const collected = collectDataRes(payload);
-  if (collected.length) return collected;
-  
-  // Si el payload ya es array, retornarlo
-  if (Array.isArray(payload)) return payload;
-  
-  // Si tiene propiedad data, procesar recursivamente
-  if (payload.data) return normalizeResponse(payload.data);
-  
-  // Último recurso: envolver en array
-  return [payload];
-};
-
-/**
- * unwrap
- * Función final que garantiza retornar siempre un array.
- * Usa normalizeResponse internamente.
- * 
- * @param {any} payload - Respuesta a normalizar
- * @returns {Array} Array garantizado (nunca null o undefined)
- */
-const unwrap = (payload) => {
-  const arr = normalizeResponse(payload);
-  // Asegurar que siempre retorne array
-  return Array.isArray(arr) ? arr : arr ? [arr] : [];
-};
-
-// ============================================================================
-// FUNCIONES DE COMUNICACIÓN CON EL BACKEND (CRUD)
-// ============================================================================
-
-/**
- * fetchList
- * Obtiene la lista de instrumentos del backend.
- * 
- * @returns {Promise<Array>} Array de instrumentos
- * 
- * Parámetros enviados:
- * - dbServer: 'MongoDB' (base de datos a usar)
- * - ProcessType: 'READ' (tipo de operación)
- * - $top: 50 (límite de registros, paginación)
- */
-const fetchList = async () => {
-  const params = {
-    ...BASE_PARAMS,           // { dbServer: 'MongoDB' }
-    ProcessType: 'READ',      // Indica operación de lectura
-    $top: 50,                 // Límite de 50 registros (OData pagination)
-  };
-  
-  // GET /Instruments con los parámetros
-  const { data } = await axios.get('/Instruments', { params });
-  
-  // Normalizar la respuesta a array consistente
-  return unwrap(data);
-};
-
-/**
- * createInstrument
- * Crea un nuevo instrumento en el backend.
- * 
- * @param {Object} payload - Datos del nuevo instrumento
- * @returns {Promise<Object>} Instrumento creado
- * 
- * Nota: Si el backend no retorna el objeto creado, usamos el payload como fallback
- */
-const createInstrument = async (payload) => {
-  const params = {
-    ...BASE_PARAMS,           // { dbServer: 'MongoDB' }
-    ProcessType: 'CREATE',    // Indica operación de creación
-  };
-  
-  // POST /Instruments con el payload en el body
-  const { data } = await axios.post('/Instruments', payload, { params });
-  
-  // Normalizar respuesta y tomar el primer elemento, o usar payload como fallback
-  return unwrap(data)[0] || payload;
-};
-
-/**
- * updateInstrument
- * Actualiza un instrumento existente en el backend.
- * Usa PATCH para actualización parcial (solo los campos enviados).
- * 
- * @param {string} id - ID del instrumento a actualizar
- * @param {Object} payload - Campos a actualizar
- * @returns {Promise<Object>} Instrumento actualizado
- */
-const updateInstrument = async (id, payload) => {
-  const params = {
-    ...BASE_PARAMS,           // { dbServer: 'MongoDB' }
-    ProcessType: 'UPDATE',    // Indica operación de actualización
-  };
-  
-  // PATCH /Instruments(ID='...') con el payload en el body
-  const { data } = await axios.patch(`/Instruments${keyFor(id)}`, payload, { params });
-  
-  // Normalizar respuesta y tomar el primer elemento, o usar payload como fallback
-  return unwrap(data)[0] || payload;
-};
-
-/**
- * deleteInstrument
- * Elimina un instrumento del backend.
- * 
- * @param {string} id - ID del instrumento a eliminar
- * @returns {Promise<void>} No retorna datos
- */
-const deleteInstrument = async (id) => {
-  const params = {
-    ...BASE_PARAMS,           // { dbServer: 'MongoDB' }
-    ProcessType: 'DELETE',    // Indica operación de eliminación
-  };
-  
-  // DELETE /Instruments(ID='...')
-  await axios.delete(`/Instruments${keyFor(id)}`, { params });
-  // No esperamos respuesta del backend en operaciones DELETE
-};
-
-// ============================================================================
 // COMPONENTE PRINCIPAL
 // ============================================================================
 
@@ -580,7 +382,7 @@ const Instrumentos = () => {
    * Flujo:
    * 1. Activar loading
    * 2. Limpiar mensajes de error
-   * 3. Intentar cargar datos con fetchList()
+   * 3. Intentar cargar datos con fetchInstruments()
    * 4. Si éxito: guardar en items
    * 5. Si error: extraer mensaje y guardarlo en error
    * 6. Finalmente: desactivar loading
@@ -590,7 +392,7 @@ const Instrumentos = () => {
     setError('');      // Limpiar errores previos
     
     try {
-      const data = await fetchList(); // Llamar a la función de red
+      const data = await fetchInstruments(); // Llamar a la función de red
       // Asegurar que data sea array antes de guardar
       setItems(Array.isArray(data) ? data : []);
     } catch (err) {

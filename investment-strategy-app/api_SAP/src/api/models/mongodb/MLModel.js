@@ -23,6 +23,8 @@ module.exports =
         // Clasificación del registro (TRAINED_MODEL, DATASET_COMPONENTS, etc.).
         model_type: { type: String, default: 'TRAINED_MODEL', index: true },
         // Referencia al dataset asociado cuando el modelo describe componentes.
+        //Schema.Types.Mixed para permitir flexibilidad en el ID (ObjectId, String, Number).
+        //OSEA que: Permite cualquier tipo de dato como ID del dataset.
         dataset_id: { type: mongoose.Schema.Types.Mixed, index: true },
         dataset_name: { type: String },
         // Componentes/indicadores serializados (JSON flexible).

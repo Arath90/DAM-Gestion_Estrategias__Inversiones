@@ -1,6 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import '../assets/css/Datasets.css';
-import axios from '../config/apiClient';
+
+import {
+  fetchDatasets as fetchDatasetsApi,
+  createDataset as createDatasetApi,
+  updateDataset as updateDatasetApi,
+  deleteDataset as deleteDatasetApi,
+  fetchDatasetModels,
+  createDatasetModel,
+  updateDatasetModel,
+  deleteDatasetModel,
+} from '../services/datasetApi';
 
 import DatasetCard from '../components/DatasetCard';
 import DatasetComponentsBuilder from '../components/DatasetComponentsBuilder';
@@ -79,59 +89,6 @@ const getErrorMessage = (err, fallback) => {
   }
 };
 
-const BASE_PARAMS = { dbServer: 'MongoDB' };
-const keyFor = (id) => `(ID='${encodeURIComponent(id)}')`;
-
-const collectDataRes = (node) => {
-  if (!node || typeof node !== 'object') return [];
-  const bucket = [];
-  if (Array.isArray(node.dataRes)) bucket.push(...node.dataRes);
-  else if (node.dataRes && typeof node.dataRes === 'object') bucket.push(node.dataRes);
-  if (Array.isArray(node.data)) node.data.forEach((entry) => bucket.push(...collectDataRes(entry)));
-  return bucket;
-};
-
-const normalizeResponse = (payload) => {
-  if (!payload) return [];
-  if (Array.isArray(payload.value)) {
-    const collected = payload.value.flatMap(collectDataRes);
-    return collected.length ? collected : payload.value;
-  }
-  const collected = collectDataRes(payload);
-  if (collected.length) return collected;
-  if (Array.isArray(payload)) return payload;
-  if (payload.data) return normalizeResponse(payload.data);
-  return [payload];
-};
-
-const unwrap = (payload) => {
-  const arr = normalizeResponse(payload);
-  return Array.isArray(arr) ? arr : arr ? [arr] : [];
-};
-
-const fetchList = async () => {
-  const params = { ...BASE_PARAMS, ProcessType: 'READ', $top: 100 };
-  const { data } = await axios.get('/MLDatasets', { params });
-  return unwrap(data);
-};
-
-const createDataset = async (payload) => {
-  const params = { ...BASE_PARAMS, ProcessType: 'CREATE' };
-  const { data } = await axios.post('/MLDatasets', payload, { params });
-  return unwrap(data)[0] || payload;
-};
-
-const updateDataset = async (id, payload) => {
-  const params = { ...BASE_PARAMS, ProcessType: 'UPDATE' };
-  const { data } = await axios.patch(`/MLDatasets${keyFor(id)}`, payload, { params });
-  return unwrap(data)[0] || payload;
-};
-
-const deleteDataset = async (id) => {
-  const params = { ...BASE_PARAMS, ProcessType: 'DELETE' };
-  await axios.delete(`/MLDatasets${keyFor(id)}`, { params });
-};
-
 const MODEL_TYPE = 'DATASET_COMPONENTS';
 
 const buildModelPayload = ({ datasetId, datasetName, components, metadata }) => ({
@@ -147,29 +104,6 @@ const buildModelPayload = ({ datasetId, datasetName, components, metadata }) => 
   }),
 });
 
-const fetchModelComponents = async () => {
-  const params = { ...BASE_PARAMS, ProcessType: 'READ', $top: 500 };
-  const { data } = await axios.get('/MLModels', { params });
-  return unwrap(data);
-};
-
-const createModelComponents = async (payload) => {
-  const params = { ...BASE_PARAMS, ProcessType: 'CREATE' };
-  const { data } = await axios.post('/MLModels', payload, { params });
-  return unwrap(data)[0] || payload;
-};
-
-const updateModelComponents = async (id, payload) => {
-  const params = { ...BASE_PARAMS, ProcessType: 'UPDATE' };
-  const { data } = await axios.patch(`/MLModels${keyFor(id)}`, payload, { params });
-  return unwrap(data)[0] || payload;
-};
-
-const deleteModelComponents = async (id) => {
-  const params = { ...BASE_PARAMS, ProcessType: 'DELETE' };
-  await axios.delete(`/MLModels${keyFor(id)}`, { params });
-};
-
 const syncModelComponents = async ({
   modelId,
   datasetId,
@@ -184,9 +118,9 @@ const syncModelComponents = async ({
     metadata,
   });
   if (modelId) {
-    return updateModelComponents(modelId, payload);
+    return updateDatasetModel(modelId, payload);
   }
-  return createModelComponents(payload);
+  return createDatasetModel(payload);
 };
 
 const parseComponentsArray = (value) => {
@@ -256,7 +190,7 @@ const Datasets = () => {
     setLoading(true);
     setError('');
     try {
-      const data = await fetchList();
+      const data = await fetchDatasetsApi();
       setItems(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(getErrorMessage(err, 'No se pudo cargar la lista.'));
@@ -269,7 +203,7 @@ const Datasets = () => {
     setComponentsLoading(true);
     setComponentsError('');
     try {
-      const records = await fetchModelComponents();
+      const records = await fetchDatasetModels();
       const mapped = {};
       records.forEach((record) => {
         const metrics = parseLargeJSON(
@@ -426,7 +360,7 @@ const Datasets = () => {
         setSubmittingCreate(false);
         return;
       }
-      const created = await createDataset(payload);
+      const created = await createDatasetApi(payload);
       setItems((prev) => [created, ...prev]);
       const datasetId = created.ID || created.id || created._id;
       if (datasetId) {
@@ -440,7 +374,7 @@ const Datasets = () => {
         );
         if (modelId) {
           const specRef = JSON.stringify({ model_ref: modelId });
-          await updateDataset(datasetId, {
+          await updateDatasetApi(datasetId, {
             spec_json: specRef,
           });
           setItems((prev) =>
@@ -484,7 +418,7 @@ const Datasets = () => {
         setSubmittingId(null);
         return;
       }
-      const updated = await updateDataset(id, payload);
+      const updated = await updateDatasetApi(id, payload);
       setItems((prev) => prev.map((item) => (item.ID === id ? { ...item, ...updated } : item)));
       const merged = { ...(items.find((item) => item.ID === id) || {}), ...updated };
       setEditForms((prev) => ({
@@ -517,7 +451,7 @@ const Datasets = () => {
     setError('');
     setMessage('');
     try {
-      await deleteDataset(id);
+      await deleteDatasetApi(id);
       setItems((prev) => prev.filter((item) => item.ID !== id));
       setEditForms((prev) => {
         const next = { ...prev };
@@ -528,7 +462,7 @@ const Datasets = () => {
       const componentEntry = componentsMap[datasetKey];
       if (componentEntry?.modelId) {
         try {
-          await deleteModelComponents(componentEntry.modelId);
+          await deleteDatasetModel(componentEntry.modelId);
         } catch (err) {
           console.error('No se pudo eliminar el modelo asociado al dataset', err);
         }

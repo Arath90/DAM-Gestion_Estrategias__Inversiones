@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import '../assets/css/Estrategias.css';
 import '../assets/globalAssets.css';
-import axios from '../config/apiClient';
 import {
   DEFAULT_INDICATOR_SETTINGS,
   DEFAULT_SIGNAL_CONFIG,
@@ -11,10 +10,26 @@ import {
   hydrateStrategyProfile,
 } from '../constants/strategyProfiles';
 import {
-  INDICATOR_CONFIG,
   INDICATOR_TOGGLE_TO_CONFIG,
   buildIndicatorDefaultParams,
 } from '../constants/indicatorConfig';
+import {
+  fetchStrategies,
+  fetchDatasets as fetchDatasetsApi,
+  createStrategy as apiCreateStrategy,
+  updateStrategy as apiUpdateStrategy,
+  deleteStrategy as apiDeleteStrategy,
+  fetchModelComponents as fetchModelComponentsApi,
+} from '../services/strategyApi';
+import {
+  ALL_INDICATOR_KEYS,
+  clampIndicatorSettings,
+  deriveAllowedConfigKeys,
+  deriveAllowedIndicatorKeys,
+  buildDatasetComponentsMap,
+  normalizeDatasetKey,
+  shallowEqual,
+} from '../utils/strategyIndicatorUtils';
 import IndicatorParamsForm from '../components/IndicatorParamsForm';
 import StrategyCard from '../components/StrategyCard'; // <-- mover import aquí
 const FIELD_CONFIG = [
@@ -261,60 +276,6 @@ const sanitizeSignalValue = (field, rawValue, previous = DEFAULT_SIGNAL_CONFIG[f
   return num;
 };
 
-// === Helpers de red (mismo patrón que Instrumentos) ===
-const BASE_PARAMS = { dbServer: 'MongoDB' };
-const keyFor = (id) => `(ID='${encodeURIComponent(id)}')`;
-
-const collectDataRes = (node) => {
-  if (!node || typeof node !== 'object') return [];
-  const bucket = [];
-  if (Array.isArray(node.dataRes)) bucket.push(...node.dataRes);
-  else if (node.dataRes && typeof node.dataRes === 'object') bucket.push(node.dataRes);
-  if (Array.isArray(node.data)) node.data.forEach((e) => bucket.push(...collectDataRes(e)));
-  return bucket;
-};
-const normalizeResponse = (payload) => {
-  if (!payload) return [];
-  if (Array.isArray(payload.value)) {
-    const collected = payload.value.flatMap(collectDataRes);
-    return collected.length ? collected : payload.value;
-  }
-  const collected = collectDataRes(payload);
-  if (collected.length) return collected;
-  if (Array.isArray(payload)) return payload;
-  if (payload.data) return normalizeResponse(payload.data);
-  return [payload];
-};
-const unwrap = (p) => {
-  const arr = normalizeResponse(p);
-  return Array.isArray(arr) ? arr : arr ? [arr] : [];
-};
-
-const fetchList = async () => {
-  const params = { ...BASE_PARAMS, ProcessType: 'READ', $top: 50 };
-  const { data } = await axios.get('/Strategies', { params });
-  return unwrap(data);
-};
-const fetchDatasets = async () => {
-  const params = { ...BASE_PARAMS, ProcessType: 'READ', $top: 100 };
-  const { data } = await axios.get('/MLDatasets', { params });
-  return unwrap(data);
-};
-const createStrategy = async (payload) => {
-  const params = { ...BASE_PARAMS, ProcessType: 'CREATE' };
-  const { data } = await axios.post('/Strategies', payload, { params });
-  return unwrap(data)[0] || payload;
-};
-const updateStrategy = async (id, payload) => {
-  const params = { ...BASE_PARAMS, ProcessType: 'UPDATE' };
-  const { data } = await axios.patch(`/Strategies${keyFor(id)}`, payload, { params });
-  return unwrap(data)[0] || payload;
-};
-const deleteStrategy = async (id) => {
-  const params = { ...BASE_PARAMS, ProcessType: 'DELETE' };
-  await axios.delete(`/Strategies${keyFor(id)}`, { params });
-};
-
 // === Componente ===
 const Estrategias = () => {
   const [items, setItems] = useState([]);
@@ -399,49 +360,27 @@ const Estrategias = () => {
     });
   }, [datasetComponentsMap]);
 
-  const loadItems = async () => {
+  const loadItems = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const data = await fetchList();
+      const data = await fetchStrategies();
       setItems(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(getErrorMessage(err, 'No se pudo cargar la lista.'));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { loadItems(); }, []);
+  useEffect(() => { loadItems(); }, [loadItems]);
 
   const loadDatasetComponents = useCallback(async () => {
     setComponentsLoading(true);
     setComponentsError('');
     try {
-      const entries = await fetchModelComponents();
-      const mapped = {};
-      entries.forEach((record) => {
-        const metrics = parseLargeJSON(
-          record.metricsJson || record.metrics_json || record.metrics,
-        );
-        if (metrics?.model_type !== MODEL_TYPE) return;
-        const datasetIdRaw =
-          metrics?.dataset_id ||
-          metrics?.datasetId ||
-          record.dataset_id ||
-          record.datasetId;
-        if (!datasetIdRaw) return;
-        const datasetId = String(datasetIdRaw);
-        const components = parseComponentsArray(metrics?.components);
-        const metadata = parseLargeJSON(metrics?.metadata);
-        mapped[datasetId] = {
-          components,
-          metadata,
-          indicatorKeys: deriveIndicatorKeys(components),
-          modelId: record.ID || record.id,
-        };
-      });
-      setDatasetComponentsMap(mapped);
+      const entries = await fetchModelComponentsApi();
+      setDatasetComponentsMap(buildDatasetComponentsMap(entries));
     } catch (err) {
       setComponentsError(getErrorMessage(err, 'No se pudieron cargar los indicadores permitidos.'));
     } finally {
@@ -453,14 +392,9 @@ const Estrategias = () => {
     setDatasetsLoading(true);
     setDatasetsError('');
     try {
-      const data = await fetchDatasets();
+      const data = await fetchDatasetsApi();
       setDatasets(Array.isArray(data) ? data : []);
     } catch (err) {
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.message ||
-        'No se pudo cargar la lista de datasets.';
       setDatasetsError(getErrorMessage(err, 'No se pudo cargar la lista de datasets.'));
     } finally {
       setDatasetsLoading(false);
@@ -642,7 +576,7 @@ const handleCreate = async (e) => {
       // Si el usuario no puso un ObjectId válido, puedes agregar validación extra aquí
       // Si el modelo requiere un ID generado manualmente, descomenta la siguiente línea:
       // if (!payload.ID) { payload.ID = generateId(); }
-      const created = await createStrategy(payload);
+      const created = await apiCreateStrategy(payload);
       const merged = {
         ...payload,
         ...created,
@@ -670,7 +604,7 @@ const handleUpdate = async (e, id) => {
     const allowedIndicatorKeys = deriveAllowedIndicatorKeys(datasetComponentsMap, formState.dataset_id);
     const allowedConfigKeys = deriveAllowedConfigKeys(datasetComponentsMap, formState.dataset_id);
     const payload = sanitizePayload(formState, { allowedIndicatorKeys, allowedConfigKeys });
-      const updated = await updateStrategy(id, payload);
+      const updated = await apiUpdateStrategy(id, payload);
       const merged = {
         ...payload,
         ...updated,
@@ -700,7 +634,7 @@ const handleUpdate = async (e, id) => {
     setMessage('');
     setError('');
     try {
-      await deleteStrategy(id);
+      await apiDeleteStrategy(id);
       setItems((prev) => prev.filter((x) => x.ID !== id));
       setEditForms((prev) => {
         const next = { ...prev };
@@ -884,113 +818,3 @@ const handleUpdate = async (e, id) => {
 
 export default Estrategias;
 
-const MODEL_TYPE = 'DATASET_COMPONENTS';
-const ALL_INDICATOR_KEYS = INDICATOR_TOGGLES.map((item) => item.key);
-
-const parseLargeJSON = (value) => {
-  if (!value) return {};
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value);
-      return typeof parsed === 'object' && parsed ? parsed : {};
-    } catch {
-      return {};
-    }
-  }
-  if (typeof value === 'object') return { ...value };
-  return {};
-};
-
-const normalizeDatasetKey = (datasetValue) => {
-  if (!datasetValue) return '';
-  if (typeof datasetValue === 'object') {
-    return String(
-      datasetValue.ID ||
-        datasetValue.id ||
-        datasetValue._id ||
-        datasetValue.value ||
-        datasetValue.name ||
-        '',
-    );
-  }
-  return String(datasetValue);
-};
-
-const clampIndicatorSettings = (settings = {}, allowedKeys = ALL_INDICATOR_KEYS) => {
-  const next = {};
-  const keys = allowedKeys.length ? allowedKeys : ALL_INDICATOR_KEYS;
-  keys.forEach((key) => {
-    // Solo conservar claves permitidas; por defecto desactivado
-    next[key] = !!settings[key];
-  });
-  return next;
-};
-
-const shallowEqual = (a = {}, b = {}) => {
-  const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
-  for (const key of keys) {
-    if (a[key] !== b[key]) return false;
-  }
-  return true;
-};
-
-const deriveAllowedIndicatorKeys = (componentsMap, datasetIdRaw) => {
-  const datasetId = normalizeDatasetKey(datasetIdRaw);
-  if (!datasetId) return ALL_INDICATOR_KEYS;
-  const entry = componentsMap[datasetId];
-  if (entry?.indicatorKeys?.length) return entry.indicatorKeys;
-  return ALL_INDICATOR_KEYS;
-};
-
-const deriveAllowedConfigKeys = (componentsMap, datasetIdRaw) => {
-  const toggleKeys = deriveAllowedIndicatorKeys(componentsMap, datasetIdRaw);
-  const configKeys = toggleKeys.map((key) => INDICATOR_TOGGLE_TO_CONFIG[key]).filter(Boolean);
-  const unique = [...new Set(configKeys)];
-  return unique.length ? unique : Object.keys(INDICATOR_CONFIG);
-};
-
-const parseComponentsArray = (value) => {
-  if (!value) return [];
-  if (Array.isArray(value)) return value;
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-  if (Array.isArray(value?.components)) return value.components;
-  return [];
-};
-
-const deriveIndicatorKeys = (components = []) => {
-  const keys = new Set();
-  components.forEach((component) => {
-    const kind = component.kind;
-    const params = component.params || {};
-    const alias = (component.alias || component.output_key || '').toLowerCase();
-    if (kind === 'indicator:rsi') keys.add('rsi');
-    else if (kind === 'indicator:macd') keys.add('macd');
-    else if (kind === 'indicator:ema') {
-      const period = Number(params.period);
-      if (period === 20) keys.add('ema20');
-      if (period === 50) keys.add('ema50');
-    } else if (kind === 'indicator:sma') {
-      const period = Number(params.period);
-      if (period === 200) keys.add('sma200');
-    } else if (kind === 'price') {
-      const field = (params.field || component.output_key || '').toLowerCase();
-      if (field.includes('vol')) keys.add('volume');
-    } else if (kind === 'custom') {
-      if (alias.includes('señal') || alias.includes('senal')) keys.add('signals');
-    }
-  });
-  return Array.from(keys);
-};
-
-const fetchModelComponents = async () => {
-  const params = { dbServer: 'MongoDB', ProcessType: 'READ', $top: 500 };
-  const { data } = await axios.get('/MLModels', { params });
-  return unwrap(data);
-};

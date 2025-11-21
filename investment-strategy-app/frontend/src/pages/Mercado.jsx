@@ -2,81 +2,50 @@
 // ---------------------------------------------------------
 // Pantalla principal de "Mercado":
 // - Orquesta datos de mercado, estrategias, gráficos y señales.
-// - Conecta hooks de datos (useMarketData) con hooks de gráficos
-//   (useMarketCharts) y componentes de UI (headers, selectors, tablas).
-// - También construye "eventos" a partir de indicadores y divergencias
-//   para mostrarlos en una tabla.
+// - Utiliza hooks personalizados y subcomponentes para mantener
+//   el código organizado y fácil de mantener.
 // ---------------------------------------------------------
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
-// Notificación emergente tipo "toast" (mensaje flotante)
+// Componentes de UI
 import Notification from '../components/Notification';
-
-// Encabezado con buscador/cambio de símbolo/ticker
 import MarketHeader from '../components/market/MarketHeader';
-
-// Selector de intervalos (1m, 5m, 1H, 1D, etc.)
-import IntervalSelector from '../components/market/IntervalSelector';
-
-// Selector de estrategia (lista de estrategias configuradas desde backend)
-import StrategySelector from '../components/market/StrategySelector';
-
-// Controles de trading (modo auto / notificar, etc.)
-import TradingControls from '../components/market/TradingControls';
-
-// Resumen inferior con niveles de soporte/resistencia y datos básicos
+import MarketConfigPanel from '../components/market/MarketConfigPanel';
+import MarketChartsContainer from '../components/market/MarketChartsContainer';
 import MarketSummary from '../components/market/MarketSummary';
-
-// Bandeja de notificaciones históricas (señales generadas)
+import EventsTable from '../components/market/EventsTable';
 import NotificationTray from '../components/market/NotificationTray';
 
-// Conjunto de símbolos por defecto para iniciar la pantalla
-import { DEFAULT_SYMBOLS } from '../services/marketData';
-
-// Servicio para persistir señales de trading en backend
-import { persistTradeSignals } from '../services/tradingSignals';
-
-// Hook principal para cargar datos de mercado + indicadores + señales
+// Hooks personalizados
 import { useMarketData } from '../hooks/useMarketData';
-
-// Hook que se encarga de inicializar y actualizar los gráficos (lightweight-charts u otro)
 import { useMarketCharts } from '../hooks/useMarketCharts';
-
-// Hook para gestionar estrategias (cargar desde API, seleccionar, refrescar)
 import { useStrategies } from '../hooks/useStrategies';
-
-// Hook para calcular niveles de soporte y resistencia a partir de las velas
 import { useSupportResistance } from '../hooks/useSupportResistance';
+import { useMarketAutoload } from '../hooks/useMarketAutoload';
+import { useTradeSignalNotifications } from '../hooks/useTradeSignalNotifications';
 
-// Configuraciones por defecto de indicadores y señales de estrategias
-import { 
-  DEFAULT_INDICATOR_SETTINGS,
-  DEFAULT_SIGNAL_CONFIG,
-  hydrateStrategyProfile,
-} from '../constants/strategyProfiles';
-
-// Constantes de mercados: intervalos posibles y modos de trading
+// Constantes y configuraciones
+import { DEFAULT_SYMBOLS } from '../services/marketData';
 import { INTERVALS, TRADE_MODES } from '../constants/marketConstants';
+import { DEFAULT_INDICATOR_SETTINGS } from '../constants/strategyProfiles';
 
-// Utilidades varias relacionadas al mercado (etiquetas, límites, formatos)
+// Utilidades
 import { 
-  buildToastMessage,
-  getStrategyKey,
   getIntervalLabel,
   getLimitForInterval,
   filterCandlesLastYear
 } from '../utils/marketUtils';
+import { 
+  getStrategyConfig,
+  mergeSignalConfig,
+  prepareIndicatorsForEvents
+} from '../utils/strategyConfig';
+import { buildEvents } from '../utils/events';
 
-// Estilos específicos de la página de mercado
+// Estilos
 import '../assets/css/Mercado.css';
 import '../assets/globalAssets.css';
-
-// ---------------------------------------------------------
-// Código agregado para el módulo de "Eventos" (divergencias, señales, etc.)
-// ---------------------------------------------------------
-import { buildEvents } from '../utils/events'; // Construye la lista de eventos a partir de indicadores
-import EventsTable from '../components/market/EventsTable'; // Tabla que los muestra en la UI
 
 /**
  * Componente principal: Mercado
@@ -91,79 +60,46 @@ const Mercado = () => {
   // -------------------------------------------------------
   // 1. ESTADO PRINCIPAL DE LA PANTALLA
   // -------------------------------------------------------
-
-  // Símbolo actual seleccionado (ticker). Toma el primero de DEFAULT_SYMBOLS como valor inicial
   const [symbol, setSymbol] = useState(DEFAULT_SYMBOLS[0]?.value || 'I:NDX');
-
-  // Intervalo de tiempo actual (1D, 1H, 5m, etc.)
   const [interval, setInterval] = useState(INTERVALS[0].value);
-
-  // Valor del ticker personalizado que el usuario escribe en el input
   const [customTicker, setCustomTicker] = useState('');
-
-  // Configuración activa de indicadores (EMA20, EMA50, RSI, MACD, etc.)
   const [settings, setSettings] = useState(() => ({ ...DEFAULT_INDICATOR_SETTINGS }));
-
-  // Modo de trading: solo notificar o ejecutar/persistir automáticamente
   const [tradeMode, setTradeMode] = useState(TRADE_MODES.notify);
-
-  // Configuración específica de señales establecida por la estrategia
-  const [strategySignalConfig, setStrategySignalConfig] = useState(() => ({ ...DEFAULT_SIGNAL_CONFIG }));
-
-  // Historial de notificaciones que aparecerán en NotificationTray
-  const [notifications, setNotifications] = useState([]);
-
-  // Estado de popup flotante (Notification "global" de la parte superior)
-  const [popup, setPopup] = useState({ open: false, message: '' });
+  const [strategySignalConfig, setStrategySignalConfig] = useState({});
 
   // -------------------------------------------------------
-  // 2. HOOK DE ESTRATEGIAS (se conecta al backend de strategies)
+  // 2. HOOK DE ESTRATEGIAS
   // -------------------------------------------------------
   const {
-    strategies,          // Lista de todas las estrategias disponibles
-    selectedStrategyId,  // ID de la estrategia seleccionada actualmente
+    strategies,
+    selectedStrategyId,
     setSelectedStrategyId,
-    selectedStrategy,    // Objeto completo de la estrategia seleccionada
-    strategiesLoading,   // Loading de la carga de estrategias
-    strategiesError,     // Error si hubo fallos en la carga
-    loadStrategies       // Función para recargar estrategias desde backend
+    selectedStrategy,
+    strategiesLoading,
+    strategiesError,
+    loadStrategies
   } = useStrategies();
 
   // -------------------------------------------------------
-  // 3. EFECTO: CUANDO CAMBIA LA ESTRATEGIA, HIDRATAR CONFIG
+  // 3. HIDRATACIÓN DE CONFIGURACIÓN DE ESTRATEGIA
   // -------------------------------------------------------
   useEffect(() => {
-    // hydrateStrategyProfile toma la estrategia seleccionada
-    // y devuelve ajustes de indicadores + config de señales adaptados
-    const { indicatorSettings, signalConfig: cfg } = hydrateStrategyProfile(selectedStrategy);
-
-    // Actualiza configuración local de indicadores y señales
+    const { indicatorSettings, signalConfig: cfg } = getStrategyConfig(selectedStrategy);
     setSettings(indicatorSettings);
     setStrategySignalConfig(cfg);
   }, [selectedStrategy]);
 
   // -------------------------------------------------------
-  // 4. MERGE DE CONFIGURACIÓN DE SEÑALES (DEFAULT + ESTRATEGIA)
+  // 4. MERGE DE CONFIGURACIÓN DE SEÑALES
   // -------------------------------------------------------
   const signalConfig = useMemo(
-    () => ({
-      ...DEFAULT_SIGNAL_CONFIG,
-      ...strategySignalConfig,
-      // Habilita uso de EMA solo si ambas (20 y 50) están activadas
-      useEMA: settings.ema20 && settings.ema50,
-      useRSI: settings.rsi,
-      useMACD: settings.macd,
-    }),
+    () => mergeSignalConfig(strategySignalConfig, settings),
     [strategySignalConfig, settings],
   );
 
-  // Etiqueta amigable del intervalo (por ejemplo "1D", "1H")
   const intervalLabel = getIntervalLabel(interval);
-
-  // Cantidad máxima de velas a solicitar según el intervalo (ajustable para autoload)
   const [limit, setLimit] = useState(() => getLimitForInterval(interval));
 
-  // Recalcula límite cuando cambia el intervalo
   useEffect(() => {
     setLimit(getLimitForInterval(interval));
   }, [interval]);
@@ -211,36 +147,24 @@ const Mercado = () => {
   // -------------------------------------------------------
   // 7. FILTRO: SOLO VELAS DEL ÚLTIMO AÑO (PARA GRÁFICOS/EVENTOS)
   // -------------------------------------------------------
-  const candles1y = useMemo(() => filterCandlesLastYear(candles), [candles]);
+  const candlesLastYear = useMemo(() => filterCandlesLastYear(candles), [candles]);
 
   // -------------------------------------------------------
   // 8. PREPARAR INDICADORES EN FORMATOS SIMPLES PARA EVENTOS
-  //    (arrays de valores alineados con índices de candles1y)
   // -------------------------------------------------------
-  const indicatorsForEvents = useMemo(() => {
-    // Convertir a arrays simples con valores numéricos o null
-    return {
-      ema20: (ema20 || []).map(e => e?.value ?? null),
-      ema50: (ema50 || []).map(e => e?.value ?? null),
-      rsi:   (rsi14 || []).map(r => r?.value ?? null),
-      macd: {
-        macd:   (macdLine || []).map(m => m?.value ?? null),
-        signal: (macdSignal || []).map(s => s?.value ?? null),
-        hist:   (macdHistogram || []).map(h => h?.value ?? null),
-      },
-      // Si en el futuro se añaden bandas de Bollinger:
-      // bb: { upper: [], lower: [] }
-    };
-  }, [ema20, ema50, rsi14, macdLine, macdSignal, macdHistogram]);
+  const indicatorsForEvents = useMemo(
+    () => prepareIndicatorsForEvents({ ema20, ema50, rsi14, macdLine, macdSignal, macdHistogram }),
+    [ema20, ema50, rsi14, macdLine, macdSignal, macdHistogram]
+  );
 
   // -------------------------------------------------------
   // 9. CONSTRUCCIÓN DE EVENTOS (RSI, MACD, DIVERGENCIAS, ETC.)
   // -------------------------------------------------------
   const events = useMemo(() => {
-    if (!candles1y || !candles1y.length) return [];
+    if (!candlesLastYear || !candlesLastYear.length) return [];
 
     return buildEvents({
-      candles: candles1y,
+      candles: candlesLastYear,
       indicators: indicatorsForEvents,
       divergences,
       signals,
@@ -251,31 +175,13 @@ const Mercado = () => {
         cooldownBars: 5,
       },
     });
-  }, [candles1y, indicatorsForEvents, divergences, signals, signalConfig]);
+  }, [candlesLastYear, indicatorsForEvents, divergences, signals, signalConfig]);
 
   // -------------------------------------------------------
-  // 10. RENDERIZADO DE ERROR DESTACADO (SI LO HAY)
-  // -------------------------------------------------------
-  const renderError = error && (
-    <div style={{ 
-      background: '#fee2e2', 
-      color: '#b91c1c', 
-      padding: '16px', 
-      borderRadius: '8px', 
-      margin: '16px 0', 
-      textAlign: 'center', 
-      fontWeight: 'bold', 
-      fontSize: '1.1em' 
-    }}>
-      {error}
-    </div>
-  );
-
-  // -------------------------------------------------------
-  // 11. CONFIGURACIÓN E INICIALIZACIÓN DE GRÁFICOS
+  // 10. CONFIGURACIÓN E INICIALIZACIÓN DE GRÁFICOS
   // -------------------------------------------------------
   const shouldInitializeCharts =
-    Array.isArray(candles1y) && candles1y.length > 0 && !loading;
+    Array.isArray(candlesLastYear) && candlesLastYear.length > 0 && !loading;
   
   const { 
     chartContainerRef,  // ref del contenedor del gráfico principal
@@ -284,7 +190,7 @@ const Mercado = () => {
     chartRef,           // referencia a la instancia del chart (para timeScale, etc.)
     candleSeriesRef     // referencia a la serie de velas
   } = useMarketCharts({
-    candles:        shouldInitializeCharts ? candles1y : [],
+    candles:        shouldInitializeCharts ? candlesLastYear : [],
     ema20:          shouldInitializeCharts ? ema20 : [],
     ema50:          shouldInitializeCharts ? ema50 : [],
     sma200:         shouldInitializeCharts ? sma200 : [],
@@ -298,142 +204,33 @@ const Mercado = () => {
   });
 
   // -------------------------------------------------------
-  // 12. SOPORTE Y RESISTENCIA (CÁLCULO A PARTIR DE VELAS)
+  // 11. SOPORTE Y RESISTENCIA (CÁLCULO A PARTIR DE VELAS)
   // -------------------------------------------------------
-  const { supportLevels, resistanceLevels } = useSupportResistance(candles1y, chartRef);
-
-  // -------------------------------------------------------
-  // 13. AUTOLOAD DE VELAS VIA SCROLL EN EL GRÁFICO
-  //     - Si el usuario se acerca al "inicio" de la serie, se cargan más velas.
-  // -------------------------------------------------------
-  const lastSignalRef = useRef(0);        // Marca temporal del último tradeSignal procesado
-  const [isAutoLoading, setIsAutoLoading] = useState(false);
-  const autoLoadTimeoutRef = useRef();
-
-  useEffect(() => {
-    // Si no hay chart montado, velas, o ya se está cargando, no se configura el listener
-    if (!chartRef || !candles.length || isAutoLoading) return;
-    
-    console.log('[AutoLoad] Configurando listener de scroll/zoom para carga automática');
-    
-    // Suscribirse al cambio de rango visible en el eje de tiempo
-    const handler = (range) => {
-      if (!candles.length || isAutoLoading) return;
-      
-      const minIndex = range?.from ?? 0;
-      const totalCandles = candles.length;
-      
-      // Si el usuario está cerca del inicio (minIndex < 5), cargamos más velas hacia atrás
-      if (minIndex < 5 && totalCandles >= 50) {
-        console.log(`[AutoLoad] Cerca del inicio (${minIndex}), cargando más velas... Total actual: ${totalCandles}`);
-        
-        setIsAutoLoading(true);
-        
-        // Evita múltiples timeouts superpuestos
-        if (autoLoadTimeoutRef.current) {
-          clearTimeout(autoLoadTimeoutRef.current);
-        }
-        
-        autoLoadTimeoutRef.current = setTimeout(() => {
-          loadMoreCandles();
-          // Pequeño retraso antes de permitir nueva carga
-          setTimeout(() => setIsAutoLoading(false), 2000);
-        }, 1000);
-      }
-    };
-    chartRef.timeScale().subscribeVisibleLogicalRangeChange(handler);
-    
-    // Limpieza al desmontar o cambiar dependencias
-    return () => {
-      try {
-        if (autoLoadTimeoutRef.current) {
-          clearTimeout(autoLoadTimeoutRef.current);
-        }
-        if (chartRef?.timeScale?.()) {
-          chartRef.timeScale().unsubscribeVisibleLogicalRangeChange(handler);
-        }
-      } catch (e) {
-        console.debug('[AutoLoad] Error al desuscribirse:', e.message);
-      }
-    };
-  }, [chartRef, candles.length, isAutoLoading, loadMoreCandles]);
+  const { supportLevels, resistanceLevels } = useSupportResistance(candlesLastYear, chartRef);
 
   // -------------------------------------------------------
-  // 14. PROCESAMIENTO DE SEÑALES DE TRADING (tradeSignals)
-  //     - Actualiza notificaciones, muestra popup y persiste (si auto).
+  // 12. AUTOLOAD DE VELAS VIA SCROLL EN EL GRÁFICO
   // -------------------------------------------------------
-  useEffect(() => {
-    if (!tradeSignals.length) return;
-
-    // Último timestamp conocido (para evitar reprocesar señales viejas)
-    const lastKnown = lastSignalRef.current;
-    const newestTimestamp = tradeSignals[tradeSignals.length - 1].time;
-
-    // Actualiza la marca de "último procesado"
-    lastSignalRef.current = Math.max(lastKnown, newestTimestamp);
-
-    // Filtra solo las señales más recientes
-    const freshSignals = tradeSignals.filter((signal) => signal.time > lastKnown);
-    if (!freshSignals.length) return;
-
-    // Obtiene identificador y código de estrategia
-    const strategyKey = getStrategyKey(selectedStrategy);
-    const strategyCode =
-      selectedStrategy?.strategy_code ||
-      selectedStrategy?.name ||
-      'FRONTEND_MACD_RSI';
-
-    // Prepara el batch de señales a guardar y mostrar
-    const batch = freshSignals.map((signal) => ({
-      id: signal.id,
-      ts: signal.time,
-      recorded: Date.now(),
-      action: signal.action,
-      price: signal.price,
-      reasons: signal.reasons,
-      confidence: signal.confidence,
-      symbol: signal.symbol || symbol,
-      interval: signal.interval || intervalLabel,
-      mode: tradeMode,
-      strategyId: strategyKey,
-      strategyCode,
-    }));
-
-    // Actualiza bandeja de notificaciones (mantiene solo las últimas 20)
-    setNotifications((prev) => {
-      const next = [...batch, ...prev];
-      return next.slice(0, 20);
-    });
-
-    // Muestra popup con la última señal del batch
-    const latest = batch[batch.length - 1];
-    setPopup({
-      open: true,
-      message: buildToastMessage(latest, tradeMode),
-    });
-
-    // Si el modo es automático, persiste las señales en backend
-    if (tradeMode === TRADE_MODES.auto) {
-      persistTradeSignals(batch, {
-        symbol,
-        interval: intervalLabel,
-        mode: tradeMode,
-        strategyCode,
-      })
-        .then(({ persisted, errors }) => {
-          console.log(`✓ ${persisted} señales guardadas`);
-          if (errors.length) {
-            console.warn('[signals] errores al persistir:', errors);
-          }
-        })
-        .catch((err) => {
-          console.error('[signals] persistencia fallida:', err?.message);
-        });
-    }
-  }, [tradeSignals, tradeMode, symbol, intervalLabel, selectedStrategy]);
+  useMarketAutoload({
+    chartRef,
+    candles,
+    interval,
+    onLoadMore: loadMoreCandles,
+  });
 
   // -------------------------------------------------------
-  // 15. HANDLERS PARA TICKER PERSONALIZADO
+  // 13. PROCESAMIENTO DE SEÑALES DE TRADING
+  // -------------------------------------------------------
+  const { notifications, popup, closePopup } = useTradeSignalNotifications({
+    tradeSignals,
+    tradeMode,
+    symbol,
+    intervalLabel,
+    selectedStrategy,
+  });
+
+  // -------------------------------------------------------
+  // 14. HANDLERS PARA TICKER PERSONALIZADO
   // -------------------------------------------------------
   const handleCustomTickerLoad = useCallback((ticker) => {
     setSymbol(ticker);
@@ -445,7 +242,7 @@ const Mercado = () => {
   }, []);
 
   // -------------------------------------------------------
-  // 16. RENDER DEL COMPONENTE
+  // 15. RENDER DEL COMPONENTE
   // -------------------------------------------------------
   return (
     <div className="page-mercado">
@@ -453,7 +250,7 @@ const Mercado = () => {
       <Notification
         message={popup.message}
         open={popup.open}
-        onClose={() => setPopup({ open: false, message: '' })}
+        onClose={closePopup}
       />
 
       {/* Header con selector de símbolo y ticker personalizado */}
@@ -465,77 +262,35 @@ const Mercado = () => {
         onLoadCustomTicker={handleCustomTickerLoad}
       />
 
-      {/* Zona superior de controles de mercado */}
-      <section className="market-controls">
-        {renderError}
-        
-        {/* Selector de intervalo temporal */}
-        <IntervalSelector
-          interval={interval}
-          onIntervalChange={setInterval}
-        />
+      {/* Panel de configuración: intervalo, estrategia y modo de trading */}
+      <MarketConfigPanel
+        interval={interval}
+        onIntervalChange={setInterval}
+        strategies={strategies}
+        selectedStrategyId={selectedStrategyId}
+        onStrategyChange={setSelectedStrategyId}
+        strategiesLoading={strategiesLoading}
+        strategiesError={strategiesError}
+        onRefreshStrategies={loadStrategies}
+        settings={settings}
+        signalConfig={signalConfig}
+        tradeMode={tradeMode}
+        onTradeModeChange={setTradeMode}
+        error={error}
+      />
 
-        {/* Selector de estrategia + panel de configuración de la estrategia */}
-        <StrategySelector
-          strategies={strategies}
-          selectedStrategyId={selectedStrategyId}
-          onStrategyChange={setSelectedStrategyId}
-          strategiesLoading={strategiesLoading}
-          strategiesError={strategiesError}
-          onRefreshStrategies={loadStrategies}
-          settings={settings}
-          signalConfig={signalConfig}
-        />
-
-        <div className="controls-divider"></div>
-
-        {/* Controles de modo de trading (notificar vs auto) */}
-        <TradingControls
-          tradeMode={tradeMode}
-          onTradeModeChange={setTradeMode}
-        />
-      </section>
-
-      {/* Contenedor principal de gráficos */}
-      <section className="market-chart-wrapper">
-        {/* Gráfico principal de precio (velas + indicadores de precio) */}
-        <div className="market-chart" ref={chartContainerRef}>
-          <div className="chart-title" title="Velas, volumen e indicadores seleccionados.">
-            Precio y señales
-          </div>
-          {loading && <div className="chart-overlay">Cargando datos...</div>}
-          {!loading && error && <div className="chart-overlay error">{error}</div>}
-          {!loading && !error && !candles.length && (
-            <div className="chart-overlay info">Sin datos para el rango seleccionado.</div>
-          )}
-        </div>
-
-        {/* Gráfico RSI (opcional según settings) */}
-        {settings.rsi && (
-          <div className="market-chart rsi-chart" ref={rsiContainerRef}>
-            <div className="chart-title" title="Oscilador de fuerza relativa (RSI).">
-              RSI
-            </div>
-            {loading && <div className="chart-overlay">Calculando RSI...</div>}
-            {!loading && !rsi14.length && (
-              <div className="chart-overlay info">RSI requiere más historial.</div>
-            )}
-          </div>
-        )}
-
-        {/* Gráfico MACD (opcional según settings) */}
-        {settings.macd && (
-          <div className="market-chart macd-chart" ref={macdContainerRef}>
-            <div className="chart-title" title="MACD, línea de señal e histograma.">
-              MACD
-            </div>
-            {loading && <div className="chart-overlay">Calculando MACD...</div>}
-            {!loading && !macdLine.length && (
-              <div className="chart-overlay info">MACD requiere más historial.</div>
-            )}
-          </div>
-        )}
-      </section>
+      {/* Contenedor de gráficos: precio, RSI y MACD */}
+      <MarketChartsContainer
+        chartContainerRef={chartContainerRef}
+        rsiContainerRef={rsiContainerRef}
+        macdContainerRef={macdContainerRef}
+        loading={loading}
+        error={error}
+        candles={candles}
+        rsi14={rsi14}
+        macdLine={macdLine}
+        settings={settings}
+      />
 
       {/* Resumen de mercado + niveles de soporte/resistencia */}
       <MarketSummary
@@ -550,7 +305,7 @@ const Mercado = () => {
       <EventsTable 
         events={events} 
         symbol={symbol} 
-        candles={candles1y} 
+        candles={candlesLastYear} 
         signalConfig={signalConfig}
         settings={settings}
         ema20={ema20}

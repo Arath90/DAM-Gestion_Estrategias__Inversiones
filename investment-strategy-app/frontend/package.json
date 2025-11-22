@@ -16,7 +16,6 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.4",
-    "react-scripts": "^0.0.0",
     "react-transition-group": "^4.4.5",
     "web-vitals": "^2.1.4"
   },
@@ -24,16 +23,7 @@
     "dev": "vite",
     "build": "vite build",
     "serve": "vite preview",
-    "start": "react-scripts start",
-    "build-react": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+    "test": "vitest"
   },
   "browserslist": {
     "production": [

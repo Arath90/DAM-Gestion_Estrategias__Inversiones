@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchCandles, fetchMacd, fetchAnalytics } from '../services/marketData';
 import { DEFAULT_SIGNAL_CONFIG } from '../constants/strategyProfiles';
 import { DEFAULT_ALGORITHM_PARAMS, mergeAlgorithmParams } from '../constants/algorithmDefaults';
-
 import { findDivergences } from '../utils/divergences';
 import { computeSignals } from '../utils/signals';
 import {
@@ -12,6 +11,17 @@ import {
   calcMACD,
   calcSignals,
 } from '../utils/marketAlgorithms';
+import {
+  alignRSIWithCandles,
+  extractPriceSeries,
+  buildIndicatorsObject,
+  enrichSignalsWithContext,
+  parseAlgorithmParams,
+  parseDivergenceConfig,
+  formatDateForLog,
+  calculatePeriodStats,
+  createEmptyAnalytics,
+} from '../utils/marketAnalytics';
 
 
 
@@ -167,52 +177,55 @@ export const useMarketData = ({
    */
   useEffect(() => {
     let alive = true;
-    let timeoutId;
-    timeoutId = setTimeout(() => {
+    const timeoutId = setTimeout(async () => {
       console.log(`📊 Solicitando ${limit} velas de ${symbol} en intervalo ${interval}`);
       setState((prev) => ({ ...prev, loading: true, error: '' }));
-      fetchCandles({
-        symbol,
-        interval,
-        limit,
-        datasetId,
-        strategyCode,
-        from: periodStart,
-        to: periodEnd,
-      })
-        .then(({ candles }) => {
-          if (!alive) return;
-          if (!candles || candles.length === 0) {
-            setState({ candles: [], loading: false, error: 'No se encontraron datos para el intervalo seleccionado. Prueba con otro rango o instrumento.' });
-            return;
-          }
-          const firstTime = new Date(candles[0].time * 1000);
-          const lastTime = new Date(candles[candles.length - 1].time * 1000);
-          const daysCovered = (lastTime - firstTime) / (1000 * 60 * 60 * 24);
-          const formatDate = (date) => {
-            return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
-          };
-          console.log(`✅ Recibidas ${candles.length} velas. Período: ${formatDate(firstTime)} - ${formatDate(lastTime)} (~${Math.round(daysCovered)} días)`);
-          setState({ candles, loading: false, error: '' });
-        })
-        .catch((err) => {
-          if (!alive) return;
-          let errorMessage;
-          if (err?.isRateLimit || err?.response?.status === 429) {
-            errorMessage = 'Límite de peticiones alcanzado. Usando datos en cache...';
-          } else {
-            errorMessage = err?.message || 'No se pudieron obtener las velas.';
-          }
+      
+      try {
+        const { candles } = await fetchCandles({
+          symbol,
+          interval,
+          limit,
+          datasetId,
+          strategyCode,
+          from: periodStart,
+          to: periodEnd,
+        });
+        
+        if (!alive) return;
+        
+        if (!candles || candles.length === 0) {
           setState({
             candles: [],
             loading: false,
-            error: errorMessage,
+            error: 'No se encontraron datos para el intervalo seleccionado. Prueba con otro rango o instrumento.',
           });
-        });
+          return;
+        }
+        
+        const stats = calculatePeriodStats(candles);
+        if (stats) {
+          console.log(
+            `✅ Recibidas ${stats.count} velas. Período: ${formatDateForLog(stats.firstTime)} - ${formatDateForLog(stats.lastTime)} (~${stats.daysCovered} días)`
+          );
+        }
+        
+        setState({ candles, loading: false, error: '' });
+      } catch (err) {
+        if (!alive) return;
+        
+        const errorMessage =
+          err?.isRateLimit || err?.response?.status === 429
+            ? 'Límite de peticiones alcanzado. Usando datos en cache...'
+            : err?.message || 'No se pudieron obtener las velas.';
+        
+        setState({ candles: [], loading: false, error: errorMessage });
+      }
     }, 500);
+    
     return () => {
       alive = false;
-      if (timeoutId) clearTimeout(timeoutId);
+      clearTimeout(timeoutId);
     };
   }, [symbol, interval, limit, datasetId, strategyCode, periodStart, periodEnd]);
 
@@ -364,125 +377,80 @@ export const useMarketData = ({
    * - Prepara arrays indexados para detección rápida de divergencias
    */
 const analytics = useMemo(() => {
-  // Preferir analytics entregados por backend (ya calculados, optimizados)
   if (remoteAnalytics) {
     return remoteAnalytics;
   }
 
   const { candles } = state;
   const mergedAlgo = mergeAlgorithmParams(algoParams);
+  
   if (!Array.isArray(candles) || candles.length === 0) {
-    return {
-      ema20: [],
-      ema50: [],
-      sma200: [],
-      rsi14: [],
-      macdLine: [],
-      macdSignal: [],
-      macdHistogram: [],
-      signals: [],
-      tradeSignals: [],
-      divergences: [],
-      appliedAlgoParams: mergedAlgo,
-    };
+    return createEmptyAnalytics(mergedAlgo);
   }
 
-  const emaFastPeriod = Number(mergedAlgo.emaFast) || 20;
-  const emaSlowPeriod = Number(mergedAlgo.emaSlow) || 50;
-  const smaLongPeriod = Number(mergedAlgo.smaLong) || 200;
-  const rsiPeriod = Number(mergedAlgo.rsiPeriod) || 14;
-  const macdFastPeriod = Number(mergedAlgo.macdFast) || 12;
-  const macdSlowPeriod = Number(mergedAlgo.macdSlow) || 26;
-  const macdSignalPeriod = Number(mergedAlgo.macdSignal) || 9;
-  const divergenceConfig = mergedAlgo.divergence || {};
+  // Parsear parámetros de algoritmos
+  const {
+    emaFastPeriod,
+    emaSlowPeriod,
+    smaLongPeriod,
+    rsiPeriod,
+    macdFastPeriod,
+    macdSlowPeriod,
+    macdSignalPeriod,
+  } = parseAlgorithmParams(mergedAlgo);
 
-  // indicadores configurables
+  // Calcular indicadores técnicos
   const ema20 = calcEMA(candles, emaFastPeriod);
   const ema50 = calcEMA(candles, emaSlowPeriod);
   const sma200 = calcSMA(candles, smaLongPeriod);
   const rsi14 = calcRSI(candles, rsiPeriod);
-  const macdCalc = macdBackend && macdBackend.macdLine?.length
-    ? macdBackend
-    : calcMACD(candles, macdFastPeriod, macdSlowPeriod, macdSignalPeriod);
+  
+  // MACD: usar backend si disponible, sino calcular localmente
+  const macdCalc =
+    macdBackend && macdBackend.macdLine?.length
+      ? macdBackend
+      : calcMACD(candles, macdFastPeriod, macdSlowPeriod, macdSignalPeriod);
 
   let macdLine = macdCalc.macdLine || [];
   let macdSignal = macdCalc.signalLine || macdCalc.macdSignal || [];
   let macdHistogram = macdCalc.macdHistogram || macdCalc.histogram || [];
 
+  // Deshabilitar MACD si no está configurado
   if (!signalConfig.useMACD) {
     macdLine = [];
     macdSignal = [];
     macdHistogram = [];
   }
 
-  // ============================================================================
-  // SECCIÓN: DETECCIÓN DE DIVERGENCIAS
-  // ============================================================================
-  // Las divergencias ocurren cuando el precio y un indicador (RSI) se mueven en
-  // direcciones opuestas, señalando posibles reversiones de tendencia.
-  //
-  // Tipos de divergencias:
-  // - Divergencia alcista (bullish): Precio hace mínimos más bajos pero RSI hace
-  //   mínimos más altos → posible reversión al alza
-  // - Divergencia bajista (bearish): Precio hace máximos más altos pero RSI hace
-  //   máximos más bajos → posible reversión a la baja
-  //
-  // Para detectarlas necesitamos series alineadas por índice:
-  // - priceHighSeries: Precios máximos (para detectar picos en tendencia alcista)
-  // - priceLowSeries: Precios mínimos (para detectar valles en tendencia bajista)
-  // - rsiValuesByIndex: RSI alineado por índice con candles
-  // ============================================================================
-  
-  // Extraer precios máximos para análisis de divergencias bajistas
-  const priceHighSeries = candles.map((c) => c.high);
-  const priceLowSeries = candles.map((c) => c.low);
+  // Extraer series de precios y alinear RSI
+  const { priceHighSeries, priceLowSeries } = extractPriceSeries(candles);
+  const rsiValuesByIndex = alignRSIWithCandles(candles, rsi14);
 
-  // Alinear RSI con el índice de candles: creamos un array donde rsiValuesByIndex[i] corresponde a candles[i]
-  const rsiValuesByIndex = new Array(candles.length).fill(undefined);
-  if (Array.isArray(rsi14) && rsi14.length > 0) {
-    const rsiTimeMap = new Map(rsi14.map((r) => [r.time, r.value]));
-    for (let i = 0; i < candles.length; i++) {
-      rsiValuesByIndex[i] = rsiTimeMap.get(candles[i].time);
-    }
-  }
-
-  // --- Detectar divergencias (usamos highs vs RSI por defecto) ---
-  // Ajusta peakWindow / tolerancias según el activo/timeframe
-  const divergenceParams = {
-    peakWindow: Number(divergenceConfig.peakWindow) || 3,
-    maxBarsBetweenPeaks: Number(divergenceConfig.maxBarsBetweenPeaks) || 60,
-    minPriceChangePct: Number(divergenceConfig.minPriceChangePct) || 0.002,
-    minIndicatorChangePct: Number(divergenceConfig.minIndicatorChangePct) || 0.01,
-    maxPeakDistance: Number(divergenceConfig.maxPeakDistance) || 8,
-  };
+  // Detectar divergencias
+  const divergenceParams = parseDivergenceConfig(mergedAlgo.divergence);
   const divergences = findDivergences(priceHighSeries, rsiValuesByIndex, divergenceParams);
 
-  // --- Construir objeto de indicadores para el motor de señales ---
-  // Nota: computeSignals espera arrays/alineados o al menos datos accesibles; aquí pasamos
-  // arrays sencillos (valores por índice) para rsi y los arrays de macd por índice.
-  const indicators = {
-    rsi: rsiValuesByIndex, // aligned by candles index
-    bb: null, // si luego calculas bandas, pon aquí { upper: [], mid: [], lower: [] }
-    macd: {
-      macd: (macdLine || []).map((m) => m.value),
-      signal: (macdSignal || []).map((s) => s.value),
-      hist: (macdHistogram || []).map((h) => h.value),
-    },
-    ema20: (ema20 || []).map((e) => e.value),
-    ema50: (ema50 || []).map((e) => e.value),
-  };
+  // Construir objeto de indicadores para motor de señales
+  const indicators = buildIndicatorsObject({
+    rsiValuesByIndex,
+    macdLine,
+    macdSignal,
+    macdHistogram,
+    ema20,
+    ema50,
+  });
 
-  // --- Ejecutar motor de señales ---
-  // computeSignals debe devolver un array de señales (cada señal con timeIndex o time, action, reasons, confidence, price)
-  const computedSignals = computeSignals(candles, indicators, divergences, {
-    rsiOversold: signalConfig.rsiOversold,
-    rsiOverbought: signalConfig.rsiOverbought,
-    macdHistogramThreshold: signalConfig.macdHistogramThreshold,
-    minReasons: signalConfig.minReasons,
-  }) || [];
+  // Generar señales de trading
+  const computedSignals =
+    computeSignals(candles, indicators, divergences, {
+      rsiOversold: signalConfig.rsiOversold,
+      rsiOverbought: signalConfig.rsiOverbought,
+      macdHistogramThreshold: signalConfig.macdHistogramThreshold,
+      minReasons: signalConfig.minReasons,
+    }) || [];
 
-  // Enriquecer señales con contexto básico (symbol/interval) para consumir en la UI
-  const tradeSignals = computedSignals.map((s) => ({ ...s, symbol, interval }));
+  // Enriquecer señales con contexto
+  const tradeSignals = enrichSignalsWithContext(computedSignals, symbol, interval);
 
   return {
     ema20,
@@ -506,7 +474,7 @@ const analytics = useMemo(() => {
       divergence: divergenceParams,
     },
   };
-}, [state.candles, signalConfig, symbol, interval, algoParams, remoteAnalytics]);
+}, [state.candles, signalConfig, symbol, interval, algoParams, remoteAnalytics, macdBackend]);
 
   /**
    * Retorna objeto combinado con:
@@ -562,14 +530,3 @@ export const marketAnalyticsUtils = {
   calcMACD,
   calcSignals,
 };
-
-
-
-
-
-
-
-
-
-
-

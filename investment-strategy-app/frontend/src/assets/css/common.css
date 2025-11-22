@@ -1,0 +1,180 @@
+/**
+ * Estilos globales para componentes comunes reutilizables
+ */
+
+/* ============================================================================
+   FormField Component
+   ============================================================================ */
+/* Los estilos de .form-field están definidos en cada página específica
+   (Instrumentos.css, Estrategias.css, etc.) para mantener consistencia
+   con los diseños existentes */
+
+/* ============================================================================
+   LoadingSpinner Component
+   ============================================================================ */
+.loading-spinner-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  gap: 1rem;
+}
+
+.loading-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner {
+  border: 3px solid var(--project-color3);
+  border-top-color: var(--accent-color1);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.spinner-small .spinner {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+}
+
+.spinner-medium .spinner {
+  width: 40px;
+  height: 40px;
+  border-width: 3px;
+}
+
+.spinner-large .spinner {
+  width: 60px;
+  height: 60px;
+  border-width: 4px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-message {
+  font-size: 0.95rem;
+  color: var(--project-color2);
+  margin: 0;
+}
+
+/* ============================================================================
+   ErrorMessage Component
+   ============================================================================ */
+.error-message {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  animation: slideIn 0.3s ease-out;
+}
+
+.error-message.error {
+  background-color: rgba(255, 76, 76, 0.1);
+  border-left: 4px solid var(--alert-color1);
+  color: var(--project-colorTitle);
+}
+
+.error-message.warning {
+  background-color: rgba(255, 184, 77, 0.1);
+  border-left: 4px solid var(--warning-color);
+  color: var(--project-colorTitle);
+}
+
+.error-message.info {
+  background-color: rgba(0, 102, 204, 0.1);
+  border-left: 4px solid var(--accent-color1);
+  color: var(--project-colorTitle);
+}
+
+.error-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.error-icon {
+  font-size: 1.25rem;
+}
+
+.error-text {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--project-colorTitle);
+}
+
+.error-dismiss {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--project-colorTitle);
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.error-dismiss:hover {
+  background-color: var(--project-color3);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ============================================================================
+   EmptyState Component
+   ============================================================================ */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  text-align: center;
+}
+
+.empty-state-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.6;
+}
+
+.empty-state-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--project-colorTitle);
+  margin: 0 0 0.5rem 0;
+}
+
+.empty-state-message {
+  font-size: 0.95rem;
+  color: var(--project-colorTitle);
+  margin: 0 0 1.5rem 0;
+  max-width: 400px;
+}
+
+.empty-state-action {
+  margin-top: 1rem;
+}

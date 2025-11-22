@@ -1,5 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import '../assets/css/Datasets.css';
+import '../assets/css/common.css';
+import { LoadingSpinner, ErrorMessage, EmptyState } from '../components/common';
+import { createBlankForm, buildFormFromData } from '../utils/formHelpers';
+import { toNumberOrNull } from '../utils/validation';
 
 import {
   fetchDatasets as fetchDatasetsApi,
@@ -30,31 +34,18 @@ const FIELD_CONFIG = [
 const defaultSpecMeta = () => ({ ...DEFAULT_SPEC_META });
 
 const blankForm = () => {
-  const base = FIELD_CONFIG.reduce((acc, field) => {
-    acc[field.name] = '';
-    return acc;
-  }, {});
+  const base = createBlankForm(FIELD_CONFIG);
   base.specMeta = defaultSpecMeta();
   base.components = [];
   return base;
 };
 
 const buildFormFromDataset = (item, componentsOverride, metadataOverride) => {
-  const base = blankForm();
-  FIELD_CONFIG.forEach(({ name }) => {
-    if (item[name] == null) return;
-    base[name] = String(item[name]);
-  });
+  const base = buildFormFromData(item, FIELD_CONFIG);
   const { metadata, components } = extractSpecState(item.spec_json);
   base.specMeta = metadataOverride ?? metadata;
   base.components = componentsOverride ?? components;
   return base;
-};
-
-const parseNumber = (value) => {
-  if (value === '' || value == null) return undefined;
-  const num = Number(value);
-  return Number.isFinite(num) ? num : undefined;
 };
 
 const sanitizePayload = (form, modelRef = null) => {
@@ -62,7 +53,7 @@ const sanitizePayload = (form, modelRef = null) => {
   if (form.name && form.name.trim()) payload.name = form.name.trim();
   if (form.description && form.description.trim()) payload.description = form.description.trim();
 
-  const conid = parseNumber(form.instrument_conid);
+  const conid = toNumberOrNull(form.instrument_conid);
   if (conid != null) payload.instrument_conid = conid;
 
   if (modelRef) {
@@ -583,16 +574,18 @@ const Datasets = () => {
         </form>
       )}
 
-      {loading && <div className="datasets-status">Cargando datasets...</div>}
-      {componentsLoading && !loading && (
-        <div className="datasets-status">Sincronizando componentes...</div>
+      {loading && <LoadingSpinner message="Cargando datasets..." />}
+      {componentsLoading && !loading && <LoadingSpinner message="Sincronizando componentes..." size="small" />}
+      {error && !loading && <ErrorMessage message={error} onDismiss={() => setError('')} />}
+      {componentsError && !loading && <ErrorMessage message={componentsError} onDismiss={() => setComponentsError('')} type="warning" />}
+      {message && <ErrorMessage message={message} type="info" onDismiss={() => setMessage('')} />}
+      {emptyState && (
+        <EmptyState
+          title="Sin datasets"
+          message="Aún no hay datasets registrados. Crea uno usando el formulario."
+          icon="📊"
+        />
       )}
-      {error && !loading && <div className="datasets-status error">{error}</div>}
-      {componentsError && !loading && (
-        <div className="datasets-status error">{componentsError}</div>
-      )}
-      {message && <div className="datasets-status success">{message}</div>}
-      {emptyState && <div className="datasets-status">Aún no hay datasets registrados.</div>}
 
       <section className="datasets-list">
         {filtered.map((item, idx) => {

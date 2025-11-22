@@ -17,6 +17,21 @@ module.exports = {
     process.env.MONGODB_DB ||  
     'Inversiones',
 
+  COSMOS_CONNECTION_STRING:
+    process.env.COSMOS_CONNECTION_STRING ||
+    process.env.AZURE_COSMOS_CONNECTION_STRING ||
+    '',
+
+  COSMOS_DATABASE:
+    process.env.COSMOS_DATABASE ||
+    process.env.AZURE_COSMOS_DATABASE ||
+    'InversionesSignals',
+
+  COSMOS_STRONG_SIGNALS_COLLECTION:
+    process.env.COSMOS_STRONG_SIGNALS_COLLECTION ||
+    process.env.AZURE_COSMOS_STRONG_SIGNALS_COLLECTION ||
+    'StrongSignals',
+
   // Configuracion del proveedor externo de velas
   CANDLES_API_URL: process.env.CANDLES_API_URL || '',
   CANDLES_API_KEY: process.env.CANDLES_API_KEY || '',

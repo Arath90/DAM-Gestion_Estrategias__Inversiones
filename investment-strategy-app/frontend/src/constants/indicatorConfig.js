@@ -15,6 +15,13 @@ export const INDICATOR_CONFIG = {
         { "id": "MACD_signal_period", "label": "Período Señal", "type": "number", "default": 9, "min": 1, "required": true, "placeholder": 9 }
       ]
     },
+    "BOLLINGER": {
+      "name": "Bandas de Bollinger",
+      "properties": [
+        { "id": "BB_period", "label": "Período", "type": "number", "default": 20, "min": 1, "required": true },
+        { "id": "BB_stddev", "label": "Desviación estándar", "type": "number", "default": 2, "min": 1, "required": true }
+      ]
+    },
     "EMA": {
       "name": "Media Móvil Exponencial (EMA)",
       "properties": [
@@ -32,6 +39,7 @@ export const INDICATOR_CONFIG = {
 export const INDICATOR_TOGGLE_TO_CONFIG = {
   rsi: 'RSI',
   macd: 'MACD',
+  bollinger: 'BOLLINGER',
   ema20: 'EMA',
   ema50: 'EMA',
   sma200: 'SMA',

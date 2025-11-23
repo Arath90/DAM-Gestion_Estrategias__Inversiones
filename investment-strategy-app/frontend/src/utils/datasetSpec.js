@@ -41,6 +41,10 @@ export const COMPONENT_TEMPLATES = {
     label: 'MACD',
     params: { fast: 12, slow: 26, signal: 9, source: 'close' },
   },
+    'indicator:bb': {
+    label: 'Bandas de bollinger',
+    params: { period: 20, source: 'close', multiplier: 2 },
+  },
   custom: {
     label: 'Custom / Fórmula',
     params: { expression: '', source: 'close' },
@@ -53,6 +57,7 @@ export const COMPONENT_OPTIONS = [
   { value: 'indicator:ema', label: COMPONENT_TEMPLATES['indicator:ema'].label },
   { value: 'indicator:sma', label: COMPONENT_TEMPLATES['indicator:sma'].label },
   { value: 'indicator:macd', label: COMPONENT_TEMPLATES['indicator:macd'].label },
+  { value: 'indicator:bb', label: COMPONENT_TEMPLATES['indicator:bb'].label },
   { value: 'custom', label: COMPONENT_TEMPLATES.custom.label },
 ];
 
@@ -155,6 +160,17 @@ const deriveComponentFromFeature = (feature) => {
     });
   }
 
+  const bbMatch = lower.match(/^bb[_-]?(\d+)?(?:[_-](\d+))?/i);
+  if (bbMatch) {
+    const period = Number(bbMatch[1]) || 20;
+    const multiplier = Number(bbMatch[2]) || 2;
+    return createComponentTemplate('indicator:bb', {
+      alias: `BB ${period}/${multiplier}`,
+      output_key: raw,
+      params: { period, multiplier },
+    });
+  }
+
   if (['open', 'high', 'low', 'close', 'volume'].includes(lower)) {
     return createComponentTemplate('price', {
       alias: raw.toUpperCase(),
@@ -213,6 +229,8 @@ export const autoOutputKey = (component) => {
       return `sma_${params.period || 50}`;
     case 'indicator:macd':
       return `macd_${params.fast || 12}_${params.slow || 26}_${params.signal || 9}`;
+    case 'indicator:bb':
+      return `bb_${params.period || 20}_${params.multiplier || 2}`;
     default:
       return slugify(component.alias || 'feature');
   }

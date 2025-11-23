@@ -41,6 +41,9 @@ export const deriveIndicatorKeys = (components = []) => {
     const alias = aliasRaw.normalize ? aliasRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : aliasRaw;
     if (kind === 'indicator:rsi') keys.add('rsi');
     else if (kind === 'indicator:macd') keys.add('macd');
+    else if (kind === 'indicator:bb' || kind === 'indicator:bollinger') {
+      keys.add('bollinger');
+    }
     else if (kind === 'indicator:ema') {
       const period = Number(params.period);
       if (period === 20) keys.add('ema20');

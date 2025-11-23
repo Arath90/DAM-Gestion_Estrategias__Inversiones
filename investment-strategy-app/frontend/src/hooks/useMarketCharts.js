@@ -167,6 +167,9 @@ export const useMarketCharts = ({
   signals,
   divergences,
   settings,
+  bbMiddle = [],
+  bbUpper = [],
+  bbLower = [],
 }) => {
   const chartContainerRef = useRef(null);
   const rsiContainerRef = useRef(null);
@@ -192,6 +195,9 @@ export const useMarketCharts = ({
   const syncingRef = useRef(false);
   const maxLineSeriesRef = useRef(null);
   const minLineSeriesRef = useRef(null);
+  const bbUpperSeriesRef = useRef(null);
+  const bbMiddleSeriesRef = useRef(null);
+  const bbLowerSeriesRef = useRef(null);
 
   //Nuevo codigo de Andrick y chat
     // Convierte tus signals (desde useMarketData) en markers compatibles con lightweight-charts
@@ -442,6 +448,25 @@ export const useMarketCharts = ({
     ema50SeriesRef.current = chart.addLineSeries({ color: '#facc15', lineWidth: 2, title: 'EMA 50' });
     sma200SeriesRef.current = chart.addLineSeries({ color: '#c084fc', lineWidth: 2, title: 'SMA 200' });
 
+    bbUpperSeriesRef.current = chart.addLineSeries({
+      color: '#f59e0b', // amarillo tenue
+      lineWidth: 1,
+      lineStyle: 2, // dashed
+      title: 'BB Upper',
+    });
+    bbMiddleSeriesRef.current = chart.addLineSeries({
+      color: '#ffffff', // media (puedes ajustar opacity vía CSS si quieres)
+      lineWidth: 1,
+      lineStyle: 0,
+      title: 'BB Middle',
+    });
+    bbLowerSeriesRef.current = chart.addLineSeries({
+      color: '#f59e0b',
+      lineWidth: 1,
+      lineStyle: 2,
+      title: 'BB Lower',
+    });
+
     const handleResize = () => {
       if (!chartContainerRef.current) return;
       const { width } = chartContainerRef.current.getBoundingClientRect();
@@ -467,6 +492,9 @@ export const useMarketCharts = ({
       ema20SeriesRef.current = null;
       ema50SeriesRef.current = null;
       sma200SeriesRef.current = null;
+      bbUpperSeriesRef.current = null;
+      bbMiddleSeriesRef.current = null;
+      bbLowerSeriesRef.current = null;
     };
   }, []);
 
@@ -742,6 +770,9 @@ export const useMarketCharts = ({
         macdSeriesRef,
         macdSignalSeriesRef,
         macdHistogramSeriesRef,
+        bbUpperSeriesRef,   
+        bbMiddleSeriesRef,  
+        bbLowerSeriesRef,
       );
       try {
         candleSeriesRef.current.setMarkers([]);
@@ -846,6 +877,20 @@ export const useMarketCharts = ({
         console.debug('[Charts] Error estableciendo SMA200:', e.message);
       }
 
+      try {
+        if (settings.bb) {
+          if (bbUpperSeriesRef.current) bbUpperSeriesRef.current.setData(bbUpper || []);
+          if (bbMiddleSeriesRef.current) bbMiddleSeriesRef.current.setData(bbMiddle || []);
+          if (bbLowerSeriesRef.current) bbLowerSeriesRef.current.setData(bbLower || []);
+        } else {
+          if (bbUpperSeriesRef.current) bbUpperSeriesRef.current.setData([]);
+          if (bbMiddleSeriesRef.current) bbMiddleSeriesRef.current.setData([]);
+          if (bbLowerSeriesRef.current) bbLowerSeriesRef.current.setData([]);
+        }
+      } catch (e) {
+        console.debug('[Charts] Error estableciendo Bandas de bollinger:', e.message);
+      }
+  
       // Señales
       try {
         const markers = buildSignalMarkers(signals);
@@ -922,6 +967,9 @@ export const useMarketCharts = ({
     macdLine,
     macdSignal,
     macdHistogram,
+    bbMiddle,
+    bbUpper,
+    bbLower,
   ]);
 
 
@@ -934,6 +982,9 @@ export const useMarketCharts = ({
     rsiChartRef: rsiChartRef.current,
     macdChartRef: macdChartRef.current,
     candleSeriesRef: candleSeriesRef.current,
+    bbUpperSeriesRef: bbUpperSeriesRef.current,
+    bbMiddleSeriesRef: bbMiddleSeriesRef.current,
+    bbLowerSeriesRef: bbLowerSeriesRef.current,
   };
 };
 export default useMarketCharts;

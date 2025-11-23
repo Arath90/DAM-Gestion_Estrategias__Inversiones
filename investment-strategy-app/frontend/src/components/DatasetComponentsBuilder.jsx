@@ -266,6 +266,54 @@ const DatasetComponentsBuilder = ({ value = [], onChange }) => {
             </label>
           </>
         );
+
+      case 'indicator:bb':
+      return (
+        <>
+          <label className="component-field">
+            <span>Periodo</span>
+            <input
+              type="number"
+              value={component.params.period ?? ''}
+              min={2}
+              title="Periodo del cálculo"
+              onChange={(event) =>
+                handleParamNumberChange(component.id, 'period', event.target.value)
+              }
+            />
+          </label>
+
+          <label className="component-field">
+            <span>Fuente</span>
+            <select
+              value={component.params.source}
+              title="Campo fuente"
+              onChange={(event) =>
+                handleParamChange(component.id, 'source', event.target.value)
+              }
+            >
+              {SOURCE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="component-field">
+            <span>Multiplicador</span>
+            <input
+              type="number"
+              value={component.params.multiplier ?? ''}
+              min={1}
+              title="Desviaciones estándar"
+              onChange={(event) =>
+                handleParamNumberChange(component.id, 'multiplier', event.target.value)
+              }
+            />
+          </label>
+        </>
+      );
       case 'custom':
         return (
           <>

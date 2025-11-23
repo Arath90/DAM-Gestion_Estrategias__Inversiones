@@ -10,6 +10,7 @@ import {
   calcRSI,
   calcMACD,
   calcSignals,
+  calcBollingerBands,
 } from '../utils/marketAlgorithms';
 import {
   alignRSIWithCandles,
@@ -399,11 +400,15 @@ const analytics = useMemo(() => {
     macdSignalPeriod,
   } = parseAlgorithmParams(mergedAlgo);
 
+  const bbPeriod = Number.isFinite(mergedAlgo.bbPeriod) ? mergedAlgo.bbPeriod : 20; // <<< BB ADDED
+  const bbMultiplier = Number.isFinite(mergedAlgo.bbMultiplier) ? mergedAlgo.bbMultiplier : 2; // <<< BB ADDED
+
   // Calcular indicadores técnicos
   const ema20 = calcEMA(candles, emaFastPeriod);
   const ema50 = calcEMA(candles, emaSlowPeriod);
   const sma200 = calcSMA(candles, smaLongPeriod);
   const rsi14 = calcRSI(candles, rsiPeriod);
+
   
   // MACD: usar backend si disponible, sino calcular localmente
   const macdCalc =
@@ -421,6 +426,8 @@ const analytics = useMemo(() => {
     macdSignal = [];
     macdHistogram = [];
   }
+  const { middle: bbMiddle = [], upper: bbUpper = [], lower: bbLower = [] } =
+    calcBollingerBands(candles, bbPeriod, bbMultiplier);
 
   // Extraer series de precios y alinear RSI
   const { priceHighSeries, priceLowSeries } = extractPriceSeries(candles);
@@ -438,6 +445,9 @@ const analytics = useMemo(() => {
     macdHistogram,
     ema20,
     ema50,
+    bbMiddle,
+    bbUpper,
+    bbLower,
   });
 
   // Generar señales de trading
@@ -460,6 +470,9 @@ const analytics = useMemo(() => {
     macdLine,
     macdSignal,
     macdHistogram,
+    bbMiddle,
+    bbUpper,
+    bbLower,
     signals: computedSignals,
     tradeSignals,
     divergences,
@@ -529,4 +542,5 @@ export const marketAnalyticsUtils = {
   calcRSI,
   calcMACD,
   calcSignals,
+  calcBollingerBands
 };

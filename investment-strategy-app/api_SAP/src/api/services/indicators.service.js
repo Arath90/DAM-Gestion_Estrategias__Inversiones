@@ -30,8 +30,6 @@ const { computeMACD }          = require('./indicators/macd.service');       // 
 const { macdAlerts }           = require('./indicators/macd.alerts');        // eventos MACD (cruces, etc.)
 const { persistStrongSignalsFromDivergences } = require('./strongSignals.azureCosmos.service');
 
-const { persistStrongSignals } = require('./indicators/strongSignals.service');
-
 // Modelo opcional de MongoDB para persistir señales
 const Signals = require('../models/mongodb/Signal');
 
@@ -189,7 +187,7 @@ async function analyzeRSIAndDivergences(
 
   if (persistStrong && instrument_id) {
     try {
-      await persistStrongSignals({
+      await persistStrongSignalsFromDivergences({
         divergences: signals,
         candles,
         instrument_id,
@@ -197,7 +195,7 @@ async function analyzeRSIAndDivergences(
         timeframe,
         minScore: minStrongScore,
         minPriceDeltaPct: minStrongPriceDeltaPct,
-        extra: { options: opts, ...strongExtra },
+        extra: { source: 'analyzeRSIAndDivergences', options: opts, ...strongExtra },
       });
     } catch (err) {
       console.error('[analyzeRSIAndDivergences] Failed to persist strong divergence signals', err);
@@ -457,7 +455,7 @@ async function analyzeIndicators(
 
   if (persistStrong && instrument_id) {
     try {
-      await persistStrongSignals({
+      await persistStrongSignalsFromDivergences({
         divergences: rsiDivs,
         candles,
         instrument_id,

@@ -32,7 +32,7 @@ import MarketSummary from '../components/market/MarketSummary';
 import NotificationTray from '../components/market/NotificationTray';
 
 // Conjunto de símbolos por defecto para iniciar la pantalla
-import { DEFAULT_SYMBOLS } from '../services/marketData';
+import { DEFAULT_SYMBOLS, fetchAnalytics } from '../services/marketData';
 
 // Servicio para persistir señales de trading en backend
 import { persistTradeSignals } from '../services/tradingSignals';
@@ -55,6 +55,7 @@ import {
   DEFAULT_SIGNAL_CONFIG,
   hydrateStrategyProfile,
 } from '../constants/strategyProfiles';
+import { DEFAULT_ALGORITHM_PARAMS } from '../constants/algorithmDefaults';
 
 // Constantes de mercados: intervalos posibles y modos de trading
 import { INTERVALS, TRADE_MODES } from '../constants/marketConstants';
@@ -67,6 +68,7 @@ import {
   getLimitForInterval,
   filterCandlesLastYear
 } from '../utils/marketUtils';
+import { InstrumentsAPI } from '../services/odata';
 
 // Estilos específicos de la página de mercado
 import '../assets/css/Mercado.css';
@@ -115,6 +117,11 @@ const Mercado = () => {
 
   // Estado de popup flotante (Notification "global" de la parte superior)
   const [popup, setPopup] = useState({ open: false, message: '' });
+
+  const [instrumentId, setInstrumentId] = useState('');
+  const [instrumentLookup, setInstrumentLookup] = useState(false);
+  const [instrumentError, setInstrumentError] = useState('');
+  const [savingStrongSignals, setSavingStrongSignals] = useState(false);
 
   // -------------------------------------------------------
   // 2. HOOK DE ESTRATEGIAS (se conecta al backend de strategies)
@@ -168,6 +175,48 @@ const Mercado = () => {
     setLimit(getLimitForInterval(interval));
   }, [interval]);
 
+  useEffect(() => {
+    let alive = true;
+    const fetchInstrument = async () => {
+      if (!symbol) {
+        setInstrumentId('');
+        setInstrumentError('');
+        return;
+      }
+
+      setInstrumentLookup(true);
+      setInstrumentError('');
+      try {
+        const escapedSymbol = String(symbol).replace(/'/g, "''");
+        const records = await InstrumentsAPI.list({
+          top: 1,
+          filter: `symbol eq '${escapedSymbol}'`,
+        });
+        if (!alive) return;
+        const entry = Array.isArray(records) ? records[0] : records;
+        const resolvedId = entry?.ID || entry?.id || entry?._id || '';
+        if (resolvedId) {
+          setInstrumentId(String(resolvedId));
+          setInstrumentError('');
+        } else {
+          setInstrumentId('');
+          setInstrumentError('Instrumento no registrado en el catálogo.');
+        }
+      } catch (err) {
+        if (!alive) return;
+        setInstrumentId('');
+        setInstrumentError('No se pudo resolver el instrumento para el símbolo seleccionado.');
+      } finally {
+        if (alive) setInstrumentLookup(false);
+      }
+    };
+
+    fetchInstrument();
+    return () => {
+      alive = false;
+    };
+  }, [symbol]);
+
   // -------------------------------------------------------
   // 5. HOOK PRINCIPAL DE DATOS DE MERCADO
   // -------------------------------------------------------
@@ -196,6 +245,18 @@ const Mercado = () => {
     periodEnd: selectedStrategy?.period_end,
   });
 
+  const strongSignalHint = instrumentLookup
+    ? 'Buscando identificador del instrumento...'
+    : instrumentId
+    ? `Se guardar?n las strong signals de ${symbol}.`
+    : instrumentError || 'Instrumento no encontrado en el cat?logo.';
+
+  const canSaveStrongSignals = useMemo(
+    () => Boolean(!loading && instrumentId && candles.length && !instrumentLookup),
+    [loading, instrumentId, candles.length, instrumentLookup],
+  );
+
+
   // -------------------------------------------------------
   // 6. FUNCIÓN PARA CARGAR MÁS VELAS HACIA ATRÁS (AUTOLOAD)
   // -------------------------------------------------------
@@ -207,6 +268,62 @@ const Mercado = () => {
       return Math.min(next, 10000);
     });
   }, [interval]);
+
+  const handleSaveStrongSignals = useCallback(async () => {
+    if (!instrumentId) {
+      setPopup({
+        open: true,
+        message: instrumentError || 'Selecciona un s?mbolo registrado para guardar strong signals.',
+      });
+      return;
+    }
+    if (!candles.length) {
+      setPopup({
+        open: true,
+        message: 'No hay velas suficientes para generar se?ales.',
+      });
+      return;
+    }
+
+    setSavingStrongSignals(true);
+    try {
+      await fetchAnalytics({
+        candles,
+        params: {
+          signalConfig,
+          algoParams: DEFAULT_ALGORITHM_PARAMS,
+          symbol,
+          interval,
+          instrument_id: instrumentId,
+          persistStrong: true,
+          timeframe: interval,
+          minStrongScore: strategySignalConfig?.minStrongScore ?? 0.75,
+          minStrongPriceDeltaPct: strategySignalConfig?.minStrongPriceDeltaPct ?? 1,
+        },
+      });
+      setPopup({
+        open: true,
+        message: 'Strong signals guardadas en Cosmos DB.',
+      });
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ||
+        err?.message ||
+        'No se pudieron guardar las strong signals.';
+      setPopup({ open: true, message });
+    } finally {
+      setSavingStrongSignals(false);
+    }
+  }, [
+    instrumentId,
+    candles,
+    signalConfig,
+    interval,
+    symbol,
+    strategySignalConfig,
+    instrumentError,
+  ]);
+
 
   // -------------------------------------------------------
   // 7. FILTRO: SOLO VELAS DEL ÚLTIMO AÑO (PARA GRÁFICOS/EVENTOS)
@@ -493,6 +610,10 @@ const Mercado = () => {
         <TradingControls
           tradeMode={tradeMode}
           onTradeModeChange={setTradeMode}
+          onSaveStrongSignals={handleSaveStrongSignals}
+          savingStrongSignals={savingStrongSignals}
+          canSaveStrongSignals={canSaveStrongSignals}
+          strongSignalHint={strongSignalHint}
         />
       </section>
 

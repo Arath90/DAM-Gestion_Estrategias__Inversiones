@@ -56,6 +56,25 @@
   font-weight: 600;
 }
 
+.strong-signals-control {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.strong-signals-btn {
+  width: 100%;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.strong-signals-hint {
+  color: #94a3b8;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
 /* === CONTROLES BÁSICOS === */
 .control-block {
   display: flex;

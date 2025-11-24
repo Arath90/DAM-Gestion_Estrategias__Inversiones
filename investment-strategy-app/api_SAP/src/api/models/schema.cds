@@ -19,7 +19,7 @@ entity Instruments {
       trading_class    : String;      // Clase bursatil o grupo de cotizacion definido por la bolsa.
       underlying_conid : Integer;     // CONID del subyacente, cuando aplica.
       created_at       : DateTime;    // Marca temporal de creacion en la fuente original.
-
+      // Relaciones virtuales:
       toCandles        : Composition of many Candles       on toCandles.instrument_ID = $self.ID;       // Relacion virtual a velas historicas.
       toSignals        : Composition of many Signals       on toSignals.instrument_ID = $self.ID;        // Señales generadas sobre el instrumento.
       toOrders         : Composition of many Orders        on toOrders.instrument_id = $self.ID;         // Ordenes que referencian al instrumento.

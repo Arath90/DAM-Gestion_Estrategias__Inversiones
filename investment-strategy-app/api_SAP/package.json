@@ -9,6 +9,7 @@
   "dependencies": {
     "@sap/cds": "^9",
     "@dotenvx/dotenvx": "^1.49.1",
+    "@azure/cosmos": "^4.1.1",
     "express": "^4",
     "cors": "^2",
     "mongoose": "^8"

@@ -25,7 +25,12 @@ service CatalogService {
     minDistance: Integer,
     rsiHigh: Integer,
     rsiLow: Integer,
-    useZones: Boolean
+    useZones: Boolean,
+    instrument_id: String,
+    persistStrong: Boolean,
+    minStrongScore: Decimal(9,6),
+    minStrongPriceDeltaPct: Decimal(9,6),
+    timeframe: String
   ) returns array of {
     type    : String;
     idx1    : Integer;
@@ -41,6 +46,7 @@ service CatalogService {
   entity RiskLimits                as projection on inv.RiskLimits;
   entity Positions                 as projection on inv.Positions;
   entity Signals                   as projection on inv.Signals;
+  entity StrongSignals             as projection on inv.StrongSignals;
   entity Backtests                 as projection on inv.Backtests;
   entity Candles                   as projection on inv.Candles;
   entity MLModels                  as projection on inv.MLModels;

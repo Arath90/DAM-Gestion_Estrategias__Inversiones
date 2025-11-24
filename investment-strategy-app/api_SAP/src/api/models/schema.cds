@@ -19,7 +19,7 @@ entity Instruments {
       trading_class    : String;      // Clase bursatil o grupo de cotizacion definido por la bolsa.
       underlying_conid : Integer;     // CONID del subyacente, cuando aplica.
       created_at       : DateTime;    // Marca temporal de creacion en la fuente original.
-
+      // Relaciones virtuales:
       toCandles        : Composition of many Candles       on toCandles.instrument_ID = $self.ID;       // Relacion virtual a velas historicas.
       toSignals        : Composition of many Signals       on toSignals.instrument_ID = $self.ID;        // Señales generadas sobre el instrumento.
       toOrders         : Composition of many Orders        on toOrders.instrument_id = $self.ID;         // Ordenes que referencian al instrumento.
@@ -123,6 +123,23 @@ entity Signals {
       rationale     : String;       // Explicacion legible para el usuario.
       createdAt     : DateTime;     // Auditoria.
       updatedAt     : DateTime;
+}
+
+@cds.persistence.skip
+entity StrongSignals {
+  key ID                : String;       // Identificador del registro en Cosmos DB.
+      strategy_code     : String;       // Estrategia que genero la alerta.
+      instrument_ID     : String;       // Instrumento asociado al registro.
+      divergence_type   : String;       // bullish / bearish u otra etiqueta.
+      timeframe         : String;       // Marco temporal (1h, 4h, 1D, etc.).
+      ts                : DateTime;     // Timestamp exacto de la divergencia.
+      score             : Decimal(9, 6); // Puntaje normalizado de la divergencia.
+      price_delta_pct   : Decimal(9, 6); // Variacion porcentual del precio.
+      indicator_delta_pct : Decimal(9, 6); // Variacion porcentual del indicador.
+      confidence        : Decimal(5, 3); // Nivel de confianza 0-1.
+      features_json     : LargeString;  // Payload adicional (JSON stringificado).
+      createdAt         : DateTime;     // Auditoria: creacion.
+      updatedAt         : DateTime;     // Auditoria: ultima actualizacion.
 }
 
 @cds.persistence.skip

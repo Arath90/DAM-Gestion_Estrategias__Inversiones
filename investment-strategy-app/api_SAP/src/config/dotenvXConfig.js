@@ -32,6 +32,12 @@ module.exports = {
     process.env.AZURE_COSMOS_STRONG_SIGNALS_COLLECTION ||
     'StrongSignals',
 
+  // Variables de entorno para Azure Cosmos DB
+  COSMOSDB_ENDPOINT: process.env.COSMOSDB_ENDPOINT || '',
+  COSMOSDB_KEY: process.env.COSMOSDB_KEY || '',
+  COSMOSDB_DATABASE: process.env.COSMOSDB_DATABASE || '',
+  COSMOSDB_CONTAINER: process.env.COSMOSDB_CONTAINER || '',
+
   // Configuracion del proveedor externo de velas
   CANDLES_API_URL: process.env.CANDLES_API_URL || '',
   CANDLES_API_KEY: process.env.CANDLES_API_KEY || '',

@@ -126,6 +126,23 @@ entity Signals {
 }
 
 @cds.persistence.skip
+entity StrongSignals {
+  key ID                : String;       // Identificador del registro en Cosmos DB.
+      strategy_code     : String;       // Estrategia que genero la alerta.
+      instrument_ID     : String;       // Instrumento asociado al registro.
+      divergence_type   : String;       // bullish / bearish u otra etiqueta.
+      timeframe         : String;       // Marco temporal (1h, 4h, 1D, etc.).
+      ts                : DateTime;     // Timestamp exacto de la divergencia.
+      score             : Decimal(9, 6); // Puntaje normalizado de la divergencia.
+      price_delta_pct   : Decimal(9, 6); // Variacion porcentual del precio.
+      indicator_delta_pct : Decimal(9, 6); // Variacion porcentual del indicador.
+      confidence        : Decimal(5, 3); // Nivel de confianza 0-1.
+      features_json     : LargeString;  // Payload adicional (JSON stringificado).
+      createdAt         : DateTime;     // Auditoria: creacion.
+      updatedAt         : DateTime;     // Auditoria: ultima actualizacion.
+}
+
+@cds.persistence.skip
 entity Backtests {
   key ID            : String;       // Identificador del run de backtest.
       strategy_code : String;       // Estrategia evaluada.

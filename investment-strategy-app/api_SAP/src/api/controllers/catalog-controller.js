@@ -33,6 +33,13 @@ const {
 const { makeCrudHandlers } = require("../services/crud.service");
 const { analyzeRSIAndDivergences } = require('../services/indicators.service');
 const { fetchCandlesForInstrument } = require('../services/candlesExternal.service');
+const {
+  getAllStrongSignals,
+  addStrongSignal,
+  updateStrongSignalById,
+  deleteStrongSignalById,
+  persistStrongSignalsFromDivergences,
+} = require('../services/strongSignals.azureCosmos.service');
 
 // === Modelos Mongoose expuestos a través del servicio OData ===============
 
@@ -269,6 +276,36 @@ function buildFilter(query = {}) {
   }
 
   return filter;
+}
+
+function mapStrongSignalOut(doc = {}) {
+  if (!doc) return doc;
+  const tsValue = doc.ts ? new Date(doc.ts) : null;
+  const features = doc.features_json;
+  let featuresJson = features;
+  if (features != null && typeof features !== 'string') {
+    try {
+      featuresJson = JSON.stringify(features);
+    } catch (_) {
+      featuresJson = String(features);
+    }
+  }
+
+  return {
+    ID: doc.id || doc.ID || doc._id || null,
+    strategy_code: doc.strategy_code || null,
+    instrument_ID: doc.instrument_id || doc.instrument_ID || null,
+    divergence_type: doc.divergence_type || null,
+    timeframe: doc.timeframe || null,
+    ts: tsValue ? tsValue.toISOString() : null,
+    score: doc.score ?? null,
+    price_delta_pct: doc.price_delta_pct ?? null,
+    indicator_delta_pct: doc.indicator_delta_pct ?? null,
+    confidence: doc.confidence ?? null,
+    features_json: featuresJson ?? null,
+    createdAt: doc.createdAt || null,
+    updatedAt: doc.updatedAt || null,
+  };
 }
 
 /**
@@ -622,6 +659,7 @@ class CatalogController extends cds.ApplicationService {
       RiskLimits,
       Positions,
       Signals,
+      StrongSignals,
       Backtests,
       Candles,
       MLModels,
@@ -824,6 +862,121 @@ class CatalogController extends cds.ApplicationService {
     // ========================================================================
     // Registro de entidades + reglas de unicidad
     // ========================================================================
+
+    if (StrongSignals) {
+      const readStrongSignals = async (ctx) => {
+        const filter = ctx.filter || {};
+        const query = {
+          id: ctx.id,
+          instrument_id: filter.instrument_id || filter.instrument_ID,
+          strategy_code: filter.strategy_code,
+          divergence_type: filter.divergence_type,
+          timeframe: filter.timeframe,
+          minScore: filter.minScore ?? filter.score,
+        };
+
+        if (Number.isFinite(ctx.top) && ctx.top > 0) query.limit = ctx.top;
+        if (Number.isFinite(ctx.skip) && ctx.skip > 0) query.offset = ctx.skip;
+        if (ctx.orderby && ctx.orderby.ts) {
+          query.orderByTs = ctx.orderby.ts === -1 ? 'DESC' : 'ASC';
+        }
+
+        const result = await getAllStrongSignals({ data: query });
+        if (result?.error) {
+          const err = new Error(result.error);
+          err.status = 400;
+          throw err;
+        }
+
+        const rows = result?.value || [];
+        if (ctx.id) {
+          if (!rows.length) {
+            const err = new Error('No encontrado');
+            err.status = 404;
+            throw err;
+          }
+          return [mapStrongSignalOut(rows[0])];
+        }
+
+        return rows.map(mapStrongSignalOut);
+      };
+
+      const createStrongSignal = async (ctx) => {
+        const payload = ctx.body || {};
+        const created = await addStrongSignal({ data: payload });
+        const doc = Array.isArray(created) ? created[0] : created;
+        return mapStrongSignalOut(doc);
+      };
+
+      const updateStrongSignal = async (ctx) => {
+        if (!ctx.id) {
+          const err = new Error('ID requerido');
+          err.status = 400;
+          throw err;
+        }
+        const payload = { ...(ctx.body || {}), id: ctx.id };
+        const updated = await updateStrongSignalById({ data: payload });
+        if (updated?.error) {
+          const err = new Error(updated.error);
+          err.status = updated.error === 'Registro no encontrado' ? 404 : 400;
+          throw err;
+        }
+        const doc = Array.isArray(updated) ? updated[0] : updated;
+        return mapStrongSignalOut(doc);
+      };
+
+      const deleteStrongSignal = async (ctx) => {
+        if (!ctx.id) {
+          const err = new Error('ID requerido');
+          err.status = 400;
+          throw err;
+        }
+        const result = await deleteStrongSignalById({ data: { id: ctx.id } });
+        if (result?.error) {
+          const err = new Error(result.error);
+          err.status = result.error === 'Registro no encontrado' ? 404 : 400;
+          throw err;
+        }
+        return { deleted: true, ID: ctx.id };
+      };
+
+      this.on('READ', StrongSignals, (req) =>
+        wrapAndRespond(
+          req,
+          'READ',
+          `READ ${StrongSignals.name}`,
+          'Lectura de StrongSignals (Cosmos DB)',
+          (ctx) => readStrongSignals({ ...ctx, db: 'cosmos' })
+        )
+      );
+      this.on('CREATE', StrongSignals, (req) =>
+        wrapAndRespond(
+          req,
+          'CREATE',
+          `CREATE ${StrongSignals.name}`,
+          'Creacion de StrongSignals (Cosmos DB)',
+          (ctx) => createStrongSignal({ ...ctx, db: 'cosmos' })
+        )
+      );
+      this.on('UPDATE', StrongSignals, (req) =>
+        wrapAndRespond(
+          req,
+          'UPDATE',
+          `UPDATE ${StrongSignals.name}`,
+          'Actualizacion de StrongSignals (Cosmos DB)',
+          (ctx) => updateStrongSignal({ ...ctx, db: 'cosmos' })
+        )
+      );
+      this.on('DELETE', StrongSignals, (req) =>
+        wrapAndRespond(
+          req,
+          'DELETE',
+          `DELETE ${StrongSignals.name}`,
+          'Eliminacion de StrongSignals (Cosmos DB)',
+          (ctx) => deleteStrongSignal({ ...ctx, db: 'cosmos' })
+        )
+      );
+    }
 
     registerEntity(Instruments, Instrument, {
       // Un instrumento se considera único por ib_conid.
@@ -1044,7 +1197,21 @@ class CatalogController extends cds.ApplicationService {
     //     ...
     //   ]
     this.on('DetectDivergences', async req => {
-      const { symbol, tf, period, swing, minDistance, rsiHigh, rsiLow, useZones } = req.data;
+      const {
+        symbol,
+        tf,
+        period,
+        swing,
+        minDistance,
+        rsiHigh,
+        rsiLow,
+        useZones,
+        instrument_id,
+        persistStrong,
+        minStrongScore,
+        minStrongPriceDeltaPct,
+        timeframe,
+      } = req.data;
       if (!symbol) return req.error(400, 'symbol requerido');
 
       // 1) Descargar velas del proveedor externo
@@ -1059,6 +1226,23 @@ class CatalogController extends cds.ApplicationService {
         rsiLow: +rsiLow || 30,
         useZones: !!useZones
       });
+
+      if (persistStrong && instrument_id) {
+        try {
+          await persistStrongSignalsFromDivergences({
+            divergences: signals,
+            candles,
+            instrument_id,
+            strategy_code: 'RSI_DIVERGENCE',
+            timeframe: timeframe || tf || null,
+            minScore: minStrongScore ?? 0.75,
+            minPriceDeltaPct: minStrongPriceDeltaPct ?? 1,
+            extra: { source: 'DetectDivergences action' },
+          });
+        } catch (err) {
+          console.error('[DetectDivergences] Cosmos persist error:', err);
+        }
+      }
 
       // 3) Responder solo los campos relevantes para el cliente
       return signals.map(s => ({

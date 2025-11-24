@@ -28,6 +28,7 @@ const { detectRSIDivergences } = require('./indicators/divergence.service'); // 
 const { rsiAlerts }            = require('./indicators/rsi.alerts');         // alertas por niveles RSI
 const { computeMACD }          = require('./indicators/macd.service');       // cálculo MACD
 const { macdAlerts }           = require('./indicators/macd.alerts');        // eventos MACD (cruces, etc.)
+const { persistStrongSignalsFromDivergences } = require('./strongSignals.azureCosmos.service');
 
 const { persistStrongSignals } = require('./indicators/strongSignals.service');
 
@@ -74,6 +75,7 @@ const Signals = require('../models/mongodb/Signal');
  *   @param {string|null} [optionsExtra.instrument_id=null]
  *     Identificador del instrumento para enlazar las señales persistidas.
  *   @param {boolean} [optionsExtra.persistStrong=false]
+<<<<<<< Updated upstream
  *     Si es true, replica divergencias fuertes hacia Cosmos DB.
  *   @param {number} [optionsExtra.minStrongScore=0.75]
  *     Puntaje minimo para considerar una divergencia como fuerte.
@@ -83,6 +85,17 @@ const Signals = require('../models/mongodb/Signal');
  *     Marco temporal asociado a la serie evaluada (ej. 1h, 4h).
  *   @param {Object} [optionsExtra.strongExtra={}]
  *     Datos adicionales que se adjuntan al documento en Cosmos.
+=======
+ *     Replica las divergencias fuertes hacia Cosmos DB.
+ *   @param {number} [optionsExtra.minStrongScore=0.75]
+ *     Puntaje mínimo para considerar una divergencia "fuerte".
+ *   @param {number} [optionsExtra.minStrongPriceDeltaPct=1]
+ *     Alternativa basada en % de precio para marcar una divergencia fuerte.
+ *   @param {string|null} [optionsExtra.timeframe=null]
+ *     Marco temporal (1h, 4h, 1D) asociado al análisis.
+ *   @param {Object} [optionsExtra.strongExtra={}]
+ *     Payload adicional que se adjunta en Cosmos DB (metadata).
+>>>>>>> Stashed changes
  *
  * 🧾 Respuesta:
  * @returns {Promise<{
@@ -186,6 +199,7 @@ async function analyzeRSIAndDivergences(
     }
   }
 
+<<<<<<< Updated upstream
   if (persistStrong && instrument_id) {
     try {
       await persistStrongSignals({
@@ -203,6 +217,27 @@ async function analyzeRSIAndDivergences(
     }
   } else if (persistStrong && !instrument_id) {
     console.warn('[analyzeRSIAndDivergences] persistStrong requiere instrument_id.');
+=======
+  if (persistStrong) {
+    if (!instrument_id) {
+      console.warn('[analyzeRSIAndDivergences] persistStrong requiere instrument_id.');
+    } else {
+      try {
+        await persistStrongSignalsFromDivergences({
+          divergences: signals,
+          candles,
+          instrument_id,
+          strategy_code: 'RSI_DIVERGENCE',
+          timeframe,
+          minScore: minStrongScore,
+          minPriceDeltaPct: minStrongPriceDeltaPct,
+          extra: { source: 'analyzeRSIAndDivergences', options: opts, ...strongExtra },
+        });
+      } catch (err) {
+        console.error('[analyzeRSIAndDivergences] Failed to persist strong signals in Cosmos DB', err);
+      }
+    }
+>>>>>>> Stashed changes
   }
 
   // --------------------------------------------------------------------------
@@ -249,6 +284,7 @@ async function analyzeRSIAndDivergences(
  *   @param {string|null} [extra.instrument_id=null]
  *     Instrumento asociado a las señales persistidas.
  *   @param {boolean} [extra.persistStrong=false]
+<<<<<<< Updated upstream
  *     Replica divergencias fuertes hacia Cosmos DB.
  *   @param {number} [extra.minStrongScore=0.75]
  *     Puntaje minimo requerido para guardar en Cosmos.
@@ -258,6 +294,17 @@ async function analyzeRSIAndDivergences(
  *     Marco temporal asociado al analisis actual.
  *   @param {Object} [extra.strongExtra={}]
  *     Payload adicional para adjuntar en el documento de Cosmos.
+=======
+ *     Si true, replica divergencias fuertes en Cosmos DB.
+ *   @param {number} [extra.minStrongScore=0.75]
+ *     Puntaje mínimo para guardar en Cosmos.
+ *   @param {number} [extra.minStrongPriceDeltaPct=1]
+ *     Guardrail alternativo usando % de precio.
+ *   @param {string|null} [extra.timeframe=null]
+ *     Marco temporal actual.
+ *   @param {Object} [extra.strongExtra={}]
+ *     Payload adicional (p.ej. parámetros del endpoint) para Cosmos.
+>>>>>>> Stashed changes
  *
  * @returns {Promise<{
  *   rsi14: Array<{time:number,value:number}>,
@@ -454,6 +501,7 @@ async function analyzeIndicators(
     }
   }
 
+<<<<<<< Updated upstream
   if (persistStrong && instrument_id) {
     try {
       await persistStrongSignals({
@@ -471,6 +519,27 @@ async function analyzeIndicators(
     }
   } else if (persistStrong && !instrument_id) {
     console.warn('[analyzeIndicators] persistStrong requiere instrument_id.');
+=======
+  if (persistStrong) {
+    if (!instrument_id) {
+      console.warn('[analyzeIndicators] persistStrong requiere instrument_id.');
+    } else {
+      try {
+        await persistStrongSignalsFromDivergences({
+          divergences: rsiDivs,
+          candles,
+          instrument_id,
+          strategy_code: 'RSI_DIVERGENCE',
+          timeframe: timeframe ?? opts?.timeframe ?? null,
+          minScore: minStrongScore,
+          minPriceDeltaPct: minStrongPriceDeltaPct,
+          extra: { source: 'analyzeIndicators', options: opts, ...strongExtra },
+        });
+      } catch (err) {
+        console.error('[analyzeIndicators] Failed to persist strong divergence signals', err);
+      }
+    }
+>>>>>>> Stashed changes
   }
 
   // --------------------------------------------------------------------------

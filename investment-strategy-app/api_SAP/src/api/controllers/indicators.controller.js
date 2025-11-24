@@ -87,9 +87,19 @@ async function analytics(req, res) {
     //   - generar señales / tradeSignals
     //
     // Aquí indicamos persist=false para no guardar nada en Mongo desde este endpoint.
+    const strongExtra = {
+      ...(params?.strongExtra || {}),
+      source: params?.strongExtra?.source || 'analytics_endpoint',
+    };
+
     const result = await analyzeIndicators(normCandles, params, {
       persist: false,
       instrument_id: params?.instrument_id ?? null,
+      persistStrong: Boolean(params?.persistStrong),
+      minStrongScore: params?.minStrongScore,
+      minStrongPriceDeltaPct: params?.minStrongPriceDeltaPct,
+      timeframe: params?.timeframe ?? params?.tf ?? null,
+      strongExtra,
     });
 
     /**

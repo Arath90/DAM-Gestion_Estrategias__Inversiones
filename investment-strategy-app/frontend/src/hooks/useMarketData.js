@@ -435,8 +435,21 @@ const analytics = useMemo(() => {
 
   // Detectar divergencias
   const divergenceParams = parseDivergenceConfig(mergedAlgo.divergence);
-  const divergences = findDivergences(priceHighSeries, rsiValuesByIndex, divergenceParams);
+  let divergences = findDivergences(priceHighSeries, rsiValuesByIndex, divergenceParams);
 
+  // --- FILTRO DE DIVERGENCIAS (Para evitar sobrecarga visual) ---
+  const MAX_DIVERGENCES_TO_KEEP = 10; // Mantener solo las 10 más recientes/fuertes
+  const MIN_SCORE_THRESHOLD = 0.001; // Solo divergencias con un score mínimo (ajustar si es necesario)
+
+  // 1. Filtrar por score mínimo (mayor calidad)
+  divergences = divergences.filter(d => d.score >= MIN_SCORE_THRESHOLD);
+
+  // 2. Ordenar por índice del pico final (p2Index) de forma descendente (más recientes primero)
+  divergences.sort((a, b) => b.p2Index - a.p2Index);
+
+  // 3. Limitar el número de divergencias a dibujar (máximo 10)
+  divergences = divergences.slice(0, MAX_DIVERGENCES_TO_KEEP);
+  
   // Construir objeto de indicadores para motor de señales
   const indicators = buildIndicatorsObject({
     rsiValuesByIndex,

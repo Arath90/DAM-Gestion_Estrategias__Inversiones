@@ -376,3 +376,8 @@ button.toggle-btn {
   box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
   width: 60px;
 }
+
+.market-chart.bb-chart {
+  min-height: 180px; 
+  background: var(--project-color5);
+}

@@ -15,6 +15,7 @@ const MarketChartsContainer = ({
   chartContainerRef,
   rsiContainerRef,
   macdContainerRef,
+  bbContainerRef,
   loading,
   error,
   candles,
@@ -59,6 +60,16 @@ const MarketChartsContainer = ({
           {!loading && !macdLine.length && (
             <div className="chart-overlay info">MACD requiere más historial.</div>
           )}
+        </div>
+      )}
+
+      {/* Gráfico Bandas de Bollinger (BB) */}
+      {settings.bb &&(
+        <div className="market-chart macd-chart bb-chart" ref={bbContainerRef}>
+          <div className="chart-title" title="Bandas de Bollinger — métrica / ancho.">
+            Bollinger (panel)
+          </div>
+          {loading && <div className="chart-overlay">Calculando BB...</div>}
         </div>
       )}
     </section>

@@ -121,6 +121,10 @@ const Mercado = () => {
     signals,        // Señales de indicadores (no necesariamente trade)
     tradeSignals,   // Señales de trading (BUY/SELL) ya procesadas
     divergences,    // Divergencias detectadas por backend o lógica interna
+    bbMiddle,       // Banda media de Bollinger
+    bbUpper,        // Banda superior de Bollinger
+    bbLower,      // Banda inferior de Bollinger
+    bbMetric,     // Métrica adicional de Bollinger (e.g., BandWidth)
   } = useMarketData({
     symbol,
     interval,
@@ -187,6 +191,7 @@ const Mercado = () => {
     chartContainerRef,  // ref del contenedor del gráfico principal
     rsiContainerRef,    // ref contenedor gráfico RSI
     macdContainerRef,   // ref contenedor gráfico MACD
+    bbContainerRef,     // ref contenedor gráfico BB
     chartRef,           // referencia a la instancia del chart (para timeScale, etc.)
     candleSeriesRef     // referencia a la serie de velas
   } = useMarketCharts({
@@ -200,6 +205,10 @@ const Mercado = () => {
     macdHistogram:  shouldInitializeCharts ? macdHistogram : [],
     signals:        shouldInitializeCharts ? signals : [],
     divergences:    shouldInitializeCharts ? divergences : [],
+    bbMiddle:       shouldInitializeCharts ? bbMiddle : [],   
+    bbUpper:        shouldInitializeCharts ? bbUpper : [],    
+    bbLower:        shouldInitializeCharts ? bbLower : [],     
+    bbMetric:       shouldInitializeCharts ? bbMetric : [],
     settings,
   });
 
@@ -284,6 +293,7 @@ const Mercado = () => {
         chartContainerRef={chartContainerRef}
         rsiContainerRef={rsiContainerRef}
         macdContainerRef={macdContainerRef}
+        bbContainerRef={bbContainerRef}
         loading={loading}
         error={error}
         candles={candles}

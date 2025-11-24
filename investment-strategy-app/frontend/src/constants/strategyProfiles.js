@@ -6,7 +6,7 @@ export const INDICATOR_TOGGLES = [
   { key: 'rsi', label: 'RSI', icon: '⚡', defaultValue: true },
   { key: 'macd', label: 'MACD', icon: '〰️', defaultValue: true },
   { key: 'signals', label: 'Señales', icon: '🎯', defaultValue: true },
-  { key: 'bollinger', label: 'Bandas de Bollinger', icon: '⭕', defaultValue: true },
+  { key: 'bb', label: 'Bandas de Bollinger', icon: '⭕', defaultValue: true },
 ];
 
 export const DEFAULT_INDICATOR_SETTINGS = INDICATOR_TOGGLES.reduce((acc, item) => {
@@ -18,6 +18,7 @@ export const DEFAULT_SIGNAL_CONFIG = {
   useEMA: true,
   useRSI: true,
   useMACD: true,
+  bb: true,
   rsiOversold: 30,
   rsiOverbought: 70,
   macdHistogramThreshold: 0.15,

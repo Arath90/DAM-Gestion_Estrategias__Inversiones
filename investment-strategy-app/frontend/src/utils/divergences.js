@@ -37,12 +37,12 @@ function findNearestPeak(peaksArray, targetIndex, maxDistance = 10) {
 // encuentra divergencias entre priceSeries (por ejemplo highs o lows) y indicatorSeries (RSI)
 export function findDivergences(priceSeries = [], indicatorSeries = [], options = {}) {
   const {
-    peakWindow = 3,
-    maxBarsBetweenPeaks = 40,
-    minBarsBetweenPeaks = 2,
-    minPriceChangePct = 0.003, // 0.3%
-    minIndicatorChangePct = 0.01, // 1%
-    maxPeakDistance = 8
+    peakWindow = 5, // Aumentado: Un pico debe ser el extremo en una ventana de 5 velas a cada lado (más significativo)
+    maxBarsBetweenPeaks = 60, // Mantenido o ajustado. Un rango de 40 a 60 barras es razonable.
+    minBarsBetweenPeaks = 5, // Aumentado: Se requiere al menos 5 barras entre picos para filtrar ruido.
+    minPriceChangePct = 0.005, // Aumentado a 0.5%: El cambio de precio debe ser más significativo.
+    minIndicatorChangePct = 0.02, // Aumentado a 2%: El cambio de indicador (RSI) debe ser más notable.
+    maxPeakDistance = 5
   } = options;
 
   const priceHighPeaks = detectLocalPeaks(priceSeries, peakWindow, 'max');

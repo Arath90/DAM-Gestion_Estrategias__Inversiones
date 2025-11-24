@@ -5,6 +5,7 @@ import { priceFormatter } from '../../constants/marketConstants';
 import RsiCalculationTable from './RsiCalculationTable';
 import MacdCalculationTable from './MacdCalculationTable';
 import EmaCalculationTable from './EmaCalculationTable';
+import BollingerCalculationTable from './BollingerCalculationTable';
 import CombinedCalculationTable from './CombinedCalculationTable';
 
 const humanizeType = (t) => {
@@ -34,7 +35,10 @@ const EventsTable = ({
   ema50 = [],
   macdLine = [],
   macdSignal = [],
-  macdHistogram = []
+  macdHistogram = [],
+  bbUpper = [],
+  bbMiddle = [],
+  bbLower = []
 }) => {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('events'); // 'events', 'calculation'
@@ -49,8 +53,8 @@ const EventsTable = ({
     const useRSI = settings.rsi && signalConfig.useRSI !== false;
     const useMACD = settings.macd && signalConfig.useMACD !== false;
     const useEMA = settings.ema20 && settings.ema50 && signalConfig.useEMA !== false;
-    
-    const activeCount = [useRSI, useMACD, useEMA].filter(Boolean).length;
+    const useBB = settings.bb && signalConfig?.BB_period != null;    
+    const activeCount = [useRSI, useMACD, useEMA, useBB].filter(Boolean).length;
     
     // Si hay múltiples indicadores activos, mostrar tabla combinada
     if (activeCount > 1) return 'combined';
@@ -59,6 +63,7 @@ const EventsTable = ({
     if (useRSI) return 'rsi';
     if (useMACD) return 'macd';
     if (useEMA) return 'ema';
+    if (useBB) return 'bb';
     return 'combined'; // Por defecto combinada
   }, [settings, signalConfig]);
 
@@ -68,6 +73,7 @@ const EventsTable = ({
       case 'rsi': return 'Cálculo RSI';
       case 'macd': return 'Cálculo MACD';
       case 'ema': return 'Cálculo EMA (Cruces)';
+      case 'bb': return 'Cálculo Bollinger';
       default: return 'Cálculo';
     }
   }, [calculationType]);
@@ -183,6 +189,15 @@ const EventsTable = ({
                   macdSignal={macdSignal}
                   macdHistogram={macdHistogram}
                   signalConfig={signalConfig} 
+                />
+              )}
+              {calculationType === 'bb' && (
+                <BollingerCalculationTable 
+                  candles={candles}
+                  bbUpper={bbUpper}
+                  bbMiddle={bbMiddle}
+                  bbLower={bbLower}
+                  signalConfig={signalConfig}
                 />
               )}
               {calculationType === 'ema' && (

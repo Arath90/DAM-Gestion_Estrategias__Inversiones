@@ -6,6 +6,8 @@ export const DEFAULT_ALGORITHM_PARAMS = {
   macdFast: 12,
   macdSlow: 26,
   macdSignal: 9,
+  bbPeriod: 20,      
+  bbStdDev: 2, 
   divergence: {
     peakWindow: 3,
     maxBarsBetweenPeaks: 60,

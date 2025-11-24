@@ -74,6 +74,24 @@ const MACD_CHART_OPTIONS = {
   },
 };
 
+const BB_CHART_OPTIONS = {
+  layout: {
+    background: { color: '#131e3b' }, 
+    textColor: '#e2e8f0',
+    fontFamily: 'var(--project-font)',
+  },
+  rightPriceScale: {
+    borderVisible: false,
+    scaleMargins: { top: 0.1, bottom: 0.1 },
+  },
+  timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false },
+  crosshair: { mode: CrosshairMode.Normal },
+  grid: {
+    horzLines: { color: '#1e293b' },
+    vertLines: { color: '#1e293b' },
+  },
+};
+
 const mapVolumeHistogram = (seriesRef, candles) => {
   if (!seriesRef.current || !Array.isArray(candles)) return;
   try {
@@ -170,14 +188,17 @@ export const useMarketCharts = ({
   bbMiddle = [],
   bbUpper = [],
   bbLower = [],
+  bbMetric = [],
 }) => {
   const chartContainerRef = useRef(null);
   const rsiContainerRef = useRef(null);
   const macdContainerRef = useRef(null);
+  const bbContainerRef = useRef(null);
 
   const chartRef = useRef(null);
   const rsiChartRef = useRef(null);
   const macdChartRef = useRef(null);
+  const bbChartRef = useRef(null);
   const candleSeriesRef = useRef(null);
   const volumeSeriesRef = useRef(null);
   const ema20SeriesRef = useRef(null);
@@ -198,6 +219,7 @@ export const useMarketCharts = ({
   const bbUpperSeriesRef = useRef(null);
   const bbMiddleSeriesRef = useRef(null);
   const bbLowerSeriesRef = useRef(null);
+  const bbMetricSeriesRef = useRef(null);
 
   //Nuevo codigo de Andrick y chat
     // Convierte tus signals (desde useMarketData) en markers compatibles con lightweight-charts
@@ -681,6 +703,98 @@ export const useMarketCharts = ({
     }
   }, [settings.macd]);
 
+useEffect(() => {
+  if (!settings.bb) return;
+  if (!bbContainerRef.current || bbChartRef.current) return;
+
+  // Panel dedicado a Bollinger Bands 
+  const bbChart = createChart(bbContainerRef.current, BB_CHART_OPTIONS);
+  bbChartRef.current = bbChart;
+  bbUpperSeriesRef.current = bbChart.addLineSeries({ color: '#f59e0b', lineWidth: 1, lineStyle: 2, title: 'Upper' });
+  bbMiddleSeriesRef.current = bbChart.addLineSeries({ color: '#ffffff', lineWidth: 1, title: 'Middle' });
+  bbLowerSeriesRef.current = bbChart.addLineSeries({ color: '#f59e0b', lineWidth: 1, lineStyle: 2, title: 'Lower' });
+
+  if (bbUpperSeriesRef.current) bbUpperSeriesRef.current.setData(bbUpper || []);
+  if (bbMiddleSeriesRef.current) bbMiddleSeriesRef.current.setData(bbMiddle || []);
+  if (bbLowerSeriesRef.current) bbLowerSeriesRef.current.setData(bbLower || []);
+
+  // Creamos la serie de línea para la métrica de BB 
+  bbMetricSeriesRef.current = bbChart.addLineSeries({ 
+    color: '#54e346', 
+    lineWidth: 2, 
+    title: 'BB Metric' 
+  });
+
+
+
+  const handleResize = () => {
+    if (!bbContainerRef.current) return;
+    const { width } = bbContainerRef.current.getBoundingClientRect();
+    bbChart.applyOptions({ width: Math.max(width, 320) });
+  };
+
+  handleResize();
+  window.addEventListener('resize', handleResize);
+
+  const resizeObserver = new ResizeObserver(() => {
+    handleResize();
+  });
+  resizeObserver.observe(bbContainerRef.current);
+
+  // Sincronizar la escala de tiempo con el gráfico principal
+  if (chartRef.current) {
+    const syncRange = () => {
+      if (chartRef.current && bbChart) {
+        try {
+          const range = chartRef.current.timeScale().getVisibleRange();
+          if (range && range.from != null && range.to != null) {
+            bbChart.timeScale().setVisibleRange(range);
+          }
+        } catch (e) {
+          console.debug('[BB] Error sincronizando rango:', e.message);
+        }
+      }
+    };
+
+    chartRef.current.timeScale().subscribeVisibleTimeRangeChange(syncRange);
+    
+    return () => {
+      if (chartRef.current) {
+        try {
+          chartRef.current.timeScale().unsubscribeVisibleTimeRangeChange(syncRange);
+        } catch (e) {}
+      }
+      window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
+      bbChart.remove();
+      bbChartRef.current = null;
+      bbMetricSeriesRef.current = null;
+      bbMiddleSeriesRef.current = null; 
+      bbUpperSeriesRef.current = null;
+      bbLowerSeriesRef.current = null;
+    };
+  }
+
+  return () => {
+    window.removeEventListener('resize', handleResize);
+    resizeObserver.disconnect();
+    bbChart.remove();
+    bbChartRef.current = null;
+    bbMetricSeriesRef.current = null;
+    bbMiddleSeriesRef.current = null; 
+    bbUpperSeriesRef.current = null;
+    bbLowerSeriesRef.current = null;
+  };
+}, [settings.bb]);
+
+useEffect(() => {
+  if (!settings.bb && bbChartRef.current) {
+    bbChartRef.current.remove();
+    bbChartRef.current = null;
+    bbMetricSeriesRef.current = null;
+  }
+}, [settings.bb]);
+
   // Sincronización bidireccional entre todos los gráficos
     // Sincronización centralizada entre gráficos (evita loops y aplica rango solo si cambia)
   useEffect(() => {
@@ -690,6 +804,7 @@ export const useMarketCharts = ({
       chartRef.current,
       rsiChartRef.current,
       macdChartRef.current,
+      bbChartRef.current,
     ].filter(Boolean);
 
     if (charts.length <= 1) return;
@@ -837,6 +952,17 @@ export const useMarketCharts = ({
             } catch (e) {
               console.debug('[MACD] Error estableciendo rango:', e.message);
             }
+
+            // BB Metric (Panel secundario)
+          try {
+            if (settings.bb && bbMetricSeriesRef.current) {
+              bbMetricSeriesRef.current.setData(bbMetric || []);
+            } else if (bbMetricSeriesRef.current) {
+              bbMetricSeriesRef.current.setData([]);
+            }
+          } catch (e) {
+            console.debug('[Charts] Error estableciendo BB Metric:', e.message);
+          }
           }, 100);
         }
       }
@@ -850,6 +976,16 @@ export const useMarketCharts = ({
         }
       } catch (e) {
         console.debug('[Charts] Error estableciendo volumen:', e.message);
+      }
+
+      try {
+        if (settings.bb && bbMetricSeriesRef.current) {
+          bbMetricSeriesRef.current.setData(bbMetric || []);
+        } else if (bbMetricSeriesRef.current) {
+          bbMetricSeriesRef.current.setData([]);
+        }
+      } catch (e) {
+        console.debug('[Charts] Error estableciendo BB Metric:', e.message);
       }
 
       // Indicadores de línea
@@ -876,7 +1012,19 @@ export const useMarketCharts = ({
       } catch (e) {
         console.debug('[Charts] Error estableciendo SMA200:', e.message);
       }
-
+      try {
+        if (bbMiddleSeriesRef.current) {
+          bbMiddleSeriesRef.current.setData(settings.bb ? bbMiddle : []);
+        }
+        if (bbUpperSeriesRef.current) {
+          bbUpperSeriesRef.current.setData(settings.bb ? bbUpper : []);
+        }
+        if (bbLowerSeriesRef.current) {
+          bbLowerSeriesRef.current.setData(settings.bb ? bbLower : []);
+        }
+      } catch (e) {
+        console.debug('[Charts] Error estableciendo Bandas de Bollinger:', e.message);
+      }
       try {
         if (settings.bb) {
           if (bbUpperSeriesRef.current) bbUpperSeriesRef.current.setData(bbUpper || []);
@@ -970,6 +1118,7 @@ export const useMarketCharts = ({
     bbMiddle,
     bbUpper,
     bbLower,
+    bbMetric,
   ]);
 
 
@@ -977,6 +1126,7 @@ export const useMarketCharts = ({
     chartContainerRef,
     rsiContainerRef,
     macdContainerRef,
+    bbContainerRef,
     // Exponer las referencias de los charts para funcionalidades adicionales
     chartRef: chartRef.current,
     rsiChartRef: rsiChartRef.current,

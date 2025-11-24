@@ -28,6 +28,10 @@ const MarketConfigPanel = ({
   tradeMode,
   onTradeModeChange,
   error,
+  onSaveStrongSignals,
+  savingStrongSignals,
+  canSaveStrongSignals,
+  strongSignalHint,
 }) => {
   return (
     <section className="market-controls">
@@ -67,6 +71,10 @@ const MarketConfigPanel = ({
       <TradingControls
         tradeMode={tradeMode}
         onTradeModeChange={onTradeModeChange}
+        onSaveStrongSignals={onSaveStrongSignals}
+        savingStrongSignals={savingStrongSignals}
+        canSaveStrongSignals={canSaveStrongSignals}
+        strongSignalHint={strongSignalHint}
       />
     </section>
   );

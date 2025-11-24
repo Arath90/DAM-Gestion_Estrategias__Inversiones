@@ -17,17 +17,13 @@ import MarketSummary from '../components/market/MarketSummary';
 import EventsTable from '../components/market/EventsTable';
 import NotificationTray from '../components/market/NotificationTray';
 
-<<<<<<< HEAD
 // Hooks personalizados
-=======
 // Conjunto de símbolos por defecto para iniciar la pantalla
 import { DEFAULT_SYMBOLS, fetchAnalytics } from '../services/marketData';
 
 // Servicio para persistir señales de trading en backend
-import { persistTradeSignals } from '../services/tradingSignals';
 
 // Hook principal para cargar datos de mercado + indicadores + señales
->>>>>>> SprintArathFinde
 import { useMarketData } from '../hooks/useMarketData';
 import { useMarketCharts } from '../hooks/useMarketCharts';
 import { useStrategies } from '../hooks/useStrategies';
@@ -35,22 +31,12 @@ import { useSupportResistance } from '../hooks/useSupportResistance';
 import { useMarketAutoload } from '../hooks/useMarketAutoload';
 import { useTradeSignalNotifications } from '../hooks/useTradeSignalNotifications';
 
-<<<<<<< HEAD
-// Constantes y configuraciones
-import { DEFAULT_SYMBOLS } from '../services/marketData';
-=======
-// Configuraciones por defecto de indicadores y señales de estrategias
-import { 
-  DEFAULT_INDICATOR_SETTINGS,
-  DEFAULT_SIGNAL_CONFIG,
-  hydrateStrategyProfile,
-} from '../constants/strategyProfiles';
+// Configuraciones por defecto de indicadores y se?ales de estrategias
+import { DEFAULT_INDICATOR_SETTINGS } from '../constants/strategyProfiles';
 import { DEFAULT_ALGORITHM_PARAMS } from '../constants/algorithmDefaults';
 
 // Constantes de mercados: intervalos posibles y modos de trading
->>>>>>> SprintArathFinde
 import { INTERVALS, TRADE_MODES } from '../constants/marketConstants';
-import { DEFAULT_INDICATOR_SETTINGS } from '../constants/strategyProfiles';
 
 // Utilidades
 import { 
@@ -58,16 +44,13 @@ import {
   getLimitForInterval,
   filterCandlesLastYear
 } from '../utils/marketUtils';
-<<<<<<< HEAD
 import { 
   getStrategyConfig,
   mergeSignalConfig,
   prepareIndicatorsForEvents
 } from '../utils/strategyConfig';
 import { buildEvents } from '../utils/events';
-=======
 import { InstrumentsAPI } from '../services/odata';
->>>>>>> SprintArathFinde
 
 // Estilos
 import '../assets/css/Mercado.css';
@@ -418,9 +401,12 @@ const Mercado = () => {
         tradeMode={tradeMode}
         onTradeModeChange={setTradeMode}
         error={error}
+        onSaveStrongSignals={handleSaveStrongSignals}
+        savingStrongSignals={savingStrongSignals}
+        canSaveStrongSignals={canSaveStrongSignals}
+        strongSignalHint={strongSignalHint}
       />
 
-<<<<<<< HEAD
       {/* Contenedor de gráficos: precio, RSI y MACD */}
       <MarketChartsContainer
         chartContainerRef={chartContainerRef}
@@ -433,74 +419,6 @@ const Mercado = () => {
         macdLine={macdLine}
         settings={settings}
       />
-=======
-        {/* Selector de estrategia + panel de configuración de la estrategia */}
-        <StrategySelector
-          strategies={strategies}
-          selectedStrategyId={selectedStrategyId}
-          onStrategyChange={setSelectedStrategyId}
-          strategiesLoading={strategiesLoading}
-          strategiesError={strategiesError}
-          onRefreshStrategies={loadStrategies}
-          settings={settings}
-          signalConfig={signalConfig}
-        />
-
-        <div className="controls-divider"></div>
-
-        {/* Controles de modo de trading (notificar vs auto) */}
-        <TradingControls
-          tradeMode={tradeMode}
-          onTradeModeChange={setTradeMode}
-          onSaveStrongSignals={handleSaveStrongSignals}
-          savingStrongSignals={savingStrongSignals}
-          canSaveStrongSignals={canSaveStrongSignals}
-          strongSignalHint={strongSignalHint}
-        />
-      </section>
-
-      {/* Contenedor principal de gráficos */}
-      <section className="market-chart-wrapper">
-        {/* Gráfico principal de precio (velas + indicadores de precio) */}
-        <div className="market-chart" ref={chartContainerRef}>
-          <div className="chart-title" title="Velas, volumen e indicadores seleccionados.">
-            Precio y señales
-          </div>
-          {loading && <div className="chart-overlay">Cargando datos...</div>}
-          {!loading && error && <div className="chart-overlay error">{error}</div>}
-          {!loading && !error && !candles.length && (
-            <div className="chart-overlay info">Sin datos para el rango seleccionado.</div>
-          )}
-        </div>
-
-        {/* Gráfico RSI (opcional según settings) */}
-        {settings.rsi && (
-          <div className="market-chart rsi-chart" ref={rsiContainerRef}>
-            <div className="chart-title" title="Oscilador de fuerza relativa (RSI).">
-              RSI
-            </div>
-            {loading && <div className="chart-overlay">Calculando RSI...</div>}
-            {!loading && !rsi14.length && (
-              <div className="chart-overlay info">RSI requiere más historial.</div>
-            )}
-          </div>
-        )}
-
-        {/* Gráfico MACD (opcional según settings) */}
-        {settings.macd && (
-          <div className="market-chart macd-chart" ref={macdContainerRef}>
-            <div className="chart-title" title="MACD, línea de señal e histograma.">
-              MACD
-            </div>
-            {loading && <div className="chart-overlay">Calculando MACD...</div>}
-            {!loading && !macdLine.length && (
-              <div className="chart-overlay info">MACD requiere más historial.</div>
-            )}
-          </div>
-        )}
-      </section>
->>>>>>> SprintArathFinde
-
       {/* Resumen de mercado + niveles de soporte/resistencia */}
       <MarketSummary
         symbol={symbol}

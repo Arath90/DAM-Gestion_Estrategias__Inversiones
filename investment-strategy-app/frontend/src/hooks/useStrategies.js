@@ -8,7 +8,8 @@ import {
 } from '../utils/marketUtils';
 
 /**
- * Hook para gestionar las estrategias de trading
+ * Hook para gestionar las estrategias de trading.
+ * encapsula READ al catálogo /Strategies (CAP) y mantiene selección activa.
  */
 export const useStrategies = () => {
   const [strategies, setStrategies] = useState([]);

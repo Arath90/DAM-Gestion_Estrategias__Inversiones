@@ -4,11 +4,13 @@ const mongoose = require('mongoose');
 const isValidObjectId = (id) =>
   typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id) && mongoose.isValidObjectId(id);
 
+// Convierte documento Mongo en shape esperado por CAP (ID string, sin _id/__v).
 const mapOut = (doc) => {
   const o = doc?.toObject ? doc.toObject() : doc;
   const { _id, __v, ...rest } = o || {};
   return { ID: _id?.toString?.(), ...rest };
 };
+// Hace lo inverso: quita ID virtual para poder guardarlo en Mongo.
 const mapIn = (data) => { const { ID, ...rest } = data || {}; return rest; };
 
 // Mapea errores típicos de Mongo a HTTP legibles
@@ -23,8 +25,12 @@ function normalizeMongoError(err) {
   return err;
 }
 
+/**
+ * Genera handlers CRUD compatibles con CAP para una entidad y modelo Mongo dado.
+ * Se usa por registerEntity para derivar `READ/CREATE/UPDATE/DELETE`.
+ */
 function makeCrudHandlers(cdsEntity, Model, opts = {}) {
-  const { uniqueCheck, beforeCreate, beforeUpdate } = opts;
+  const { uniqueCheck, beforeCreate, beforeUpdate, beforeRead, beforeDelete } = opts;
   const { SELECT, INSERT, UPDATE, DELETE } = cds;
 
   const findByIdMongo = (id) =>
@@ -32,7 +38,10 @@ function makeCrudHandlers(cdsEntity, Model, opts = {}) {
 
   return {
     async READ(ctx) {
-      const { db, id, top = 0, skip = 0, filter = {}, orderby = null } = ctx;
+      const { db, id, top = 0, skip = 0, orderby = null } = ctx;
+
+      if (beforeRead) await beforeRead(ctx);
+      const filter = ctx.filter || {};
 
       if (db === 'hana') {
         let q = SELECT.from(cdsEntity.name);
@@ -118,6 +127,7 @@ function makeCrudHandlers(cdsEntity, Model, opts = {}) {
       }
 
       if (!isValidObjectId(id)) { const e = new Error('ID inválido'); e.status = 400; throw e; }
+      if (beforeDelete) await beforeDelete(ctx, Model);
       const deleted = await Model.findByIdAndDelete(id)
                   || await Model.findOneAndDelete({ $expr: { $eq: [{ $toString: '$_id' }, id] } });
       if (!deleted) { const e = new Error('No encontrado'); e.status = 404; throw e; }

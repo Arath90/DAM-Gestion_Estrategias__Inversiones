@@ -19,7 +19,7 @@ entity Instruments {
       trading_class    : String;      // Clase bursatil o grupo de cotizacion definido por la bolsa.
       underlying_conid : Integer;     // CONID del subyacente, cuando aplica.
       created_at       : DateTime;    // Marca temporal de creacion en la fuente original.
-
+      // Relaciones virtuales:
       toCandles        : Composition of many Candles       on toCandles.instrument_ID = $self.ID;       // Relacion virtual a velas historicas.
       toSignals        : Composition of many Signals       on toSignals.instrument_ID = $self.ID;        // Señales generadas sobre el instrumento.
       toOrders         : Composition of many Orders        on toOrders.instrument_id = $self.ID;         // Ordenes que referencian al instrumento.
@@ -126,6 +126,23 @@ entity Signals {
 }
 
 @cds.persistence.skip
+entity StrongSignals {
+  key ID                : String;       // Identificador del registro en Cosmos DB.
+      strategy_code     : String;       // Estrategia que genero la alerta.
+      instrument_ID     : String;       // Instrumento asociado al registro.
+      divergence_type   : String;       // bullish / bearish u otra etiqueta.
+      timeframe         : String;       // Marco temporal (1h, 4h, 1D, etc.).
+      ts                : DateTime;     // Timestamp exacto de la divergencia.
+      score             : Decimal(9, 6); // Puntaje normalizado de la divergencia.
+      price_delta_pct   : Decimal(9, 6); // Variacion porcentual del precio.
+      indicator_delta_pct : Decimal(9, 6); // Variacion porcentual del indicador.
+      confidence        : Decimal(5, 3); // Nivel de confianza 0-1.
+      features_json     : LargeString;  // Payload adicional (JSON stringificado).
+      createdAt         : DateTime;     // Auditoria: creacion.
+      updatedAt         : DateTime;     // Auditoria: ultima actualizacion.
+}
+
+@cds.persistence.skip
 entity Backtests {
   key ID            : String;       // Identificador del run de backtest.
       strategy_code : String;       // Estrategia evaluada.
@@ -165,6 +182,11 @@ entity MLModels {
       trainedAt         : DateTime;    // Fecha de entrenamiento.
       metricsJson       : LargeString; // Metricas de evaluacion en formato JSON.
       featureImportance : LargeString; // Importancia de features (JSON).
+      model_type        : String;      // Clasificacion del registro (TRAINED_MODEL, DATASET_COMPONENTS, etc).
+      dataset_id        : String;      // Dataset asociado cuando aplica.
+      dataset_name      : String;      // Nombre del dataset asociado.
+      components_json   : LargeString; // Componentes/indicadores serializados.
+      metadata_json     : LargeString; // Metadata adicional (spec meta).
       createdAt         : DateTime;    // Auditoria.
       updatedAt         : DateTime;
 }
@@ -260,8 +282,22 @@ entity Strategies @cds.persistence.skip {
       capitalAllocated : Decimal(15,2);
       tags             : array of String;
       description      : LargeString;
-      params_json      : LargeString;
+      indicators       : LargeString;
+      indicator_params : LargeString;
       metrics_json     : LargeString;
       createdAt        : DateTime;
       updatedAt        : DateTime;
+}
+
+entity AlgorithmSettings @cds.persistence.skip {
+  key ID           : String;
+      user_email   : String;
+      scope_type   : String;
+      scope_ref    : String;
+      strategy_id  : String;
+      instrument_key : String;
+      interval     : String;
+      params_json  : LargeString;
+      createdAt    : DateTime;
+      updatedAt    : DateTime;
 }

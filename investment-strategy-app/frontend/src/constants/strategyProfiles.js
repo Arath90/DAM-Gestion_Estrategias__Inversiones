@@ -6,6 +6,7 @@ export const INDICATOR_TOGGLES = [
   { key: 'rsi', label: 'RSI', icon: '⚡', defaultValue: true },
   { key: 'macd', label: 'MACD', icon: '〰️', defaultValue: true },
   { key: 'signals', label: 'Señales', icon: '🎯', defaultValue: true },
+  { key: 'bollinger', label: 'Bandas de Bollinger', icon: '⭕', defaultValue: true },
 ];
 
 export const DEFAULT_INDICATOR_SETTINGS = INDICATOR_TOGGLES.reduce((acc, item) => {
@@ -54,18 +55,30 @@ export const hydrateStrategyProfile = (strategy = null) => {
     strategy?.params_bag || strategy?.paramsBag || strategy?.params || strategy?.params_json,
   );
 
+  const indicatorsFromField = toObject(strategy?.indicators);
+  // Si no hay indicadores persistidos, no activamos ninguno por defecto para evitar mostrar/usar indicadores no seleccionados.
+  const baseIndicatorDefaults = {};
+
   const indicatorSettings = {
-    ...DEFAULT_INDICATOR_SETTINGS,
+    ...baseIndicatorDefaults,
+    ...indicatorsFromField,
     ...(paramsBag.indicator_settings ||
       strategy?.indicator_settings ||
       strategy?.indicatorSettings ||
-      strategy?.indicators ||
       {}),
   };
 
-  const signalConfig = {
+  const signalConfigRaw = {
     ...DEFAULT_SIGNAL_CONFIG,
     ...(paramsBag.signal_config || strategy?.signal_config || strategy?.signalConfig || {}),
+  };
+
+  const signalConfig = {
+    ...signalConfigRaw,
+    useEMA:
+      !!indicatorSettings.ema20 && !!indicatorSettings.ema50 && (signalConfigRaw.useEMA !== false),
+    useRSI: !!indicatorSettings.rsi && (signalConfigRaw.useRSI !== false),
+    useMACD: !!indicatorSettings.macd && (signalConfigRaw.useMACD !== false),
   };
 
   return { indicatorSettings, signalConfig, paramsBag };

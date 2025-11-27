@@ -4,8 +4,10 @@ const API_BASE =
   (import.meta?.env?.VITE_BACKEND_URL && String(import.meta.env.VITE_BACKEND_URL).trim()) ||
   'http://localhost:4004';
 
+// Construye URL absoluto respetando Vite env/localhost.
 const buildUrl = (path) => `${API_BASE.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
 
+// Serializa query params ignorando vacíos para no sobrecargar la URL.
 const serializeParams = (params = {}) => {
   const searchParams = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -15,6 +17,7 @@ const serializeParams = (params = {}) => {
   return searchParams.toString().replace(/\+/g, '%20');
 };
 
+// Normaliza payloads de velas provenientes del backend a la forma requerida por Lightweight Charts.
 const normalizeCandles = (payload) => {
   if (!payload) return [];
   const rows = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
@@ -49,9 +52,19 @@ const pendingRequests = new Map();
 let lastRateLimitTime = 0;
 let rateLimitBackoffMs = 5000; // Empezar con 5 segundos
 
-export async function fetchCandles({ symbol, interval = '1hour', limit = 120, offset = 0 }) {
-  if (!symbol) throw new Error('symbol requerido');
-  
+// Pide velas históricas al backend (CAP) aplicando mapeo de intervalos, cache y backoff anti-rate-limit.
+export async function fetchCandles({
+  symbol,
+  interval = '1hour',
+  limit = 120,
+  offset = 0,
+  datasetId,
+  strategyCode,
+  from,
+  to,
+}) {
+  if (!symbol && !datasetId && !strategyCode) throw new Error('symbol o dataset/strategy requerido');
+ 
   // Mapear intervalos personalizados a intervalos soportados por la API
   const intervalMapping = {
     '15min': '15min',
@@ -87,7 +100,7 @@ export async function fetchCandles({ symbol, interval = '1hour', limit = 120, of
     }
   }
   
-  const cacheKey = `${symbol}-${interval}-${limit}-${offset}`;
+  const cacheKey = `${symbol || 'auto'}-${datasetId || 'no-ds'}-${strategyCode || 'no-strat'}-${from || 'no-from'}-${to || 'no-to'}-${interval}-${limit}-${offset}`;
   
   // 1. Verificar si hay una petición en progreso
   if (pendingRequests.has(cacheKey)) {
@@ -117,6 +130,10 @@ export async function fetchCandles({ symbol, interval = '1hour', limit = 120, of
     interval: apiInterval, // Usar el intervalo mapeado
     limit: adjustedLimit,
     offset,
+    ...(datasetId ? { dataset_id: datasetId } : {}),
+    ...(strategyCode ? { strategy_code: strategyCode } : {}),
+    ...(from ? { from } : {}),
+    ...(to ? { to } : {}),
   };
 
   const requestPromise = axios.get(buildUrl('/api/candles/prev'), {
@@ -180,6 +197,114 @@ export async function fetchCandles({ symbol, interval = '1hour', limit = 120, of
   pendingRequests.set(cacheKey, requestPromise);
   
   return requestPromise;
+}
+
+// Solicita al backend la serie MACD calculada en servidor para evitar cálculo pesado en el client.
+export async function fetchMacd({ symbol, interval = '1hour', limit = 120, fast = 12, slow = 26, signal = 9 }) {
+  if (!symbol) throw new Error('symbol requerido');
+
+  const params = {
+    symbol,
+    tf: interval,
+    limit,
+    fast,
+    slow,
+    signal,
+  };
+
+  const { data } = await axios.get(buildUrl('/api/indicators/macd'), { params, timeout: 20000 });
+
+  const mapSeries = (series = []) =>
+    Array.isArray(series)
+      ? series
+          .map((p) => ({
+            time: new Date(p.time || p.ts || 0).getTime() / 1000,
+            value: Number(p.value),
+          }))
+          .filter((p) => Number.isFinite(p.time) && Number.isFinite(p.value))
+      : [];
+
+  return {
+    macdLine: mapSeries(data?.macdLine || data?.macd || []),
+    macdSignal: mapSeries(data?.signalLine || data?.signal || []),
+    macdHistogram: mapSeries(data?.histogram || []),
+  };
+}
+
+// Calcula analytics completos (EMA/RSI/MACD/divergencias/señales) en el backend; el hook hace fallback local si falla.
+export async function fetchAnalytics(payload = {}) {
+  const { candles = [], params = {} } = payload;
+  if (!Array.isArray(candles) || candles.length === 0) {
+    throw new Error('Se requieren velas para calcular analytics');
+  }
+
+  const { data } = await axios.post(buildUrl('/api/indicators/analytics'), { candles, params }, { timeout: 30000 });
+
+const normalizeTime = (raw) => {
+  if (raw == null) return NaN;
+
+  // ISO string
+  if (typeof raw === 'string') {
+    const ms = Date.parse(raw);
+    if (!Number.isFinite(ms)) return NaN;
+    return Math.floor(ms / 1000);
+  }
+
+  if (typeof raw === 'number') {
+    // If very large, likely ms -> convert to seconds
+    if (raw > 1e12) {
+      return Math.floor(raw / 1000);
+    }
+    // Typical epoch seconds range
+    if (raw > 1e8) {
+      return raw;
+    }
+  }
+
+  return NaN;
+};
+
+const mapSeries = (series = []) =>
+  Array.isArray(series)
+    ? series
+        .map((p) => {
+          const t = normalizeTime(p.time ?? p.ts ?? null);
+          const v = Number(p.value);
+          return { time: t, value: v };
+        })
+        .filter((p) => Number.isFinite(p.time) && Number.isFinite(p.value))
+        .sort((a, b) => a.time - b.time)
+      : [];
+
+  const normalizeDivs = (divs = []) =>
+    Array.isArray(divs)
+      ? divs.map((d) => ({
+          ...d,
+          p1Index: d.p1Index,
+          p2Index: d.p2Index,
+          r1Index: d.r1Index,
+          r2Index: d.r2Index,
+        }))
+      : [];
+
+  return {
+    ema20: mapSeries(data?.ema20),
+    ema50: mapSeries(data?.ema50),
+    sma200: mapSeries(data?.sma200),
+    rsi14: mapSeries(data?.rsi14),
+    macdLine: mapSeries(data?.macdLine || data?.macd),
+    macdSignal: mapSeries(data?.macdSignal || data?.signalLine),
+    macdHistogram: mapSeries(data?.macdHistogram || data?.histogram),
+    divergences: normalizeDivs(data?.divergences),
+    signals: Array.isArray(data?.signals) ? data.signals : [],
+    tradeSignals: Array.isArray(data?.tradeSignals) ? data.tradeSignals : [],
+    appliedAlgoParams: data?.appliedAlgoParams || {},
+
+    //Nuevo codigo para el mapeo de las bandas de bollinger que estamos enviando desde el backend
+    bbMiddle: mapSeries(data?.bollingerMiddle),
+    bbUpper:  mapSeries(data?.bollingerUpper),
+    bbLower:  mapSeries(data?.bollingerLower),
+  };
 }
 
 export const DEFAULT_SYMBOLS = [

@@ -1,9 +1,15 @@
+/**
+ * ENTITY_CONFIG describe cómo se renderiza cada tabla genérica (campos visibles y cliente CRUD).
+ * Se consume en componentes administrativos para generar formularios dinámicos.
+ */
 export const ENTITY_CONFIG = {
   Instruments: {
+    // Campos clave: CONID (id oficial IBKR), símbolo y tipología para ayudar a buscar instrumentos.
     fields: ['ib_conid', 'symbol', 'sec_type', 'exchange', 'currency', 'last_trade_date', 'trading_class'],
-    api: 'InstrumentsAPI',
+    api: 'InstrumentsAPI', // Cliente CRUD que pega a /Instruments vía OData.
   },
   MLDatasets: {
+    // Atributos mínimos para describir un dataset disponible para modelos.
     fields: ['name', 'description', 'instrument_conid', 'createdAt'],
     api: 'MLDatasetsAPI',
   },

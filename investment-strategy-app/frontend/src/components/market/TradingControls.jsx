@@ -4,14 +4,21 @@ import '../../assets/css/marketComponents/TradingControls.css';
 import '../../assets/css/marketComponents/SharedMarketComponents.css';
 
 /**
- * Controles de configuración de trading y modo de ejecución
+ * Controles de configuracion de trading y modo de ejecucion
  */
-const TradingControls = ({ tradeMode, onTradeModeChange }) => {
+const TradingControls = ({
+  tradeMode,
+  onTradeModeChange,
+  onSaveStrongSignals,
+  savingStrongSignals = false,
+  canSaveStrongSignals = false,
+  strongSignalHint = '',
+}) => {
   return (
     <div className="signal-config">
       <label className="section-label">
-        <span className="label-icon">⚙️</span>
-        Configuración de ejecución
+        <span className="label-icon">??</span>
+        Configuraci?n de ejecuci?n
       </label>
       <div className="trade-mode">
         <span className="mode-label">Modo de Trading:</span>
@@ -36,6 +43,22 @@ const TradingControls = ({ tradeMode, onTradeModeChange }) => {
           Auto trading
         </label>
       </div>
+      {typeof onSaveStrongSignals === 'function' && (
+        <div className="strong-signals-control">
+          <button
+            type="button"
+            className="btn-secondary strong-signals-btn"
+            disabled={!canSaveStrongSignals || savingStrongSignals}
+            onClick={onSaveStrongSignals}
+          >
+            {savingStrongSignals ? 'Guardando strong signals...' : 'Guardar strong signals'}
+          </button>
+          <small className="strong-signals-hint">
+            {strongSignalHint ||
+              'Persiste las divergencias m?s fuertes en Cosmos DB para consulta posterior.'}
+          </small>
+        </div>
+      )}
     </div>
   );
 };

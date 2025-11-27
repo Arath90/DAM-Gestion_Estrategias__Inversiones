@@ -1,68 +1,65 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import '../assets/css/Datasets.css';
-import axios from '../config/apiClient';
+import '../assets/css/common.css';
+import { LoadingSpinner, ErrorMessage, EmptyState } from '../components/common';
+import { createBlankForm, buildFormFromData } from '../utils/formHelpers';
+import { toNumberOrNull } from '../utils/validation';
+
+import {
+  fetchDatasets as fetchDatasetsApi,
+  createDataset as createDatasetApi,
+  updateDataset as updateDatasetApi,
+  deleteDataset as deleteDatasetApi,
+  fetchDatasetModels,
+  createDatasetModel,
+  updateDatasetModel,
+  deleteDatasetModel,
+} from '../services/datasetApi';
 
 import DatasetCard from '../components/DatasetCard';
+import DatasetComponentsBuilder from '../components/DatasetComponentsBuilder';
+import {
+  DEFAULT_SPEC_META,
+  SPEC_META_FIELDS,
+  normalizeComponentList,
+  extractSpecState,
+} from '../utils/datasetSpec';
 
 const FIELD_CONFIG = [
   { name: 'name', label: 'Nombre', type: 'text', placeholder: 'Ej. SP500_Daily_Features', required: true },
   { name: 'description', label: 'Descripción', as: 'textarea', placeholder: 'Breve descripción' },
   { name: 'instrument_conid', label: 'Instrumento CONID', type: 'number', placeholder: '123456', step: '1' },
-  { name: 'spec_json', label: 'Spec JSON', as: 'textarea', placeholder: '{ "features": ["ema20", "macd"] }' },
 ];
 
-const blankForm = () =>
-  FIELD_CONFIG.reduce((acc, field) => {
-    acc[field.name] = '';
-    return acc;
-  }, {});
+const defaultSpecMeta = () => ({ ...DEFAULT_SPEC_META });
 
-const toReadableSpec = (value) => {
-  if (value == null || value === '') return '';
-  if (typeof value === 'string') return value;
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
-};
-
-const buildFormFromDataset = (item) => {
-  const base = blankForm();
-  FIELD_CONFIG.forEach(({ name }) => {
-    if (item[name] == null) return;
-    if (name === 'spec_json') {
-      base[name] = toReadableSpec(item[name]);
-    } else {
-      base[name] = String(item[name]);
-    }
-  });
+const blankForm = () => {
+  const base = createBlankForm(FIELD_CONFIG);
+  base.specMeta = defaultSpecMeta();
+  base.components = [];
   return base;
 };
 
-const parseNumber = (value) => {
-  if (value === '' || value == null) return undefined;
-  const num = Number(value);
-  return Number.isFinite(num) ? num : undefined;
+const buildFormFromDataset = (item, componentsOverride, metadataOverride) => {
+  const base = buildFormFromData(item, FIELD_CONFIG);
+  const { metadata, components } = extractSpecState(item.spec_json);
+  base.specMeta = metadataOverride ?? metadata;
+  base.components = componentsOverride ?? components;
+  return base;
 };
 
-const sanitizePayload = (form) => {
+const sanitizePayload = (form, modelRef = null) => {
   const payload = {};
   if (form.name && form.name.trim()) payload.name = form.name.trim();
   if (form.description && form.description.trim()) payload.description = form.description.trim();
 
-  const conid = parseNumber(form.instrument_conid);
+  const conid = toNumberOrNull(form.instrument_conid);
   if (conid != null) payload.instrument_conid = conid;
 
-  if (form.spec_json && form.spec_json.trim()) {
-    const trimmed = form.spec_json.trim();
-    // Validamos JSON pero siempre enviamos string para cumplir con LargeString en CAP.
-    try {
-      JSON.parse(trimmed);
-    } catch {
-      // Si no es JSON válido igual permitimos guardarlo como texto describiendo el dataset.
-    }
-    payload.spec_json = trimmed;
+  if (modelRef) {
+    payload.spec_json = JSON.stringify({ model_ref: modelRef });
+  } else {
+    payload.spec_json = JSON.stringify({});
   }
 
   return payload;
@@ -83,57 +80,81 @@ const getErrorMessage = (err, fallback) => {
   }
 };
 
-const BASE_PARAMS = { dbServer: 'MongoDB' };
-const keyFor = (id) => `(ID='${encodeURIComponent(id)}')`;
+const MODEL_TYPE = 'DATASET_COMPONENTS';
 
-const collectDataRes = (node) => {
-  if (!node || typeof node !== 'object') return [];
-  const bucket = [];
-  if (Array.isArray(node.dataRes)) bucket.push(...node.dataRes);
-  else if (node.dataRes && typeof node.dataRes === 'object') bucket.push(node.dataRes);
-  if (Array.isArray(node.data)) node.data.forEach((entry) => bucket.push(...collectDataRes(entry)));
-  return bucket;
-};
+const buildModelPayload = ({ datasetId, datasetName, components, metadata }) => ({
+  name: `${datasetName || datasetId} - components`,
+  algo: MODEL_TYPE,
+  trainedAt: new Date().toISOString(),
+  metricsJson: JSON.stringify({
+    model_type: MODEL_TYPE,
+    dataset_id: datasetId,
+    dataset_name: datasetName || '',
+    components,
+    metadata,
+  }),
+});
 
-const normalizeResponse = (payload) => {
-  if (!payload) return [];
-  if (Array.isArray(payload.value)) {
-    const collected = payload.value.flatMap(collectDataRes);
-    return collected.length ? collected : payload.value;
+const syncModelComponents = async ({
+  modelId,
+  datasetId,
+  datasetName,
+  components,
+  metadata,
+}) => {
+  const payload = buildModelPayload({
+    datasetId,
+    datasetName,
+    components,
+    metadata,
+  });
+  if (modelId) {
+    return updateDatasetModel(modelId, payload);
   }
-  const collected = collectDataRes(payload);
-  if (collected.length) return collected;
-  if (Array.isArray(payload)) return payload;
-  if (payload.data) return normalizeResponse(payload.data);
-  return [payload];
+  return createDatasetModel(payload);
 };
 
-const unwrap = (payload) => {
-  const arr = normalizeResponse(payload);
-  return Array.isArray(arr) ? arr : arr ? [arr] : [];
+const parseComponentsArray = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  if (Array.isArray(value?.components)) return value.components;
+  return [];
 };
 
-const fetchList = async () => {
-  const params = { ...BASE_PARAMS, ProcessType: 'READ', $top: 100 };
-  const { data } = await axios.get('/MLDatasets', { params });
-  return unwrap(data);
+const parseLargeJSON = (value) => {
+  if (!value) return {};
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return typeof parsed === 'object' && parsed ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  if (typeof value === 'object') return { ...value };
+  return {};
 };
 
-const createDataset = async (payload) => {
-  const params = { ...BASE_PARAMS, ProcessType: 'CREATE' };
-  const { data } = await axios.post('/MLDatasets', payload, { params });
-  return unwrap(data)[0] || payload;
-};
-
-const updateDataset = async (id, payload) => {
-  const params = { ...BASE_PARAMS, ProcessType: 'UPDATE' };
-  const { data } = await axios.patch(`/MLDatasets${keyFor(id)}`, payload, { params });
-  return unwrap(data)[0] || payload;
-};
-
-const deleteDataset = async (id) => {
-  const params = { ...BASE_PARAMS, ProcessType: 'DELETE' };
-  await axios.delete(`/MLDatasets${keyFor(id)}`, { params });
+const parseMetadataJson = (value) => {
+  if (!value) return {};
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return typeof parsed === 'object' && parsed ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  if (typeof value === 'object') return { ...value };
+  return {};
 };
 
 const Datasets = () => {
@@ -150,6 +171,9 @@ const Datasets = () => {
   const [submittingId, setSubmittingId] = useState(null);
 
   const [q, setQ] = useState('');
+  const [componentsMap, setComponentsMap] = useState({});
+  const [componentsLoading, setComponentsLoading] = useState(false);
+  const [componentsError, setComponentsError] = useState('');
 
   const emptyState = useMemo(() => !loading && items.length === 0, [items.length, loading]);
 
@@ -157,7 +181,7 @@ const Datasets = () => {
     setLoading(true);
     setError('');
     try {
-      const data = await fetchList();
+      const data = await fetchDatasetsApi();
       setItems(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(getErrorMessage(err, 'No se pudo cargar la lista.'));
@@ -166,9 +190,42 @@ const Datasets = () => {
     }
   }, []);
 
+  const loadComponents = useCallback(async () => {
+    setComponentsLoading(true);
+    setComponentsError('');
+    try {
+      const records = await fetchDatasetModels();
+      const mapped = {};
+      records.forEach((record) => {
+        const metrics = parseLargeJSON(
+          record.metricsJson || record.metrics_json || record.metrics,
+        );
+        if (metrics?.model_type !== MODEL_TYPE) return;
+        const datasetIdRaw =
+          metrics?.dataset_id ||
+          metrics?.datasetId ||
+          record.dataset_id ||
+          record.datasetId;
+        if (!datasetIdRaw) return;
+        const datasetId = String(datasetIdRaw);
+        mapped[datasetId] = {
+          modelId: record.ID || record.id,
+          components: normalizeComponentList(parseComponentsArray(metrics?.components)),
+          metadata: parseMetadataJson(metrics?.metadata),
+        };
+      });
+      setComponentsMap(mapped);
+    } catch (err) {
+      setComponentsError(getErrorMessage(err, 'No se pudieron cargar los componentes.'));
+    } finally {
+      setComponentsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadItems();
-  }, [loadItems]);
+    loadComponents();
+  }, [loadItems, loadComponents]);
 
   useEffect(() => {
     if (!expandedId) return;
@@ -176,13 +233,27 @@ const Datasets = () => {
       if (prev[expandedId]) return prev;
       const current = items.find((x) => x.ID === expandedId);
       if (!current) return prev;
-      return { ...prev, [expandedId]: buildFormFromDataset(current) };
+      const overrideComponents = componentsMap[expandedId]?.components;
+      return { ...prev, [expandedId]: buildFormFromDataset(current, overrideComponents) };
     });
-  }, [expandedId, items]);
+  }, [expandedId, items, componentsMap]);
 
   const handleToggleExpand = (id) => {
     setExpandedId((prev) => (prev === id ? null : id));
     setMessage('');
+  };
+
+  const getEditSnapshot = (forms, id, fallbackItem = null) => {
+    const sourceItem = fallbackItem || items.find((x) => x.ID === id) || {};
+    const mapEntry = componentsMap[String(id)];
+    const base =
+      forms[id] ||
+      buildFormFromDataset(sourceItem, mapEntry?.components, mapEntry?.metadata);
+    return {
+      ...base,
+      specMeta: base.specMeta || defaultSpecMeta(),
+      components: Array.isArray(base.components) ? base.components : [],
+    };
   };
 
   const handleCreateChange = (field, value) => {
@@ -190,8 +261,82 @@ const Datasets = () => {
   };
 
   const handleEditChange = (id, field, value) => {
-    setEditForms((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), [field]: value } }));
+    setEditForms((prev) => ({
+      ...prev,
+      [id]: { ...getEditSnapshot(prev, id), [field]: value },
+    }));
   };
+
+  const handleCreateMetaChange = (field, value) => {
+    setCreateForm((prev) => ({
+      ...prev,
+      specMeta: { ...(prev.specMeta || defaultSpecMeta()), [field]: value },
+    }));
+  };
+
+  const handleEditMetaChange = (id, field, value) => {
+    setEditForms((prev) => {
+      const snapshot = getEditSnapshot(prev, id);
+      return {
+        ...prev,
+        [id]: {
+          ...snapshot,
+          specMeta: { ...(snapshot.specMeta || defaultSpecMeta()), [field]: value },
+        },
+      };
+    });
+  };
+
+  const handleCreateComponentsChange = (nextComponents) => {
+    setCreateForm((prev) => ({
+      ...prev,
+      components: normalizeComponentList(nextComponents),
+    }));
+  };
+
+  const handleEditComponentsChange = (id, nextComponents) => {
+    setEditForms((prev) => {
+      const snapshot = getEditSnapshot(prev, id);
+      return {
+        ...prev,
+        [id]: {
+          ...snapshot,
+          components: normalizeComponentList(nextComponents),
+        },
+      };
+    });
+  };
+
+  const persistComponentsForDataset = useCallback(
+    async (datasetId, datasetName, specMeta, components, existingModelId = null) => {
+      if (!datasetId) return;
+      const datasetKey = String(datasetId);
+      const normalizedComponents = normalizeComponentList(components || []);
+      try {
+        const record = await syncModelComponents({
+          modelId: existingModelId,
+          datasetId: datasetKey,
+          datasetName,
+          components: normalizedComponents,
+          metadata: specMeta,
+        });
+        const resolvedId = record?.ID || record?.id || existingModelId || null;
+        setComponentsMap((prev) => ({
+          ...prev,
+          [datasetKey]: {
+            modelId: resolvedId,
+            components: normalizedComponents,
+            metadata: specMeta,
+          },
+        }));
+        return resolvedId;
+      } catch (err) {
+        console.error('No se pudo sincronizar los componentes del dataset', err);
+        throw err;
+      }
+    },
+    [],
+  );
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -206,8 +351,30 @@ const Datasets = () => {
         setSubmittingCreate(false);
         return;
       }
-      const created = await createDataset(payload);
+      const created = await createDatasetApi(payload);
       setItems((prev) => [created, ...prev]);
+      const datasetId = created.ID || created.id || created._id;
+      if (datasetId) {
+        const datasetKey = String(datasetId);
+        const modelId = await persistComponentsForDataset(
+          datasetKey,
+          created.name || payload.name || createForm.name,
+          createForm.specMeta || defaultSpecMeta(),
+          createForm.components,
+          componentsMap[datasetKey]?.modelId,
+        );
+        if (modelId) {
+          const specRef = JSON.stringify({ model_ref: modelId });
+          await updateDatasetApi(datasetId, {
+            spec_json: specRef,
+          });
+          setItems((prev) =>
+            prev.map((item) =>
+              item.ID === datasetId ? { ...item, spec_json: specRef } : item,
+            ),
+          );
+        }
+      }
       setCreateForm(blankForm());
       setShowCreate(false);
       setMessage('Dataset creado correctamente.');
@@ -227,14 +394,40 @@ const Datasets = () => {
     setMessage('');
 
     try {
-      const payload = sanitizePayload(formState);
+      const datasetKey = String(id);
+      const normalizedComponents = normalizeComponentList(formState.components);
+      const modelId = await persistComponentsForDataset(
+        datasetKey,
+        formState.name,
+        formState.specMeta || defaultSpecMeta(),
+        normalizedComponents,
+        componentsMap[datasetKey]?.modelId,
+      );
+      const payload = sanitizePayload(formState, modelId);
       if (!payload.name) {
         setError('El nombre del dataset es obligatorio.');
         setSubmittingId(null);
         return;
       }
-      const updated = await updateDataset(id, payload);
+      const updated = await updateDatasetApi(id, payload);
       setItems((prev) => prev.map((item) => (item.ID === id ? { ...item, ...updated } : item)));
+      const merged = { ...(items.find((item) => item.ID === id) || {}), ...updated };
+      setEditForms((prev) => ({
+        ...prev,
+        [id]: buildFormFromDataset(
+          merged,
+          normalizedComponents,
+          formState.specMeta || defaultSpecMeta(),
+        ),
+      }));
+      setComponentsMap((prev) => ({
+        ...prev,
+        [datasetKey]: {
+          modelId,
+          components: normalizedComponents,
+          metadata: formState.specMeta || defaultSpecMeta(),
+        },
+      }));
       setMessage('Dataset actualizado correctamente.');
     } catch (err) {
       setError(getErrorMessage(err, 'No se pudo actualizar el dataset.'));
@@ -249,11 +442,25 @@ const Datasets = () => {
     setError('');
     setMessage('');
     try {
-      await deleteDataset(id);
+      await deleteDatasetApi(id);
       setItems((prev) => prev.filter((item) => item.ID !== id));
       setEditForms((prev) => {
         const next = { ...prev };
         delete next[id];
+        return next;
+      });
+      const datasetKey = String(id);
+      const componentEntry = componentsMap[datasetKey];
+      if (componentEntry?.modelId) {
+        try {
+          await deleteDatasetModel(componentEntry.modelId);
+        } catch (err) {
+          console.error('No se pudo eliminar el modelo asociado al dataset', err);
+        }
+      }
+      setComponentsMap((prev) => {
+        const next = { ...prev };
+        delete next[datasetKey];
         return next;
       });
       if (expandedId === id) setExpandedId(null);
@@ -287,7 +494,14 @@ const Datasets = () => {
           <button className="btn-primary" type="button" onClick={() => setShowCreate((p) => !p)}>
             {showCreate ? 'Cerrar formulario' : 'Agregar dataset'}
           </button>
-          <button className="btn-secondary" type="button" onClick={loadItems}>
+          <button
+            className="btn-secondary"
+            type="button"
+            onClick={() => {
+              loadItems();
+              loadComponents();
+            }}
+          >
             Refrescar
           </button>
         </div>
@@ -307,7 +521,7 @@ const Datasets = () => {
           <div className="form-grid">
             {FIELD_CONFIG.map(({ name, label, type, placeholder, as, step }) => (
               <label key={name} className="form-field">
-                <span>{label} {name === 'name' ? '*' : ''}</span>
+                <span title={`Campo ${label}`}>{label} {name === 'name' ? '*' : ''}</span>
                 {as === 'textarea' ? (
                   <textarea
                     value={createForm[name]}
@@ -326,23 +540,57 @@ const Datasets = () => {
               </label>
             ))}
           </div>
+          <div className="spec-meta-grid">
+            <h5>Metadatos del dataset</h5>
+            <div className="form-grid">
+              {SPEC_META_FIELDS.map(({ name, label, placeholder, as }) => (
+                <label key={name} className="form-field">
+                  <span title={`Valor para ${label}`}>{label}</span>
+                  {as === 'textarea' ? (
+                    <textarea
+                      value={createForm.specMeta?.[name] ?? ''}
+                      placeholder={placeholder}
+                      onChange={(e) => handleCreateMetaChange(name, e.target.value)}
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={createForm.specMeta?.[name] ?? ''}
+                      placeholder={placeholder}
+                      onChange={(e) => handleCreateMetaChange(name, e.target.value)}
+                    />
+                  )}
+                </label>
+              ))}
+            </div>
+          </div>
+          <DatasetComponentsBuilder
+            value={createForm.components}
+            onChange={handleCreateComponentsChange}
+          />
           <button className="btn-primary" type="submit" disabled={submittingCreate}>
             {submittingCreate ? 'Guardando...' : 'Crear dataset'}
           </button>
         </form>
       )}
 
-      {loading && <div className="datasets-status">Cargando datasets...</div>}
-      {error && !loading && <div className="datasets-status error">{error}</div>}
-      {message && <div className="datasets-status success">{message}</div>}
-      {emptyState && <div className="datasets-status">Aún no hay datasets registrados.</div>}
+      {loading && <LoadingSpinner message="Cargando datasets..." />}
+      {componentsLoading && !loading && <LoadingSpinner message="Sincronizando componentes..." size="small" />}
+      {error && !loading && <ErrorMessage message={error} onDismiss={() => setError('')} />}
+      {componentsError && !loading && <ErrorMessage message={componentsError} onDismiss={() => setComponentsError('')} type="warning" />}
+      {message && <ErrorMessage message={message} type="info" onDismiss={() => setMessage('')} />}
+      {emptyState && (
+        <EmptyState
+          title="Sin datasets"
+          message="Aún no hay datasets registrados. Crea uno usando el formulario."
+          icon="📊"
+        />
+      )}
 
       <section className="datasets-list">
         {filtered.map((item, idx) => {
           const isExpanded = expandedId === item.ID;
-          const editState =
-            editForms[item.ID] ||
-            buildFormFromDataset(item);
+          const editState = getEditSnapshot(editForms, item.ID, item);
           return (
             <DatasetCard
               key={item.ID || item._id || `dataset-${idx}`}
@@ -355,6 +603,11 @@ const Datasets = () => {
               editState={editState}
               submittingId={submittingId}
               FIELD_CONFIG={FIELD_CONFIG}
+              onChangeMeta={handleEditMetaChange}
+              onChangeComponents={handleEditComponentsChange}
+              metadataFields={SPEC_META_FIELDS}
+              componentsOverride={componentsMap[item.ID]?.components}
+              metadataOverride={componentsMap[item.ID]?.metadata}
             />
           );
         })}

@@ -1,4 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import IndicatorParamsForm from './IndicatorParamsForm.jsx';
+import {
+  INDICATOR_CONFIG,
+  INDICATOR_TOGGLE_TO_CONFIG,
+  buildIndicatorDefaultParams,
+} from '../constants/indicatorConfig';
 import {
   DEFAULT_INDICATOR_SETTINGS,
   DEFAULT_SIGNAL_CONFIG,
@@ -7,6 +13,40 @@ import {
   describeIndicators,
   hydrateStrategyProfile,
 } from '../constants/strategyProfiles';
+
+const ALL_INDICATOR_TOGGLE_KEYS = INDICATOR_TOGGLES.map(({ key }) => key);
+const DEFAULT_CONFIG_KEYS = Object.keys(INDICATOR_CONFIG);
+const DEFAULT_INDICATOR_PARAM_VALUES = buildIndicatorDefaultParams();
+
+const normalizeDatasetKey = (datasetValue) => {
+  if (!datasetValue) return '';
+  if (typeof datasetValue === 'object') {
+    return String(
+      datasetValue.ID ||
+        datasetValue.id ||
+        datasetValue._id ||
+        datasetValue.value ||
+        datasetValue.name ||
+        '',
+    );
+  }
+  return String(datasetValue);
+};
+
+const deriveAllowedIndicatorKeys = (componentsMap = {}, datasetIdRaw) => {
+  const datasetId = normalizeDatasetKey(datasetIdRaw);
+  if (!datasetId) return ALL_INDICATOR_TOGGLE_KEYS;
+  const entry = componentsMap[datasetId];
+  if (entry?.indicatorKeys?.length) return entry.indicatorKeys;
+  return ALL_INDICATOR_TOGGLE_KEYS;
+};
+
+const deriveAllowedConfigKeys = (componentsMap = {}, datasetIdRaw) => {
+  const toggleKeys = deriveAllowedIndicatorKeys(componentsMap, datasetIdRaw);
+  const configKeys = toggleKeys.map((key) => INDICATOR_TOGGLE_TO_CONFIG[key]).filter(Boolean);
+  const unique = [...new Set(configKeys)];
+  return unique.length ? unique : Object.keys(INDICATOR_CONFIG);
+};
 
 const StrategyCard = ({
   item,
@@ -22,6 +62,10 @@ const StrategyCard = ({
   FIELD_CONFIG,
   datasetOptions = [],
   datasetsLoading = false,
+  datasetComponentsMap = {},
+  datasetKeyOverride,
+  allowedIndicatorKeys,
+  allowedIndicatorConfigKeys,
 }) => {
   const indicatorSettings = {
     ...DEFAULT_INDICATOR_SETTINGS,
@@ -30,6 +74,24 @@ const StrategyCard = ({
   const signalConfig = {
     ...DEFAULT_SIGNAL_CONFIG,
     ...(editState.signal_config || {}),
+  };
+
+  const mergedIndicatorParams = useMemo(
+    () => ({
+      ...DEFAULT_INDICATOR_PARAM_VALUES,
+      ...(editState.indicator_params || {}),
+    }),
+    [editState.indicator_params],
+  );
+
+  // Función para actualizar los parámetros del indicador en el estado de edición
+  const handleEditIndicatorParamChange = (id, value) => {
+    const nextParams = {
+      ...(editState.indicator_params || {}),
+      [id]: value,
+    };
+    // Llamamos al handler del padre para actualizar el estado del formulario de edición.
+    onChangeField(item.ID, 'indicator_params', nextParams);
   };
 
   const {
@@ -51,6 +113,37 @@ const StrategyCard = ({
     (typeof datasetRaw === 'object' && datasetRaw ? datasetRaw.name : '') ||
     datasetValue ||
     '-';
+
+  const derivedToggleKeys = deriveAllowedIndicatorKeys(
+    datasetComponentsMap,
+    datasetKeyOverride || editState.dataset_id || item.dataset_id,
+  );
+  const effectiveToggleKeys = (allowedIndicatorKeys && allowedIndicatorKeys.length
+    ? allowedIndicatorKeys
+    : derivedToggleKeys) || ALL_INDICATOR_TOGGLE_KEYS;
+  const filteredToggleList = INDICATOR_TOGGLES.filter(({ key }) =>
+    effectiveToggleKeys.includes(key),
+  );
+  const indicatorToggleList = filteredToggleList.length ? filteredToggleList : INDICATOR_TOGGLES;
+
+  const derivedConfigKeys = deriveAllowedConfigKeys(
+    datasetComponentsMap,
+    datasetKeyOverride || editState.dataset_id || item.dataset_id,
+  );
+  const effectiveConfigKeys = (allowedIndicatorConfigKeys && allowedIndicatorConfigKeys.length
+    ? allowedIndicatorConfigKeys
+    : derivedConfigKeys) || DEFAULT_CONFIG_KEYS;
+
+  const activeConfigKeys = useMemo(() => {
+    const settings = editState.indicator_settings || {};
+    const activeToggles = Object.entries(settings)
+      .filter(([, checked]) => !!checked)
+      .map(([key]) => INDICATOR_TOGGLE_TO_CONFIG[key])
+      .filter(Boolean);
+    const uniqueKeys = [...new Set(activeToggles)];
+    if (!effectiveConfigKeys.length) return uniqueKeys;
+    return uniqueKeys.filter((key) => effectiveConfigKeys.includes(key));
+  }, [editState.indicator_settings, effectiveConfigKeys]);
 
   return (
     <article className={`strategy-row${isExpanded ? ' expanded' : ''}`}>
@@ -76,6 +169,7 @@ const StrategyCard = ({
       {isExpanded && (
         <div className="strategy-dropdown">
           <div className="strategy-details">
+            {/* ... (Contenido de strategy-details: ID, Capital, Frecuencia, etc.) ... */}
             <div>
               <strong>ID</strong>
               <span>{item.ID}</span>
@@ -117,56 +211,107 @@ const StrategyCard = ({
               <span>{item.updated_at ? new Date(item.updated_at).toLocaleString() : '-'}</span>
             </div>
           </div>
+            <div className="strategy-visual-overview">
+            <h4>Vista general de la estrategia</h4>
+            <p style={{ color: 'var(--project-color2)' }}>
+              Esta vista muestra de forma resumida todos los elementos aplicados en la estrategia actual:
+              indicadores, señales activas y líneas clave.
+            </p>
 
+            <div className="overview-grid">
+              <div className="overview-item">
+                <h5>Indicadores activos</h5>
+                <ul>
+                  {Object.entries(persistedIndicators)
+                    .filter(([_, v]) => v)
+                    .map(([k]) => (
+                      <li key={k}>{k.toUpperCase()}</li>
+                    ))}
+                </ul>
+              </div>
+              <div className="overview-item">
+                <h5>Configuración de señales</h5>
+                <ul>
+                  <li>RSI: {persistedSignalConfig.rsiOversold} / {persistedSignalConfig.rsiOverbought}</li>
+                  <li>MACD Histograma ≥ {persistedSignalConfig.macdHistogramThreshold}</li>
+                </ul>
+              </div>
+              <div className="overview-item">
+                <h5>Estado actual</h5>
+                <p><strong>{item.status || 'Sin estado'}</strong></p>
+              </div>
+            </div>
+          </div>
           <form className="estrategia-form" onSubmit={(e) => onSubmitEdit(e, item.ID)}>
             <h4>Editar estrategia</h4>
+
+            {/* 1. CAMPOS DE TEXTO/SELECT NORMALES (FIELD_CONFIG.map) */}
             <div className="form-grid">
               {FIELD_CONFIG.map(({ name, label, type, placeholder, step, as, options }) => {
                 const isDatasetField = name === 'dataset_id';
                 const selectOptions = isDatasetField ? datasetOptions : options;
                 return (
-                <label key={name} className="form-field">
-                  <span>{label}</span>
-                  {as === 'textarea' ? (
-                    <textarea
-                      value={editState[name] ?? ''}
-                      placeholder={placeholder}
-                      onChange={(ev) => onChangeField(item.ID, name, ev.target.value)}
-                    />
-                  ) : as === 'select' ? (
-                    <>
-                      <select
+                  <label key={name} className="form-field">
+                    <span>{label}</span>
+                    {as === 'textarea' ? (
+                      <textarea
                         value={editState[name] ?? ''}
+                        placeholder={placeholder}
                         onChange={(ev) => onChangeField(item.ID, name, ev.target.value)}
-                        disabled={isDatasetField && datasetsLoading}
-                      >
-                        {(selectOptions || []).map((opt) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                      {isDatasetField && !datasetsLoading && selectOptions.length <= 1 && (
-                        <small className="form-hint">No hay datasets disponibles. Registra uno en la sección Datasets.</small>
-                      )}
-                    </>
-                  ) : (
-                    <input
-                      type={type}
-                      value={editState[name] ?? ''}
-                      {...(['text', 'number', 'email', 'password', 'search', 'tel', 'url'].includes(type) && placeholder
-                        ? { placeholder }
-                        : {})}
-                      step={step}
-                      onChange={(ev) => onChangeField(item.ID, name, ev.target.value)}
-                    />
-                  )}
-                </label>
-              );
+                      />
+                    ) : as === 'select' ? (
+                      <>
+                        <select
+                          value={editState[name] ?? ''}
+                          onChange={(ev) => onChangeField(item.ID, name, ev.target.value)}
+                          disabled={isDatasetField && datasetsLoading}
+                        >
+                          {(selectOptions || []).map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                        {isDatasetField && !datasetsLoading && selectOptions.length <= 1 && (
+                          <small className="form-hint">No hay datasets disponibles. Registra uno en la sección Datasets.</small>
+                        )}
+                      </>
+                    ) : (
+                      <input
+                        type={type}
+                        value={editState[name] ?? ''}
+                        {...(['text', 'number', 'email', 'password', 'search', 'tel', 'url'].includes(type) && placeholder
+                          ? { placeholder }
+                          : {})}
+                        step={step}
+                        onChange={(ev) => onChangeField(item.ID, name, ev.target.value)}
+                      />
+                    )}
+                  </label>
+                );
               })}
             </div>
+
+            {/* 2. FORMULARIO DINÁMICO DE INDICADOR */}
+            {activeConfigKeys.length > 0 && (
+              <div className="strategy-config-block">
+                <h5>Parámetros de indicadores seleccionados</h5>
+                {activeConfigKeys.map((configKey) => (
+                  <IndicatorParamsForm
+                    key={configKey}
+                    indicatorKey={configKey}
+                    params={mergedIndicatorParams}
+                    onParamChange={handleEditIndicatorParamChange}
+                    isEditing={true}
+                    withContainer={false}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* 3. INDICADORES VINCULADOS */}
             <div className="strategy-config-block">
               <h5>Indicadores vinculados</h5>
               <div className="indicator-toggle-grid">
-                {INDICATOR_TOGGLES.map(({ key, label, icon }) => (
+                {indicatorToggleList.map(({ key, label, icon }) => (
                   <label key={key} className="indicator-toggle">
                     <input
                       type="checkbox"
@@ -183,32 +328,17 @@ const StrategyCard = ({
                 ))}
               </div>
             </div>
-            <div className="strategy-config-block">
-              <h5>Configuración de señales</h5>
-              <div className="config-grid">
-                {STRATEGY_SIGNAL_FIELDS.map(({ key, label, step, min }) => (
-                  <label key={key}>
-                    <span>{label}</span>
-                    <input
-                      type="number"
-                      value={signalConfig[key] ?? ''}
-                      step={step ?? 'any'}
-                      min={min}
-                      onChange={(ev) =>
-                        onChangeSignalConfig(item.ID, key, ev.target.value)
-                      }
-                    />
-                  </label>
-                ))}
-              </div>
-            </div>
+
+            
+
+            {/* 4. BOTÓN DE SUBMIT */}
             <button type="submit" className="primary" disabled={submittingId === item.ID}>
               {submittingId === item.ID ? 'Guardando...' : 'Actualizar'}
             </button>
           </form>
         </div>
       )}
-    </article>
+    </article >
   );
 };
 

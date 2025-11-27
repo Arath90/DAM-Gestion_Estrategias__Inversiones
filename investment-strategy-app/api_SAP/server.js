@@ -8,15 +8,18 @@ const registerSessionAuth = require('./src/api/middlewares/sessionAuth');
 const registerAuthRoutes = require('./src/api/routes/auth.route');
 const registerPublicCandlesRoute = require('./src/api/routes/candles-public.route');
 const indicatorsRoute = require('./src/api/routes/indicators.route');
-// 1) .env y Mongo ANTES de cds.server
+const strongSignalsRoute = require('./src/api/routes/strong-signals.route');
+// 1) .env y Mongo ANTES de cds.server para que los servicios CAP usen las conexiones ya inicializadas.
 require('@dotenvx/dotenvx').config();
 require('./src/config/connectToMongoDB');
+require('./src/config/conectionToAzureCosmosDB');
 
 module.exports = async (o = {}) => {
   try {
     const app = express();
-    app.use('/api', indicatorsRoute);
-    app.use(express.json({ limit: '500kb' }));
+    app.use(express.json({ limit: '500kb' })); // parseo de JSON defensivo
+    app.use('/api', indicatorsRoute);     // indicadores técnicos y utilidades públicas
+    app.use('/api', strongSignalsRoute);  // rutas Cosmos DB para señales fuertes
     app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && 'body' in err) {
     return res.status(400).json({

@@ -1,5 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { detectSupportLevels, detectResistanceLevels } from '../utils/marketUtils';
+import { detectSupportLevels } from '../utils/marketUtils';
+import {
+  fetchResistanceLevelsFromApi,
+  detectCrestResistances,
+  findSegmentsForLevels,
+  removeChartSeries,
+  drawSupportLevels,
+  drawResistanceLevels,
+} from '../utils/supportResistanceUtils';
 
 /**
  * Hook personalizado para manejar niveles de soporte y resistencia
@@ -7,76 +15,69 @@ import { detectSupportLevels, detectResistanceLevels } from '../utils/marketUtil
 export const useSupportResistance = (candles, chartRef) => {
   const [supportLevels, setSupportLevels] = useState([]);
   const [resistanceLevels, setResistanceLevels] = useState([]);
+  const [resistanceSegments, setResistanceSegments] = useState([]);
   const seriesRef = useRef([]);
 
-  // Detectar niveles automáticamente
+  // Detectar niveles automaticamente
   useEffect(() => {
     if (!candles || !candles.length) {
       setSupportLevels([]);
       setResistanceLevels([]);
+      setResistanceSegments([]);
       return;
     }
 
-    const supports = detectSupportLevels(candles);
-    const resistances = detectResistanceLevels(candles);
+    setSupportLevels(detectSupportLevels(candles));
 
-    setSupportLevels(supports);
-    setResistanceLevels(resistances);
+    const controller = new AbortController();
+
+    const loadResistances = async () => {
+      try {
+        const resistances = await fetchResistanceLevelsFromApi(candles, controller.signal);
+        setResistanceLevels(resistances);
+        setResistanceSegments(findSegmentsForLevels(candles, resistances));
+      } catch (err) {
+        const fallbackCrests = detectCrestResistances(candles);
+        const fallbackLevels = fallbackCrests.map((crest) => crest.value);
+        setResistanceLevels(fallbackLevels);
+        setResistanceSegments(findSegmentsForLevels(candles, fallbackLevels));
+        console.debug('[Support/Resistance] Fallback resistances used:', err?.message);
+      }
+    };
+
+    loadResistances();
+
+    return () => controller.abort();
   }, [candles]);
 
-  // Dibujar líneas en el gráfico
+  // Dibujar lineas en el grafico
   useEffect(() => {
-    // Debounce para evitar redibujados constantes
     const timeoutId = setTimeout(() => {
       if (!chartRef || (!supportLevels.length && !resistanceLevels.length) || !candles.length) {
         return;
       }
-      
+
       console.log(`[Support/Resistance] Dibujando ${supportLevels.length} soportes y ${resistanceLevels.length} resistencias`);
 
       // Limpiar series anteriores
-      seriesRef.current.forEach((series) => {
-        try {
-          chartRef.removeSeries(series);
-        } catch (e) {
-          console.debug('[Support/Resistance] Error removiendo serie anterior:', e.message);
-        }
-      });
+      removeChartSeries(chartRef, seriesRef.current);
       seriesRef.current = [];
 
       try {
-        // 🔹 Soportes (líneas verdes)
-        supportLevels.forEach((level) => {
-          const lineSeries = chartRef.addLineSeries({
-            color: '#00FF00',
-            lineWidth: 2,
-            lineStyle: 2,
-            title: `Soporte ${level.toFixed(2)}`,
-          });
-          lineSeries.setData([
-            { time: candles[0].time, value: level },
-            { time: candles[candles.length - 1].time, value: level },
-          ]);
-          seriesRef.current.push(lineSeries);
-        });
+        // Dibujar soportes (lineas verdes)
+        const supportSeries = drawSupportLevels(chartRef, supportLevels, candles);
+        seriesRef.current.push(...supportSeries);
 
-        // 🔹 Resistencias (líneas rojas)
-        resistanceLevels.forEach((level) => {
-          const lineSeries = chartRef.addLineSeries({
-            color: '#FF0000',
-            lineWidth: 2,
-            lineStyle: 2,
-            title: `Resistencia ${level.toFixed(2)}`,
-          });
-          lineSeries.setData([
-            { time: candles[0].time, value: level },
-            { time: candles[candles.length - 1].time, value: level },
-          ]);
-          seriesRef.current.push(lineSeries);
-        });
+        // Dibujar resistencias (lineas rojas) graficadas sobre crestas
+        const segmentsToDraw = resistanceSegments.length
+          ? resistanceSegments
+          : findSegmentsForLevels(candles, resistanceLevels);
 
-        console.log('✅ Soportes:', supportLevels);
-        console.log('✅ Resistencias:', resistanceLevels);
+        const resistanceSeries = drawResistanceLevels(chartRef, segmentsToDraw);
+        seriesRef.current.push(...resistanceSeries);
+
+        console.log('[Support/Resistance] Soportes:', supportLevels);
+        console.log('[Support/Resistance] Resistencias:', resistanceLevels);
       } catch (e) {
         console.debug('[Support/Resistance] Error dibujando niveles:', e.message);
       }
@@ -85,20 +86,12 @@ export const useSupportResistance = (candles, chartRef) => {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [chartRef, supportLevels, resistanceLevels, candles]);
+  }, [chartRef, supportLevels, resistanceLevels, resistanceSegments, candles]);
 
   // Cleanup al desmontar
   useEffect(() => {
     return () => {
-      seriesRef.current.forEach((series) => {
-        try {
-          if (chartRef) {
-            chartRef.removeSeries(series);
-          }
-        } catch (e) {
-          console.debug('[Support/Resistance] Error en cleanup:', e.message);
-        }
-      });
+      removeChartSeries(chartRef, seriesRef.current);
       seriesRef.current = [];
     };
   }, [chartRef]);

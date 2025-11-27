@@ -18,6 +18,12 @@ import EventsTable from '../components/market/EventsTable';
 import NotificationTray from '../components/market/NotificationTray';
 
 // Hooks personalizados
+// Conjunto de símbolos por defecto para iniciar la pantalla
+//import { DEFAULT_SYMBOLS, fetchAnalytics } from '../services/marketData';
+
+// Servicio para persistir señales de trading en backend
+
+// Hook principal para cargar datos de mercado + indicadores + señales
 import { useMarketData } from '../hooks/useMarketData';
 import { useMarketCharts } from '../hooks/useMarketCharts';
 import { useStrategies } from '../hooks/useStrategies';
@@ -27,8 +33,12 @@ import { useTradeSignalNotifications } from '../hooks/useTradeSignalNotification
 
 // Constantes y configuraciones
 import { DEFAULT_SYMBOLS } from '../services/marketData';
-import { INTERVALS, TRADE_MODES } from '../constants/marketConstants';
+// Configuraciones por defecto de indicadores y se?ales de estrategias
 import { DEFAULT_INDICATOR_SETTINGS } from '../constants/strategyProfiles';
+import { DEFAULT_ALGORITHM_PARAMS } from '../constants/algorithmDefaults';
+
+// Constantes de mercados: intervalos posibles y modos de trading
+import { INTERVALS, TRADE_MODES } from '../constants/marketConstants';
 
 // Utilidades
 import { 
@@ -42,6 +52,7 @@ import {
   prepareIndicatorsForEvents
 } from '../utils/strategyConfig';
 import { buildEvents } from '../utils/events';
+import { InstrumentsAPI } from '../services/odata';
 
 // Estilos
 import '../assets/css/Mercado.css';
@@ -400,6 +411,10 @@ const Mercado = () => {
         tradeMode={tradeMode}
         onTradeModeChange={setTradeMode}
         error={error}
+        onSaveStrongSignals={handleSaveStrongSignals}
+        savingStrongSignals={savingStrongSignals}
+        canSaveStrongSignals={canSaveStrongSignals}
+        strongSignalHint={strongSignalHint}
       />
 
       {/* Contenedor de gráficos: precio, RSI y MACD */}

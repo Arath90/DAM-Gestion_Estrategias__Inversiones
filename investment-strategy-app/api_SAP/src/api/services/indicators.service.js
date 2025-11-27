@@ -30,6 +30,8 @@ const { computeMACD }          = require('./indicators/macd.service');       // 
 const { macdAlerts }           = require('./indicators/macd.alerts');        // eventos MACD (cruces, etc.)
 const { persistStrongSignalsFromDivergences } = require('./strongSignals.azureCosmos.service');
 
+const { computeBollinger } = require('./indicators/bollinger.service'); //Importamos bandas de bollinger
+
 // Modelo opcional de MongoDB para persistir señales
 const Signals = require('../models/mongodb/Signal');
 
@@ -293,6 +295,11 @@ async function analyzeIndicators(
     macdSlow   = 26,
     macdSignal = 9,
     macdSource = 'close',
+
+    // NUEVOS parámetros de Bollinger
+    bollingerPeriod = 20,
+    bollingerStdDev = 2,
+    bollingerSource = 'close',
   } = opts || {};
 
   // Guardrail mínimo: sin suficientes velas no vale la pena calcular nada.
@@ -381,6 +388,44 @@ async function analyzeIndicators(
   const macdLineSeries      = mapSeries(macd);
   const macdSignalSeries    = mapSeries(signal);
   const macdHistogramSeries = mapSeries(histogram);
+
+
+  // 🔹 3) Cálculo de Bandas de Bollinger
+  let bollingerMiddleSeries = [];
+  let bollingerUpperSeries = [];
+  let bollingerLowerSeries = [];
+
+  try {
+    const { middle, upper, lower } = computeBollinger(candles, {
+      period: bollingerPeriod,
+      stdDev: bollingerStdDev,
+      source: bollingerSource,
+    });
+
+    const mapBollingerSeries = (valuesArr) =>
+      valuesArr
+        .map((v, i) => {
+          if (v == null || !Number.isFinite(v)) return null;
+          const c = candles[i];
+          const t = c?.time ?? c?.ts ?? c?.datetime ?? null;
+          if (!t) return null;
+          return {
+            time: t,
+            value: v,
+          };
+        })
+        .filter(Boolean);
+
+    bollingerMiddleSeries = mapBollingerSeries(middle);
+    bollingerUpperSeries = mapBollingerSeries(upper);
+    bollingerLowerSeries = mapBollingerSeries(lower);
+  } catch (err) {
+    // No rompas el resto del análisis si algo sale mal
+    console.error('[indicators] Error calculando Bollinger:', err.message);
+    bollingerMiddleSeries = [];
+    bollingerUpperSeries = [];
+    bollingerLowerSeries = [];
+  }
 
   // --------------------------------------------------------------------------
   // 3️⃣ Normalización de divergencias para el frontend
@@ -490,7 +535,16 @@ async function analyzeIndicators(
       macdFast,
       macdSlow,
       macdSignal,
+      
+      // Nuevos de bollinger
+      bollingerPeriod,
+      bollingerStdDev,
+      bollingerSource,
     },
+    // 🔹 Nuevas series para el controller / frontend
+    bollingerMiddle: bollingerMiddleSeries,
+    bollingerUpper: bollingerUpperSeries,
+    bollingerLower: bollingerLowerSeries,
   };
 }
 

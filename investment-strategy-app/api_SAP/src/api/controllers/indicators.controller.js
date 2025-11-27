@@ -137,6 +137,11 @@ async function analytics(req, res) {
       signals: Array.isArray(result.signals) ? result.signals : [],
       tradeSignals: Array.isArray(result.tradeSignals) ? result.tradeSignals : [],
       appliedAlgoParams: result.appliedAlgoParams || {},
+
+      // NUEVO: Bandas de Bollinger
+      bollingerMiddle: fixSeries(result.bollingerMiddle || []),
+      bollingerUpper:  fixSeries(result.bollingerUpper  || []),
+      bollingerLower:  fixSeries(result.bollingerLower  || []),
     };
 
     // Log de diagnóstico: solo se muestra un preview pequeño para no llenar consola.
@@ -146,6 +151,10 @@ async function analytics(req, res) {
       macdSignal: response.macdSignal?.slice?.(0, 3),
       macdHistogram: response.macdHistogram?.slice?.(0, 3),
       divergences: response.divergences?.slice?.(0, 3),
+      appliedAlgoParams: response.appliedAlgoParams,
+
+      // opcional:
+      bollingerMiddle: response.bollingerMiddle?.slice?.(0, 3),
       appliedAlgoParams: response.appliedAlgoParams,
     });
 

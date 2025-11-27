@@ -4,6 +4,7 @@ const { analytics } = require('../controllers/indicators.controller');
 const { analyzeRSIAndDivergences } = require('../services/indicators.service');
 const { detectResistanceLevels } = require('../services/indicators/resistance.service');
 const { computeMACD } = require('../services/indicators/macd.service');
+const { computeBollinger } = require('../services/indicators/bollinger.service'); //bollinger
 const { fetchCandlesForInstrument } = require('../services/candlesExternal.service'); // ya lo tienes
 
 // CORS headers defensivos para llamadas directas desde el front (Vite 5173)
@@ -114,6 +115,105 @@ router.get('/indicators/macd', async (req, res) => {
   } catch (err) {
     console.error('[indicators] macd error:', err);
     res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * GET /api/indicators/bollinger
+ * Query:
+ *  - symbol   (requerido)
+ *  - tf       (timeframe, ej: 1day, 1h, 5min)
+ *  - period   (default 20)
+ *  - stdDev   (default 2)
+ *  - source   (default 'close')
+ *  - limit    (default 200)
+ */
+router.get('/indicators/bollinger', async (req, res) => {
+  try {
+    const {
+      symbol,
+      tf = '1D',
+      period,
+      stdDev,
+      source = 'close',
+      limit,
+    } = req.query;
+
+    if (!symbol) {
+      return res.status(400).json({
+        success: false,
+        message: 'El parámetro "symbol" es requerido',
+      });
+    }
+
+    const limitNum = Number(limit) || 200;
+    const periodNum = Number(period) || 20;
+    const stdDevNum = Number(stdDev) || 2;
+
+    // 1) Obtener velas del proveedor externo
+    
+    const candles = await fetchCandlesForInstrument({
+      symbol,
+      tf,
+      limit: limitNum,
+    });
+
+    if (!Array.isArray(candles) || candles.length === 0) {
+      return res.status(200).json({
+        success: true,
+        symbol,
+        tf,
+        middle: [],
+        upper: [],
+        lower: [],
+      });
+    }
+
+    // 2) Calcular Bollinger
+    const { middle, upper, lower } = computeBollinger(candles, {
+      period: periodNum,
+      stdDev: stdDevNum,
+      source,
+    });
+
+    const mapSeries = (valuesArr) =>
+      valuesArr
+        .map((v, i) => {
+          if (v == null || !Number.isFinite(v)) return null;
+          const c = candles[i];
+          const t = c?.time ?? c?.ts ?? c?.datetime ?? null;
+          if (!t) return null;
+          return {
+            time: t,
+            value: v,
+          };
+        })
+        .filter(Boolean);
+
+    const middleSeries = mapSeries(middle);
+    const upperSeries = mapSeries(upper);
+    const lowerSeries = mapSeries(lower);
+
+    return res.json({
+      success: true,
+      symbol,
+      tf,
+      params: {
+        period: periodNum,
+        stdDev: stdDevNum,
+        source,
+      },
+      middle: middleSeries,
+      upper: upperSeries,
+      lower: lowerSeries,
+    });
+  } catch (err) {
+    console.error('[Bollinger] error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Error calculando Bandas de Bollinger',
+      error: err.message,
+    });
   }
 });
 

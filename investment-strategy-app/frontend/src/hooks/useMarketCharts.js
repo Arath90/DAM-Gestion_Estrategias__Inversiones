@@ -751,6 +751,44 @@ export const useMarketCharts = ({
   }, [chartRef.current, rsiChartRef.current, macdChartRef.current]);
 
   useEffect(() => {
+    if (
+      !chartRef.current ||
+      !bbUpperSeriesRef.current ||
+      !bbMiddleSeriesRef.current ||
+      !bbLowerSeriesRef.current
+    ) {
+      return;
+    }
+
+    // Aceptar tanto settings.bollinger como settings.bb; por defecto, desactivado
+    const rawFlag = settings?.bollinger ?? settings?.bb;
+    const useBB = rawFlag === true;
+
+    // Log de diagnóstico para verificar qué está llegando
+    console.debug('[BB] useBB:', useBB, {
+      settings,
+      lenUpper: Array.isArray(bbUpper) ? bbUpper.length : 'n/a',
+      lenMiddle: Array.isArray(bbMiddle) ? bbMiddle.length : 'n/a',
+      lenLower: Array.isArray(bbLower) ? bbLower.length : 'n/a',
+    });
+
+    if (
+      useBB &&
+      Array.isArray(bbUpper) && bbUpper.length &&
+      Array.isArray(bbMiddle) && bbMiddle.length &&
+      Array.isArray(bbLower) && bbLower.length
+    ) {
+      bbUpperSeriesRef.current.setData(bbUpper);
+      bbMiddleSeriesRef.current.setData(bbMiddle);
+      bbLowerSeriesRef.current.setData(bbLower);
+    } else {
+      bbUpperSeriesRef.current.setData([]);
+      bbMiddleSeriesRef.current.setData([]);
+      bbLowerSeriesRef.current.setData([]);
+    }
+  }, [bbUpper, bbMiddle, bbLower, settings]);
+
+  useEffect(() => {
     if (!candleSeriesRef.current || !Array.isArray(candles)) return;
     
     // Verificación adicional para asegurar que el gráfico esté completamente inicializado
@@ -875,20 +913,6 @@ export const useMarketCharts = ({
         }
       } catch (e) {
         console.debug('[Charts] Error estableciendo SMA200:', e.message);
-      }
-
-      try {
-        if (settings.bb) {
-          if (bbUpperSeriesRef.current) bbUpperSeriesRef.current.setData(bbUpper || []);
-          if (bbMiddleSeriesRef.current) bbMiddleSeriesRef.current.setData(bbMiddle || []);
-          if (bbLowerSeriesRef.current) bbLowerSeriesRef.current.setData(bbLower || []);
-        } else {
-          if (bbUpperSeriesRef.current) bbUpperSeriesRef.current.setData([]);
-          if (bbMiddleSeriesRef.current) bbMiddleSeriesRef.current.setData([]);
-          if (bbLowerSeriesRef.current) bbLowerSeriesRef.current.setData([]);
-        }
-      } catch (e) {
-        console.debug('[Charts] Error estableciendo Bandas de bollinger:', e.message);
       }
   
       // Señales

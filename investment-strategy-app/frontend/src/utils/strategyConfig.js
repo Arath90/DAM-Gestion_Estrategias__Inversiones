@@ -19,19 +19,21 @@ export const getStrategyConfig = (strategy) => {
 };
 
 /**
- * Combina configuración por defecto con configuración de estrategia
+ * Combina configuración por defecto con configuración de estrategia y settings.
  * @param {Object} strategySignalConfig - Config de señales de la estrategia
  * @param {Object} settings - Configuración de indicadores activos
  * @returns {Object} - Configuración de señales combinada
  */
-export const mergeSignalConfig = (strategySignalConfig, settings) => {
+export const mergeSignalConfig = (strategySignalConfig = {}, settings = {}) => {
+  const merged = { ...DEFAULT_SIGNAL_CONFIG, ...strategySignalConfig };
+
   return {
-    ...DEFAULT_SIGNAL_CONFIG,
-    ...strategySignalConfig,
-    // Habilita uso de EMA solo si ambas (20 y 50) están activadas
-    useEMA: settings.ema20 && settings.ema50,
-    useRSI: settings.rsi,
-    useMACD: settings.macd,
+    ...merged,
+    useEMA: settings.ema20 && settings.ema50 && merged.useEMA !== false,
+    useRSI: settings.rsi && merged.useRSI !== false,
+    useMACD: settings.macd && merged.useMACD !== false,
+    // 🔹 AHORA acepta tanto settings.bollinger como settings.bb
+    useBB: (settings.bollinger ?? settings.bb) && merged.useBB !== false,
   };
 };
 

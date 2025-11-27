@@ -34,7 +34,10 @@ const EventsTable = ({
   ema50 = [],
   macdLine = [],
   macdSignal = [],
-  macdHistogram = []
+  macdHistogram = [],
+  bbMiddle = [],
+  bbUpper = [],
+  bbLower = [],
 }) => {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('events'); // 'events', 'calculation'
@@ -46,21 +49,24 @@ const EventsTable = ({
 
   // Determinar qué tabla de cálculo mostrar según indicadores activos
   const calculationType = useMemo(() => {
-    const useRSI = settings.rsi && signalConfig.useRSI !== false;
-    const useMACD = settings.macd && signalConfig.useMACD !== false;
-    const useEMA = settings.ema20 && settings.ema50 && signalConfig.useEMA !== false;
-    
-    const activeCount = [useRSI, useMACD, useEMA].filter(Boolean).length;
-    
-    // Si hay múltiples indicadores activos, mostrar tabla combinada
-    if (activeCount > 1) return 'combined';
-    
-    // Si solo hay uno activo, mostrar tabla individual
-    if (useRSI) return 'rsi';
-    if (useMACD) return 'macd';
-    if (useEMA) return 'ema';
-    return 'combined'; // Por defecto combinada
-  }, [settings, signalConfig]);
+  const useRSI = settings.rsi && signalConfig.useRSI !== false;
+  const useMACD = settings.macd && signalConfig.useMACD !== false;
+  const useEMA = settings.ema20 && settings.ema50 && signalConfig.useEMA !== false;
+  const useBB = (settings.bollinger || settings.bb) && signalConfig.useBB !== false;
+  
+  const activeCount = [useRSI, useMACD, useEMA, useBB].filter(Boolean).length;
+  
+  // Si hay múltiples indicadores activos (cualquier combinación) → tabla combinada
+  if (activeCount > 1) return 'combined';
+  
+  // Si solo hay un indicador clásico, tabla individual
+  if (useRSI) return 'rsi';
+  if (useMACD) return 'macd';
+  if (useEMA) return 'ema';
+  // Si solo hay Bollinger activo, usamos también la tabla combinada (solo columnas BB)
+  if (useBB) return 'combined';
+  return 'combined';
+}, [settings, signalConfig]);
 
   const calculationLabel = useMemo(() => {
     switch(calculationType) {
@@ -161,18 +167,21 @@ const EventsTable = ({
           {activeTab === 'calculation' && (
             <>
               {calculationType === 'combined' && (
-                <CombinedCalculationTable 
-                  candles={candles}
-                  settings={settings}
-                  signalConfig={signalConfig}
-                  ema20={ema20}
-                  ema50={ema50}
-                  rsi14={candles}
-                  macdLine={macdLine}
-                  macdSignal={macdSignal}
-                  macdHistogram={macdHistogram}
-                />
-              )}
+                  <CombinedCalculationTable 
+                    candles={candles}
+                    settings={settings}
+                    signalConfig={signalConfig}
+                    ema20={ema20}
+                    ema50={ema50}
+                    rsi14={candles} // (sigue sin usarse, se recalcula RSI manualmente)
+                    macdLine={macdLine}
+                    macdSignal={macdSignal}
+                    macdHistogram={macdHistogram}
+                    bbMiddle={bbMiddle}
+                    bbUpper={bbUpper}
+                    bbLower={bbLower}
+                  />
+                )}
               {calculationType === 'rsi' && (
                 <RsiCalculationTable candles={candles} signalConfig={signalConfig} settings={settings} />
               )}

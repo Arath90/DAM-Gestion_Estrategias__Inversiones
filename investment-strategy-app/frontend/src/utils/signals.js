@@ -13,11 +13,15 @@ export function computeSignals(candles, indicators, divergences = [], options = 
   // candles: array with { time, open, high, low, close, volume }
   // indicators: { rsi, bb: {upper, mid, lower}, macd: {macd, signal, hist}, ema20, ema50 }
   const {
-    rsiOversold = 30,
-    rsiOverbought = 70,
-    macdHistogramThreshold = 0.1,
-    minReasons = 1
-  } = options; // Mismos defaults utilizados en el backend/front.
+  useRSI = true,
+  useMACD = true,
+  useBB = true,
+  useEMA = false, // reservado
+  rsiOversold = 30,
+  rsiOverbought = 70,
+  macdHistogramThreshold = 0.1,
+  minReasons = 1,
+} = options; // Mismos defaults utilizados en el backend/front.
 
   const signals = []; // Respuesta agregada.
   const n = candles.length;
@@ -36,7 +40,7 @@ export function computeSignals(candles, indicators, divergences = [], options = 
     const prevClose = candles[i - 1]?.close;
 
     const rsiVal = indicators.rsi?.[i];
-    if (rsiVal !== undefined) {
+    if (useRSI && rsiVal !== undefined) {
       // RSI rules
       if (indicators.rsi[i - 1] < rsiOversold && rsiVal >= rsiOversold) {
         reasons.push('RSI oversold cross');
@@ -49,7 +53,7 @@ export function computeSignals(candles, indicators, divergences = [], options = 
     }
 
     // Bollinger bounce
-    if (indicators.bb) {
+    if (useBB && indicators.bb) {
       const lower = indicators.bb.lower?.[i];
       const upper = indicators.bb.upper?.[i];
       const prevLower = indicators.bb.lower?.[i - 1];
@@ -66,7 +70,7 @@ export function computeSignals(candles, indicators, divergences = [], options = 
     }
 
     // MACD cross
-    if (indicators.macd) {
+    if (useMACD && indicators.macd) {
       const macd = indicators.macd.macd;
       const signalLine = indicators.macd.signal;
       if (macd && signalLine && macd[i - 1] < signalLine[i - 1] && macd[i] > signalLine[i]) {

@@ -55,10 +55,25 @@ export const buildIndicatorsObject = ({
   macdHistogram = [],
   ema20 = [],
   ema50 = [],
+  bbMiddle = [],
+  bbUpper = [],
+  bbLower = [],
 }) => {
+  const hasBB =
+    Array.isArray(bbMiddle) &&
+    Array.isArray(bbUpper) &&
+    Array.isArray(bbLower) &&
+    (bbMiddle.length || bbUpper.length || bbLower.length);
+
   return {
     rsi: rsiValuesByIndex,
-    bb: null, // Para futuras bandas de Bollinger
+    bb: hasBB
+      ? {
+          upper: bbUpper,
+          lower: bbLower,
+          middle: bbMiddle,
+        }
+      : null,
     macd: {
       macd: macdLine.map((m) => m.value),
       signal: macdSignal.map((s) => s.value),

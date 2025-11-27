@@ -299,6 +299,11 @@ const mapSeries = (series = []) =>
     signals: Array.isArray(data?.signals) ? data.signals : [],
     tradeSignals: Array.isArray(data?.tradeSignals) ? data.tradeSignals : [],
     appliedAlgoParams: data?.appliedAlgoParams || {},
+
+    //Nuevo codigo para el mapeo de las bandas de bollinger que estamos enviando desde el backend
+    bbMiddle: mapSeries(data?.bollingerMiddle),
+    bbUpper:  mapSeries(data?.bollingerUpper),
+    bbLower:  mapSeries(data?.bollingerLower),
   };
 }
 

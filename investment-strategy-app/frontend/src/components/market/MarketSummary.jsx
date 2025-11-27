@@ -10,9 +10,28 @@ const MarketSummary = ({
   interval, 
   candles, 
   supportLevels, 
-  resistanceLevels 
+  resistanceLevels,
+  bbMiddle = [],
+  bbUpper = [],
+  bbLower = [],
+  settings = {},
 }) => {
   const intervalLabel = getIntervalLabel(interval);
+
+  const hasBollinger =
+    (settings?.bollinger ?? settings?.bb ?? false) &&
+    Array.isArray(bbMiddle) &&
+    Array.isArray(bbUpper) &&
+    Array.isArray(bbLower) &&
+    bbMiddle.length > 0;
+
+  const bollingerInfo = React.useMemo(() => {
+    if (!hasBollinger) return null;
+    const lastMiddle = bbMiddle[bbMiddle.length - 1]?.value ?? null;
+    const lastUpper = bbUpper[bbUpper.length - 1]?.value ?? null;
+    const lastLower = bbLower[bbLower.length - 1]?.value ?? null;
+    return { lastMiddle, lastUpper, lastLower };
+  }, [hasBollinger, bbMiddle, bbUpper, bbLower]);
 
   const volumeLabel = React.useMemo(() => {
     if (!candles.length) return '-';
@@ -57,6 +76,25 @@ const MarketSummary = ({
       <div>
         <strong>Volumen último:</strong> {volumeLabel}
       </div>
+      {bollingerInfo && (
+        <div className="bollinger-info">
+          <strong>Bandas de Bollinger:</strong>{' '}
+          <span>
+            Inferior:{' '}
+            {typeof bollingerInfo.lastLower === 'number'
+              ? bollingerInfo.lastLower.toFixed(2)
+              : '-'}{' '}
+            · Media:{' '}
+            {typeof bollingerInfo.lastMiddle === 'number'
+              ? bollingerInfo.lastMiddle.toFixed(2)
+              : '-'}{' '}
+            · Superior:{' '}
+            {typeof bollingerInfo.lastUpper === 'number'
+              ? bollingerInfo.lastUpper.toFixed(2)
+              : '-'}
+          </span>
+        </div>
+      )}
       {supportLevels.length > 0 && (
         <div className="support-info">
           <strong>Soportes detectados:</strong>{' '}

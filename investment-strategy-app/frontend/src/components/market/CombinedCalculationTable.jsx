@@ -15,13 +15,17 @@ const calculateCombinedData = (
   rsi14 = [],
   macdLine = [],
   macdSignal = [],
-  macdHistogram = []
+  macdHistogram = [],
+  bbMiddle = [],
+  bbUpper = [],
+  bbLower = []
 ) => {
   if (!candles || candles.length < 2) return [];
 
   const useRSI = settings.rsi && signalConfig.useRSI !== false;
   const useMACD = settings.macd && signalConfig.useMACD !== false;
   const useEMA = settings.ema20 && settings.ema50 && signalConfig.useEMA !== false;
+  const useBB = (settings.bollinger || settings.bb) && signalConfig.useBB !== false;
 
   const rsiOversold = signalConfig.rsiOversold || 30;
   const rsiOverbought = signalConfig.rsiOverbought || 70;
@@ -93,6 +97,25 @@ const calculateCombinedData = (
       }
     }
 
+    // Agregar Bandas de Bollinger si están activas
+    if (useBB) {
+      const bbMid = bbMiddle[i]?.value ?? null;
+      const bbUp = bbUpper[i]?.value ?? null;
+      const bbLow = bbLower[i]?.value ?? null;
+      row.bbMid = bbMid;
+      row.bbUp = bbUp;
+      row.bbLow = bbLow;
+
+      if (bbMid != null && bbUp != null && bbLow != null) {
+        // Reglas simples: toques en bandas
+        if (row.close <= bbLow) {
+          signals.push('BB_BUY');
+        } else if (row.close >= bbUp) {
+          signals.push('BB_SELL');
+        }
+      }
+    }
+
     // Determinar decisión final basada en consenso
     const buySignals = signals.filter(s => s.includes('_BUY')).length;
     const sellSignals = signals.filter(s => s.includes('_SELL')).length;
@@ -117,6 +140,8 @@ const calculateCombinedData = (
   return data;
 };
 
+
+//Componente
 const CombinedCalculationTable = ({
   candles = [],
   settings = {},
@@ -126,7 +151,10 @@ const CombinedCalculationTable = ({
   rsi14 = [],
   macdLine = [],
   macdSignal = [],
-  macdHistogram = []
+  macdHistogram = [],
+  bbMiddle = [],
+  bbUpper = [],
+  bbLower = [],
 }) => {
   const combinedData = useMemo(() => {
     const recentCandles = candles.slice(-100);
@@ -136,6 +164,10 @@ const CombinedCalculationTable = ({
     const recentMacdLine = macdLine.slice(-100);
     const recentMacdSignal = macdSignal.slice(-100);
     const recentMacdHist = macdHistogram.slice(-100);
+    //Bandas de BOLLINGER
+    const recentBbMiddle = bbMiddle.slice(-100);
+    const recentBbUpper = bbUpper.slice(-100);
+    const recentBbLower = bbLower.slice(-100);
 
     return calculateCombinedData(
       recentCandles,
@@ -146,13 +178,17 @@ const CombinedCalculationTable = ({
       recentRsi,
       recentMacdLine,
       recentMacdSignal,
-      recentMacdHist
+      recentMacdHist,
+      recentBbMiddle,
+      recentBbUpper,
+      recentBbLower
     );
   }, [candles, settings, signalConfig, ema20, ema50, rsi14, macdLine, macdSignal, macdHistogram]);
 
   const useRSI = settings.rsi && signalConfig.useRSI !== false;
   const useMACD = settings.macd && signalConfig.useMACD !== false;
   const useEMA = settings.ema20 && settings.ema50 && signalConfig.useEMA !== false;
+  const useBB = (settings.bollinger || settings.bb) && signalConfig.useBB !== false;
 
   if (!combinedData.length) {
     return (
@@ -177,6 +213,9 @@ const CombinedCalculationTable = ({
             {useMACD && <th className="col-val">MACD</th>}
             {useMACD && <th className="col-val">Signal</th>}
             {useMACD && <th className="col-val">Hist</th>}
+            {useBB && <th className="col-val">BB Low</th>}
+            {useBB && <th className="col-val">BB Mid</th>}
+            {useBB && <th className="col-val">BB Up</th>}
             <th className="col-reason">Razones</th>
             <th className="col-decision">Decisión</th>
           </tr>
@@ -206,6 +245,14 @@ const CombinedCalculationTable = ({
                   </td>
                 </>
               )}
+              {useBB && (
+                <>
+                  <td className="col-val">{row.bbLow != null ? row.bbLow.toFixed(4) : '-'}</td>
+                  <td className="col-val">{row.bbMid != null ? row.bbMid.toFixed(4) : '-'}</td>
+                  <td className="col-val">{row.bbUp != null ? row.bbUp.toFixed(4) : '-'}</td>
+                </>
+              )}
+
               <td className="col-reason">{row.reasons}</td>
               <td className="col-decision">
                 <span className={`decision-badge decision-${row.decision.toLowerCase()}`}>

@@ -379,8 +379,37 @@ export const useMarketData = ({
    */
 const analytics = useMemo(() => {
   if (remoteAnalytics) {
-    return remoteAnalytics;
-  }
+      // Tomamos las bandas que vengan del backend (si es que vienen)
+      let {
+        bbMiddle: remoteBbMiddle = [],
+        bbUpper: remoteBbUpper = [],
+        bbLower: remoteBbLower = [],
+      } = remoteAnalytics;
+
+      const hasRemoteBB =
+        Array.isArray(remoteBbMiddle) && remoteBbMiddle.length &&
+        Array.isArray(remoteBbUpper) && remoteBbUpper.length &&
+        Array.isArray(remoteBbLower) && remoteBbLower.length;
+
+      // Si el backend NO envía bandas de Bollinger, las calculamos localmente
+      if (!hasRemoteBB && Array.isArray(candles) && candles.length) {
+        const mergedAlgo = mergeAlgorithmParams(algoParams);
+        const bbPeriod = Number(mergedAlgo.bollingerPeriod) || 20;
+        const bbMultiplier = Number(mergedAlgo.bollingerStdDev) || 2;
+
+        const { middle, upper, lower } = calcBollingerBands(candles, bbPeriod, bbMultiplier);
+        remoteBbMiddle = middle;
+        remoteBbUpper = upper;
+        remoteBbLower = lower;
+      }
+
+      return {
+        ...remoteAnalytics,
+        bbMiddle: remoteBbMiddle,
+        bbUpper: remoteBbUpper,
+        bbLower: remoteBbLower,
+      };
+    }
 
   const { candles } = state;
   const mergedAlgo = mergeAlgorithmParams(algoParams);
@@ -400,8 +429,8 @@ const analytics = useMemo(() => {
     macdSignalPeriod,
   } = parseAlgorithmParams(mergedAlgo);
 
-  const bbPeriod = Number.isFinite(mergedAlgo.bbPeriod) ? mergedAlgo.bbPeriod : 20; // <<< BB ADDED
-  const bbMultiplier = Number.isFinite(mergedAlgo.bbMultiplier) ? mergedAlgo.bbMultiplier : 2; // <<< BB ADDED
+  const bbPeriod = Number(mergedAlgo.bollingerPeriod) || 20;
+  const bbMultiplier = Number(mergedAlgo.bollingerStdDev) || 2;
 
   // Calcular indicadores técnicos
   const ema20 = calcEMA(candles, emaFastPeriod);
@@ -428,6 +457,16 @@ const analytics = useMemo(() => {
   }
   const { middle: bbMiddle = [], upper: bbUpper = [], lower: bbLower = [] } =
     calcBollingerBands(candles, bbPeriod, bbMultiplier);
+  
+  // Alinear las bandas por índice de vela (igual que el RSI)
+  const alignSeriesWithCandles = (candles, series = []) => {
+    const map = new Map(series.map((p) => [p.time, p.value]));
+    return candles.map((c) => map.get(c.time));
+  };
+
+const bbMiddleByIndex = alignSeriesWithCandles(candles, bbMiddle);
+const bbUpperByIndex  = alignSeriesWithCandles(candles, bbUpper);
+const bbLowerByIndex  = alignSeriesWithCandles(candles, bbLower);
 
   // Extraer series de precios y alinear RSI
   const { priceHighSeries, priceLowSeries } = extractPriceSeries(candles);
@@ -445,18 +484,15 @@ const analytics = useMemo(() => {
     macdHistogram,
     ema20,
     ema50,
-    bbMiddle,
-    bbUpper,
-    bbLower,
+    bbMiddle: bbMiddleByIndex,
+    bbUpper:  bbUpperByIndex,
+    bbLower:  bbLowerByIndex,
   });
 
   // Generar señales de trading
   const computedSignals =
     computeSignals(candles, indicators, divergences, {
-      rsiOversold: signalConfig.rsiOversold,
-      rsiOverbought: signalConfig.rsiOverbought,
-      macdHistogramThreshold: signalConfig.macdHistogramThreshold,
-      minReasons: signalConfig.minReasons,
+      ...signalConfig,
     }) || [];
 
   // Enriquecer señales con contexto
